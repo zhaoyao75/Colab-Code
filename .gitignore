@@ -8,3 +8,4 @@ narrated/*.wav
 narrated/stills/
 narrated/.seg_*
 narrated/.segs.txt
+narrated/.x264*
