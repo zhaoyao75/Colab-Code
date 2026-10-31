@@ -15,7 +15,8 @@ from scipy.io import wavfile
 
 SR = 44100
 DEMO = len(sys.argv) > 1 and sys.argv[1] == "demo"
-OUT = "redline_demo" if DEMO else "redline"
+DOUYIN = "douyin" in sys.argv        # 抖音版：尾声延长 4 小节（6.4 秒），画面从起跑灯亮起处（5.6 秒）开始后总长仍是 128 秒
+OUT = "redline_demo" if DEMO else ("redline_douyin" if DOUYIN else "redline")
 BPM = 150
 BEAT = 60 / BPM          # 0.4 s
 BAR = 4 * BEAT           # 1.6 s
@@ -41,7 +42,7 @@ if DEMO:
 else:
     PLAN = [("intro", 8), ("verse", 8), ("verse2", 8), ("build", 8),
             ("chorus", 8), ("chorus2", 8), ("breakdown", 8), ("build2", 8),
-            ("climax", 8), ("outro", 8)]
+            ("climax", 8), ("outro", 12 if DOUYIN else 8)]
 SECS = []
 for name, n in PLAN:
     SECS += [(name, k) for k in range(n)]
@@ -332,7 +333,7 @@ for b, (sec, k) in enumerate(SECS):
     sec_len = dict(PLAN)[sec]
     last_bar = k == sec_len - 1
     big = sec in ("chorus", "chorus2", "climax")
-    out_fade = max(0.0, 1 - k / 8) if sec == "outro" else 1.0
+    out_fade = max(0.0, 1 - k / (12 if DOUYIN else 8)) if sec == "outro" else 1.0
 
     # ---- 引擎呼啸 / 上升音效 / 冲击
     if (sec == "intro" and k in (0, 6)) or (sec == "lead_in" and k == 0) or (sec == "outro" and k == 5):
@@ -443,9 +444,9 @@ for b, (sec, k) in enumerate(SECS):
     # ---- 主旋律
     if sec in ("verse", "verse2", "chorus", "chorus2", "breakdown", "climax", "outro"):
         phrase = HOOK_END if (sec == "outro" or (DEMO and sec == "chorus")) else HOOK
-        pb = phrase[k]
+        pb = phrase[k] if k < len(phrase) else None
         if sec == "outro":
-            pb = HOOK_END[4 + k] if k < 4 else OUTRO_TAIL[k - 4]
+            pb = HOOK_END[4 + k] if k < 4 else (OUTRO_TAIL[k - 4] if k < 8 else None)
         if pb:
             for t, note, length in bar_notes(pb, t0, tr):
                 f = hz(note)
@@ -478,7 +479,7 @@ for b, (sec, k) in enumerate(SECS):
     if sec == "outro" and k == 7:     # 结尾重击
         pass
 if not DEMO:
-    t_end = (BARS - 4) * BAR
+    t_end = 76 * BAR              # 冲线重击固定在 121.6 秒（抖音版 BARS 更大，不能再用 BARS-4）
     add("boom", t_end, boom(), 0.6)
     add("braam", t_end, braam(m("D2"), BAR * 3), 0.2)
     add("crash", t_end, crash(), 0.3)

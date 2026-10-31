@@ -17,12 +17,14 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from scipy.ndimage import gaussian_filter, zoom
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-PORTRAIT = "--portrait" in sys.argv      # 抖音竖版：720x1280（最后用 ffmpeg 升到 1080x1920）
+DOUYIN = "--douyin" in sys.argv          # 抖音版：竖版 + 从起跑灯亮起处（场景 5.6 秒）开始，总长仍 128 秒（尾声延长）
+START_OFF = 5.6 if DOUYIN else 0.0
+PORTRAIT = "--portrait" in sys.argv or DOUYIN      # 抖音竖版：720x1280（最后用 ffmpeg 升到 1080x1920）
 OW, OH = (720, 1280) if PORTRAIT else (1280, 720)   # 输出分辨率
 SS = 1.0                      # 环境超采样倍数
 RW, RH = int(OW * SS), int(OH * SS)
 FPS = 30
-AUDIO = os.path.join(HERE, "..", "music", "redline.mp3")
+AUDIO = os.path.join(HERE, "..", "music", "redline_douyin.mp3" if DOUYIN else "redline.mp3")
 LETTER = 0 if PORTRAIT else 88   # 横版：2.39:1 宽银幕黑边（像素）；竖版不加
 
 # 相机 / 场景（单位：米）
@@ -55,12 +57,12 @@ SEC = 12.8   # 8 小节
 def speed_at(t):      # 米/秒：起跑 0 → 加速 → 比赛 → 终点前收一收让白旗看得清 → 冲线后减速
     keys = [(0, 0), (9.6, 0), (10.8, 38), (12.8, 80), (25, 92), (38.4, 100), (50.9, 106), (52.4, 128),
             (76.8, 122), (80, 78), (89.6, 84), (101.5, 100), (102.4, 150), (115.2, 140), (117, 92),
-            (119, 84), (121.6, 105), (122.8, 70), (128, 38)]
+            (119, 84), (121.6, 105), (122.8, 70), (128, 38), (133.6, 12)]
     xs, ys = zip(*keys)
     return float(np.interp(t, xs, ys))
 
 
-_TT = np.linspace(0, 130, 13001)
+_TT = np.linspace(0, 140, 14001)
 _PH = np.concatenate([[0], np.cumsum([speed_at(x) * 0.01 for x in _TT[:-1]])])
 
 
@@ -801,7 +803,7 @@ def hud_layer(t):
     for te, ps in POS_EVENTS:
         if t >= te:
             pos, t_ev = ps, te
-    if t < 5.4:
+    if t < (START_OFF + 4.4 if DOUYIN else 5.4):          # 抖音版：标题淡出后再出名次
         return None
     im = Image.new("RGBA", (OW, OH), (0, 0, 0, 0))
     d = ImageDraw.Draw(im)
@@ -812,11 +814,16 @@ def hud_layer(t):
     lab = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 26)
     d.text((44, 206), "WINNER" if t >= T_FIN else "POSITION", font=lab, fill=(205, 205, 212, 255), anchor="lm")
     d.text((40, 290), "P%d" % pos, font=big, fill=col, anchor="lm", stroke_width=4, stroke_fill=(20, 10, 8, 255))
-    return np.asarray(im).astype(np.float32) / 255
+    arr_ = np.asarray(im).astype(np.float32) / 255
+    arr_[..., 3] *= 1 - float(smooth(t, 122.4, 123.2))            # 片名再现前淡出，避免重叠
+    return arr_
 
 
 def title_alpha(t, total):
     """片头标题在起跑灯亮起前淡出；结尾冲线后出现"""
+    if DOUYIN:                                                     # 视频一开始就是起跑灯：标题 0.1–4.2 秒
+        tv = t - START_OFF
+        return float(smooth(tv, 0.1, 0.6) * (1 - smooth(tv, 3.4, 4.2)) + smooth(t, 123.0, 124.6))
     return float(smooth(t, 0.8, 2.2) * (1 - smooth(t, 4.0, 5.2)) + smooth(t, 123.0, 124.6))
 
 
@@ -913,7 +920,7 @@ def frame(t, layers, total=128.0, pulse=0.0):
 def audio_pulse(nf):
     """每帧的音频瞬态强度（0~1）：底鼓/重音一响，尾灯和泛光就闪一下"""
     from scipy.io import wavfile
-    wav = os.path.join(HERE, "..", "music", "redline.wav")
+    wav = os.path.splitext(AUDIO)[0] + ".wav"
     if not os.path.exists(wav):
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", AUDIO, wav], check=True)
     sr, x = wavfile.read(wav)
@@ -936,9 +943,10 @@ T0, DUR = 0.0, TOTAL
 
 
 def render_frame(i):
-    t = T0 + i / FPS
+    t = T0 + i / FPS + START_OFF                         # 场景时间（抖音版比成片时间晚 5.6 秒）
     img = frame(t, LAYERS, TOTAL, float(PULSE[min(int(t * FPS), len(PULSE) - 1)])).astype(np.float32)
-    fade = min(1.0, (i + 1) / (FPS * 0.5), (DUR * FPS - i) / (FPS * (3.0 if DUR == TOTAL else 0.6)))
+    fade_in = FPS * (0.1 if DOUYIN else 0.5)
+    fade = min(1.0, (i + 1) / fade_in, (DUR * FPS - i) / (FPS * (3.0 if DUR == TOTAL else 0.6)))
     return (img * max(0.0, fade)).astype(np.uint8)
 
 
@@ -974,15 +982,15 @@ def main():
             Image.fromarray(frame(t, LAYERS)).save(os.path.join(HERE, "race_still_%s%g.png" % (pre, t)))
             print("saved race_still_%s%g.png" % (pre, t))
         return
-    out = os.path.join(HERE, "redline_portrait.mp4" if PORTRAIT else "redline.mp4")
+    out = os.path.join(HERE, "redline_douyin_720.mp4" if DOUYIN else ("redline_portrait.mp4" if PORTRAIT else "redline.mp4"))
     if "--demo" in sys.argv:            # --demo 起始秒 时长
         k = sys.argv.index("--demo")
         T0, DUR = float(sys.argv[k + 1]), float(sys.argv[k + 2])
         out = os.path.join(HERE, "redline_demo.mp4")
-    PULSE = audio_pulse(int(TOTAL * FPS) + 1)
+    PULSE = audio_pulse(int((TOTAL + START_OFF + 1) * FPS) + 1)
     nf = int(round(DUR * FPS))
     workers = os.cpu_count() or 4
-    tag = ("demo" if "--demo" in sys.argv else "full") + ("_p" if PORTRAIT else "")
+    tag = ("demo" if "--demo" in sys.argv else "full") + ("_pd" if DOUYIN else ("_p" if PORTRAIT else ""))
     CH = 120
     jobs = [(k, i0, min(nf, i0 + CH), tag) for k, i0 in enumerate(range(0, nf, CH))]
     done = sum(os.path.exists(os.path.join(HERE, f".seg_{tag}_{k:03d}.mp4")) for k, *_ in jobs)
@@ -992,9 +1000,9 @@ def main():
     lst = os.path.join(HERE, ".segs.txt")
     with open(lst, "w") as fh:
         fh.writelines(f"file '{x}'\n" for x in segs)
-    afade = f"afade=t=in:d=0.3,afade=t=out:st={DUR - 0.6}:d=0.6" if DUR < TOTAL else ""
+    afade = f"afade=t=in:d=0.3,afade=t=out:st={DUR - 0.6}:d=0.6" if DUR < TOTAL else ("afade=t=in:d=0.15" if DOUYIN else "")
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", lst,
-                    "-ss", str(T0), "-i", AUDIO, "-map", "0:v", "-map", "1:a", "-c:v", "copy"]
+                    "-ss", str(T0 + START_OFF), "-i", AUDIO, "-map", "0:v", "-map", "1:a", "-c:v", "copy"]
                    + (["-af", afade] if afade else [])
                    + ["-c:a", "aac", "-b:a", "192k", "-t", str(DUR), "-movflags", "+faststart", out], check=True)
     for x in segs + [lst]:
