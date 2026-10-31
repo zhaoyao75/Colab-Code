@@ -9,8 +9,8 @@ TITLE_EN = "Zhengzhou: Centre of Heaven and Earth"
 # (场景 id, [(中文, English), ...])
 SCENES = [
     ("river", [
-        ("黄河流过邙山脚下，从这里进入下游，奔向平原。",
-         "The Yellow River flows past Mount Mang, entering its lower reaches here on its way to the plain."),
+        ("黄河流过邙山脚下，奔向平原。",
+         "The Yellow River flows past Mount Mang and on toward the plain."),
         ("这片中原腹地，就是郑州。",
          "This heartland of the Central Plains is Zhengzhou."),
         ("它的故事，要从八千年前说起。",
