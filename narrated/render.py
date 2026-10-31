@@ -7,6 +7,8 @@
   python3 render.py --sheet               每个场景取一帧，拼成一张预览图 preview_sheet.png
   python3 render.py --demo 28 40          渲染 28–40 秒的小样 demo.mp4（含声音）
   python3 render.py                       完整版 zhengzhou_full.mp4（4 进程并行）
+  python3 render.py --vstill 7 40          抖音竖版静帧
+  python3 render.py --vertical            抖音竖版 zhengzhou_douyin.mp4（1080×1920）
 """
 import json
 import math
@@ -1377,30 +1379,152 @@ def scene_frame(k, t):
     return RENDER[s["id"]](t, t - s["start"])
 
 
-def frame_at(t):
+def scene_mix(t):
+    """当前时刻的场景画面（含交叉淡化，不含字幕 / 标签 / 标题）"""
     k = max(i for i, s in enumerate(SC) if s["start"] <= t) if t >= 0 else 0
     img = scene_frame(k, t)
-    # 与下一场景 / 上一场景交叉淡化
     if k + 1 < len(SC) and t > SC[k + 1]["start"] - XF / 2:
         w = ease(t, SC[k + 1]["start"] - XF / 2, SC[k + 1]["start"] + XF / 2)
         img = img * (1 - w) + scene_frame(k + 1, t) * w
     elif k > 0 and t < SC[k]["start"] + XF / 2:
         w = ease(t, SC[k]["start"] - XF / 2, SC[k]["start"] + XF / 2)
         img = scene_frame(k - 1, t) * (1 - w) + img * w
-    img = overlays(img.astype(np.float32), t)
+    return img.astype(np.float32)
+
+
+def frame_at(t):
+    img = overlays(scene_mix(t), t)
     img *= ease(t, 0, 1.0) * (1 - ease(t, LENGTH - 2.0, LENGTH - 0.1))
     return to_u8(img)
 
 
+# ================================================================ 抖音竖版 1080×1920（横转竖）
+VW, VH = 1080, 1920
+VY = 640                       # 横屏画面在竖屏中的顶端位置
+VIDH = VW * H // W             # 608
+SUB_W = 900                    # 字幕最大宽度（避开抖音右侧按钮）
+
+
+def wrap_zh(txt, f, maxw):
+    if f.getlength(txt) <= maxw:
+        return [txt]
+    cuts = [i + 1 for i, ch in enumerate(txt) if ch in "，；：、" and 0 < i < len(txt) - 2]
+    if cuts:
+        mid = len(txt) / 2
+        c = min(cuts, key=lambda i: abs(i - mid))
+        return [txt[:c], txt[c:]]
+    return [txt[:len(txt) // 2], txt[len(txt) // 2:]]
+
+
+def wrap_en(txt, f, maxw):
+    lines, cur = [], ""
+    for w in txt.split():
+        trial = (cur + " " + w).strip()
+        if f.getlength(trial) <= maxw or not cur:
+            cur = trial
+        else:
+            lines.append(cur)
+            cur = w
+    lines.append(cur)
+    return lines
+
+
+def multiline_sprite(lines, style, size, fill, stroke, gap):
+    sps = [text_sprite(l, style, size, fill=fill, stroke=stroke, stroke_fill=(0, 0, 0, 210), shadow=3) for l in lines]
+    w = max(s.w for s in sps)
+    h = sum(s.h for s in sps) + gap * (len(sps) - 1)
+    out = Sprite.__new__(Sprite)
+    out.rgb = np.zeros((h, w, 3), np.float32)
+    out.a = np.zeros((h, w), np.float32)
+    out.h, out.w = h, w
+    y = 0
+    for s in sps:
+        x = (w - s.w) // 2
+        out.rgb[y:y + s.h, x:x + s.w] = s.rgb
+        out.a[y:y + s.h, x:x + s.w] = s.a
+        y += s.h + gap
+    return out
+
+
+@lru_cache(None)
+def v_sub_sprites(i):
+    s = SUBS[i]
+    zh = multiline_sprite(wrap_zh(s["zh"], font(SANS_BOLD, 58), SUB_W), SANS_BOLD, 58, (255, 255, 255), 3, -6)
+    en = multiline_sprite(wrap_en(s["en"], font(SANS, 34), SUB_W), SANS, 34, (235, 235, 235), 2, -8)
+    return zh, en
+
+
+@lru_cache(None)
+def v_title_sprites():
+    t = text_sprite(TITLE_ZH, SERIF_BLACK, 104, fill=(255, 232, 190), shadow=6)
+    e = text_sprite(TITLE_EN, SERIF_BOLD, 36, fill=(235, 225, 210), shadow=4)
+    return t, e, seal_sprite("中原", 70)
+
+
+@lru_cache(None)
+def v_label_sprites(sid):
+    seal, zh, en, _ = LABELS[sid]
+    return seal_sprite(seal, 60), text_sprite(zh, SERIF_BOLD, 40, fill=(245, 235, 220), shadow=3), \
+        text_sprite(en, SANS, 26, fill=(215, 210, 200), shadow=3)
+
+
+def frame_vertical(t):
+    img = scene_mix(t)
+    src = Image.fromarray(to_u8(img))
+    # 背景：当前画面放大、虚化、压暗后铺满
+    small = src.resize((192, 108), Image.BILINEAR)
+    cw = 108 * VW / VH
+    small = small.crop((96 - cw / 2, 0, 96 + cw / 2, 108)).resize((54, 96), Image.BILINEAR)
+    bg = small.filter(ImageFilter.GaussianBlur(3)).resize((VW, VH), Image.BICUBIC)
+    canvas = np.asarray(bg, np.float32) / 255 * 0.42
+    yy = np.linspace(0, 1, VH, dtype=np.float32)[:, None, None]
+    canvas *= 0.75 + 0.25 * np.exp(-((yy - 0.5) / 0.35) ** 2)
+    # 中间：完整横屏画面 + 细金边 + 投影
+    main = np.asarray(src.resize((VW, VIDH), Image.LANCZOS), np.float32) / 255
+    canvas[VY - 18:VY] *= np.linspace(1, 0.55, 18, dtype=np.float32)[:, None, None]
+    canvas[VY + VIDH:VY + VIDH + 18] *= np.linspace(0.55, 1, 18, dtype=np.float32)[:, None, None]
+    canvas[VY:VY + VIDH] = main
+    canvas[VY - 2:VY] = canvas[VY + VIDH:VY + VIDH + 2] = GOLD * 0.75
+    # 上方：常驻标题（结尾场景自带标题时让位）+ 章节标签
+    t_end = subs_of(len(SC) - 1)[2]["start"] - 0.3
+    ta = ease(t, 0.6, 2.0) * (1 - ease(t, t_end - 0.5, t_end + 0.5))
+    ts, es, seal = v_title_sprites()
+    paste(canvas, ts, VW / 2 - 20, 250, alpha=ta, center=True)
+    paste(canvas, es, VW / 2, 340, alpha=ta, center=True)
+    paste(canvas, seal, VW / 2 - 20 + ts.w / 2 + 48, 236, alpha=ta, center=True)
+    for s in SC:
+        if s["id"] in LABELS and s["start"] - 0.5 < t < s["end"] + 0.5:
+            a = fade(t, s["start"] + 0.4, s["end"] - 0.2, 0.8, 0.6)
+            sl, zh, en = v_label_sprites(s["id"])
+            wtot = sl.w + 18 + max(zh.w, en.w)
+            x0 = (VW - wtot) / 2
+            paste(canvas, sl, x0, 470, alpha=a)
+            paste(canvas, zh, x0 + sl.w + 18, 462, alpha=a)
+            paste(canvas, en, x0 + sl.w + 20, 462 + zh.h, alpha=a)
+    # 下方：中英字幕
+    for i, s in enumerate(SUBS):
+        nxt = SUBS[i + 1]["start"] if i + 1 < len(SUBS) else LENGTH
+        end = min(s["end"] + 0.3, nxt - 0.05)
+        if s["start"] - 0.15 < t < end:
+            a = fade(t, s["start"] - 0.12, end, 0.12, 0.15)
+            zh, en = v_sub_sprites(i)
+            y = VY + VIDH + 80
+            paste(canvas, zh, (VW - zh.w) / 2, y, alpha=a)
+            paste(canvas, en, (VW - en.w) / 2, y + zh.h + 16, alpha=a)
+    canvas *= ease(t, 0, 1.0) * (1 - ease(t, LENGTH - 2.0, LENGTH - 0.1))
+    return to_u8(canvas)
+
+
 # ================================================================ 输出
 def encode(args):
-    f0, f1, path = args
-    cmd = ["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}",
+    f0, f1, path, vert = args
+    fn, size = (frame_vertical, f"{VW}x{VH}") if vert else (frame_at, f"{W}x{H}")
+    cmd = ["ffmpeg", "-y", "-v", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", size,
            "-r", str(FPS), "-i", "-", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
            "-pix_fmt", "yuv420p", path]
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
     for i in range(f0, f1):
-        p.stdin.write(frame_at(i / FPS).tobytes())
+        p.stdin.write(fn(i / FPS).tobytes())
         if (i - f0) % 150 == 0:
             print(f"  {path}: {i - f0}/{f1 - f0}", flush=True)
     p.stdin.close()
@@ -1408,10 +1532,10 @@ def encode(args):
     return path
 
 
-def render_range(t0, t1, out, procs=4):
+def render_range(t0, t1, out, procs=4, vert=False):
     f0, f1 = int(t0 * FPS), int(t1 * FPS)
     step = math.ceil((f1 - f0) / procs)
-    jobs = [(a, min(a + step, f1), f".seg_{i}.mp4") for i, a in enumerate(range(f0, f1, step))]
+    jobs = [(a, min(a + step, f1), f".seg_{i}.mp4", vert) for i, a in enumerate(range(f0, f1, step))]
     with Pool(len(jobs)) as pool:
         segs = pool.map(encode, jobs)
     with open(".segs.txt", "w") as f:
@@ -1443,6 +1567,13 @@ if __name__ == "__main__":
             sheet.paste(tile, (10 + (i % 3) * 650, 10 + (i // 3) * 370))
         sheet.save("preview_sheet.png")
         print("preview_sheet.png", [round(x, 1) for x in times])
+    elif a and a[0] == "--vstill":
+        os.makedirs("stills", exist_ok=True)
+        for ts in a[1:]:
+            Image.fromarray(frame_vertical(float(ts))).save(f"stills/vstill_{float(ts):06.2f}.png")
+            print("stills/v", ts)
+    elif a and a[0] == "--vertical":
+        render_range(0, LENGTH, "zhengzhou_douyin.mp4", vert=True)
     elif a and a[0] == "--demo":
         render_range(float(a[1]), float(a[2]), "demo.mp4")
     else:
