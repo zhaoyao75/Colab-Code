@@ -78,12 +78,18 @@ _X, _Y = np.meshgrid(np.arange(RW, dtype=np.float32) + 0.5, np.arange(RH, dtype=
 
 def sky(dx, dy, heading):
     h = np.clip(dy * 2.2, 0, 1)
-    top = np.array([0.02, 0.03, 0.08])
-    mid = np.array([0.16, 0.08, 0.20])
-    hor = np.array([0.95, 0.42, 0.16])
+    top = np.array([0.004, 0.006, 0.016])
+    mid = np.array([0.012, 0.016, 0.04])
+    hor = np.array([0.07, 0.06, 0.09])     # 城市光晕
     c = np.where(h[..., None] < 0.18, hor + (mid - hor) * (h[..., None] / 0.18),
                  mid + (top - mid) * np.clip((h[..., None] - 0.18) / 0.6, 0, 1) ** 0.7)
     c = c * (0.85 + 0.15 * np.exp(-((dx + 0.15) / 0.5) ** 2))[..., None]
+    # 星星（固定在天空，随赛道方向缓慢平移）
+    sx = np.floor((np.arctan(dx) * 180 + heading) * 6).astype(np.int64)
+    sy = np.floor(dy * 1100).astype(np.int64)
+    hsh = (np.sin(sx * 12.9898 + sy * 78.233) * 43758.5453) % 1
+    star = (hsh > 0.9965) & (dy > 0.06)
+    c = c + (star * ((hsh - 0.9965) / 0.0035) ** 2)[..., None] * np.array([0.8, 0.85, 1.0]) * 1.2
     # 城市天际线
     ang = np.arctan(dx) * 180 + heading
     cell = np.floor(ang / 2.3)
@@ -92,8 +98,8 @@ def sky(dx, dy, heading):
     hgt = np.where(tower, hgt + 0.028, hgt)
     bld = dy < hgt
     win = ((np.floor(ang * 9) % 2 == 0) & (np.floor(dy * 420) % 3 == 0)
-           & ((np.sin(np.floor(ang * 9) * 3.1 + np.floor(dy * 420) * 7.7) * 999 % 1) > 0.55))
-    bcol = np.array([0.025, 0.02, 0.04]) + win[..., None] * np.array([0.9, 0.62, 0.3]) * 0.55
+           & ((np.sin(np.floor(ang * 9) * 3.1 + np.floor(dy * 420) * 7.7) * 999 % 1) > 0.35))
+    bcol = np.array([0.012, 0.012, 0.02]) + win[..., None] * np.array([0.95, 0.7, 0.4]) * 0.6
     c = np.where(bld[..., None], bcol, c)
     return c
 
@@ -146,9 +152,9 @@ def env(t, phase, curv, mask_shift=0.0):
     # 灯光照明 + 掠射反光（湿润感）
     L = lamp_light(u, s)
     fres = np.clip(1 - (-dy) * 6, 0, 1) ** 3
-    col = col * (0.22 + 2.6 * L)[..., None] + fres[..., None] * np.array([0.55, 0.3, 0.16]) * 0.45
+    col = col * (0.22 + 2.6 * L)[..., None] + fres[..., None] * np.array([0.1, 0.12, 0.18]) * 0.45
     fog = np.exp(-z / 260)[..., None]
-    col = col * fog + np.array([0.6, 0.3, 0.14]) * (1 - fog)
+    col = col * fog + np.array([0.05, 0.05, 0.07]) * (1 - fog)
     img = np.where(g[..., None] & (tg < 4999)[..., None], col, img)
 
     # 护墙 / 防护网 / 灯柱（两侧竖直曲面）
@@ -187,7 +193,7 @@ def env(t, phase, curv, mask_shift=0.0):
     wall_c = np.where(band[..., None], wall_c * 0.4 + 0.55, wall_c)
     Lw = lamp_light(np.full_like(tw, WALL - 1.5) * best_side, sw)
     wall_c = wall_c * (0.12 + 0.55 * Lw)[..., None]
-    wall_c = wall_c * fogw + np.array([0.6, 0.3, 0.14]) * (1 - fogw)
+    wall_c = wall_c * fogw + np.array([0.05, 0.05, 0.07]) * (1 - fogw)
     is_wall = vis & (yw <= WALL_H)
     img = np.where(is_wall[..., None], wall_c, img)
     led = vis & (yw > WALL_H - 0.06) & (yw <= WALL_H) & ((sw % 3) < 1.2)
@@ -197,8 +203,8 @@ def env(t, phase, curv, mask_shift=0.0):
     is_fence = vis & (yw > WALL_H) & (yw < FENCE_H)
     mesh = ((np.abs(((sw * 1.3) % 1) - 0.5) < 0.06) | (np.abs(((yw * 1.3) % 1) - 0.5) < 0.06))
     post = (sw % 4) < 0.12
-    fence_a = np.where(post, 0.9, np.where(mesh, 0.35, 0.12)) * np.exp(-tw / 120)
-    fence_c = np.array([0.32, 0.3, 0.3]) * (0.4 + 1.2 * Lw)[..., None]
+    fence_a = np.where(post, 0.9, np.where(mesh, 0.25, 0.06)) * np.exp(-tw / 120)
+    fence_c = np.array([0.3, 0.3, 0.32]) * (0.12 + 0.7 * Lw)[..., None]
     img = np.where(is_fence[..., None], img * (1 - fence_a[..., None]) + fence_c * fence_a[..., None], img)
 
     # 灯柱 + 灯头
