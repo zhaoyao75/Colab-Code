@@ -51,9 +51,10 @@ def smooth(t, a, b):
 SEC = 12.8   # 8 小节
 
 
-def speed_at(t):      # 米/秒
-    keys = [(0, 42), (6, 62), (12.8, 85), (38.4, 100), (50.9, 106), (52.4, 128), (76.8, 122),
-            (80, 78), (89.6, 84), (101.5, 100), (102.4, 150), (115.2, 148), (124, 60), (128, 42)]
+def speed_at(t):      # 米/秒：起跑 0 → 加速 → 比赛 → 终点前收一收让白旗看得清 → 冲线后减速
+    keys = [(0, 0), (9.6, 0), (10.8, 38), (12.8, 80), (25, 92), (38.4, 100), (50.9, 106), (52.4, 128),
+            (76.8, 122), (80, 78), (89.6, 84), (101.5, 100), (102.4, 150), (115.2, 140), (117, 92),
+            (119, 84), (121.6, 105), (122.8, 70), (128, 38)]
     xs, ys = zip(*keys)
     return float(np.interp(t, xs, ys))
 
@@ -66,8 +67,67 @@ def phase_at(t):
     return float(np.interp(t, _TT, _PH)) + 300.0
 
 
-def curve_at(t):      # 赛道曲率：缓缓左右弯
-    return 0.0011 * np.sin(0.21 * t + 0.6) + 0.0006 * np.sin(0.53 * t + 2.0)
+def curve_at(t):      # 赛道曲率：缓缓左右弯；发车区和终点直道保持笔直
+    base = 0.0011 * np.sin(0.21 * t + 0.6) + 0.0006 * np.sin(0.53 * t + 2.0)
+    return float(base * smooth(t, 11, 16) * (1 - smooth(t, 114, 118)))
+
+
+# ------------------------------------------------------------------ 剧本：发车、超车、冲线
+from scipy.interpolate import PchipInterpolator
+
+S_CAR0 = 300.0 + CAR_Z            # 起点处本车车尾的赛道位置
+T_LIGHTS = [5.6, 6.4, 7.2, 8.0, 8.8]   # 5 盏起跑灯依次亮起（每 2 拍一盏）
+T_OUT = 9.6                       # 灯灭 = 起步（对上引擎呼啸 + 上升音效）
+T_FIN = 121.6                     # 冲线（对上结尾的重击）
+S_GANTRY = S_CAR0 + 58.0
+S_FIN = float(np.interp(T_FIN, _TT, _PH)) + 300.0 + CAR_Z + 5.2   # 本车车头越线时的赛道位置
+# 发车格：(领先本车的距离 d, 横向位置 u)；最后两项是本车和身后的 R6
+GRID = [(8, 2.0), (16, -2.0), (24, 2.0), (32, -2.0), (40, 2.0), (0, -2.0), (-8, 2.0)]
+
+
+def _cruise(ug, uc):
+    return [(0, ug), (10.4, ug), (15, uc)]
+
+
+# d：对手车尾领先本车车尾的距离（米，负数 = 已被超过）；u：对手所在车道
+RIVALS = [
+    dict(col=(205, 205, 212), d=[(0, 8), (9.6, 8), (13, 22), (17, 30), (21, 22), (23.6, 13), (25.6, 0.5),
+                                 (26.8, -6.5), (28, -13)], u=_cruise(2.0, 0.0)),                 # 25.6 超车
+    dict(col=(0, 150, 150), d=[(0, 16), (9.6, 16), (13, 32), (25, 40), (40, 36), (47, 22), (49.4, 12),
+                               (51.2, 0.5), (52.4, -6.5), (53.6, -13)], u=_cruise(-2.0, 1.5)),   # 51.2 超车
+    dict(col=(40, 80, 210), d=[(0, 24), (9.6, 24), (13, 40), (30, 52), (52, 48), (59, 26), (61.8, 13),
+                               (64, 0.5), (65.2, -6.5), (66.4, -13)], u=_cruise(2.0, -1.5)),      # 64 超车
+    dict(col=(240, 205, 20), d=[(0, 32), (9.6, 32), (13, 50), (40, 70), (80, 62), (94, 44), (99.2, 20),
+                                (100.8, 13), (102.4, 0.5), (103.6, -6.5), (104.8, -13)], u=_cruise(-2.0, 0.5)),  # 102.4 超车
+    dict(col=(60, 185, 80), d=[(0, 40), (9.6, 40), (13, 60), (40, 80), (80, 74), (100, 56), (104, 28),
+                               (105.6, 14), (107.2, 0.5), (108.4, -6.5), (109.6, -13)], u=_cruise(2.0, -1.0)),  # 107.2 超车
+    dict(col=(215, 30, 35), d=[(0, -8), (9.6, -8), (11, -20), (13, -40), (60, -60), (100, -70), (110, -50),
+                               (114, -22), (116.2, -8), (117.6, 0), (118.8, 3.0), (120, 2.0), (121.0, 0.5),
+                               (121.6, -0.9), (123, -4), (124.5, -8), (128, -14)],
+         u=[(0, 2.0), (10.4, 2.0), (15, 0.0), (110, 0.0), (114, 2.5), (117, 3.6), (128, 3.6)]),       # 终点前并排，冲线领先
+]
+for _r in RIVALS:
+    _r["fd"] = PchipInterpolator(*zip(*_r["d"]))
+    _r["fu"] = PchipInterpolator(*zip(*_r["u"]))
+    _r["t0"], _r["t1"] = _r["d"][0][0], _r["d"][-1][0]
+
+# 本车横向位置（镜头跟着本车）：发车格在左列 → 回到中线；每次超车先拐到对手旁边的车道
+_UC = [(0, -2.0), (10.4, -2.0), (14, 0.0),
+       (20.6, 0), (23.2, -3.3), (27.4, -3.3), (29.6, 0),            # 25.6 左侧超车
+       (46.2, 0), (48.8, 4.8), (53.0, 4.8), (55.2, 0),              # 51.2 右侧
+       (59.0, 0), (61.6, -4.8), (65.8, -4.8), (68.0, 0),            # 64 左侧
+       (97.4, 0), (100.0, -2.8), (103.2, -2.8), (105.6, 2.3), (109.0, 2.3), (111.2, 0)]  # 102.4 / 107.2
+_FUC = PchipInterpolator(*zip(*_UC))
+
+
+def ucam_at(t):
+    return float(_FUC(np.clip(t, _UC[0][0], _UC[-1][0])))
+
+
+def rival_state(r, t):
+    """(d, u)：t 超出关键帧范围时取端点值"""
+    tt = float(np.clip(t, r["t0"], r["t1"]))
+    return float(r["fd"](tt)), float(r["fu"](np.clip(t, r["u"][0][0], r["u"][-1][0])))
 
 
 # ------------------------------------------------------------------ 环境（光线投射）
@@ -120,7 +180,7 @@ def C(*v):
     return np.array(v, np.float32)
 
 
-def env_geom(curv, heading):
+def env_geom(curv, heading, ucam=0.0):
     """与相位无关的几何：每帧只算一次（运动模糊各次采样共用）"""
     dx = ((_X - CX) / F).ravel()
     dy = (-(_Y - CY) / F).ravel()
@@ -132,7 +192,7 @@ def env_geom(curv, heading):
     best_t = np.full(dx.shape, 9000.0, dtype=np.float32)
     best_side = np.zeros(dx.shape, dtype=np.float32)
     for side in (-1, 1):
-        b, c = -dx, side * WALL
+        b, c = -dx, side * WALL - ucam
         disc = b * b - 4 * a * c
         ok = disc >= 0
         sq = np.sqrt(np.maximum(disc, 0))
@@ -151,7 +211,7 @@ def env_geom(curv, heading):
 
     gi = np.nonzero(gr)[0]
     z = tg[gi]
-    u = dx[gi] * z - curv * z * z
+    u = dx[gi] * z - curv * z * z + ucam
     G.update(gi=gi, z=z, u=u, au=np.abs(u),
              fres=(np.clip(1 - (-dy[gi]) * 6, 0, 1) ** 3).astype(np.float32),
              fog=np.exp(-z / 260)[:, None].astype(np.float32))
@@ -182,6 +242,16 @@ def env_shade(G, phase):
     col = np.where(on_kerb[:, None], kerb_c, col)
     line = (au > ROAD - 0.28) & (au < ROAD - 0.1)
     col = np.where(line[:, None], C(0.8, 0.8, 0.78), col)
+    if phase < S_CAR0 + 70:                                     # 发车格白线
+        for dd, uc in GRID:
+            sl = S_CAR0 + dd + 6.3
+            m1 = (np.abs(s - sl) < 0.09) & (np.abs(u - uc) < 1.35)
+            m2 = (np.abs(np.abs(u - uc) - 1.35) < 0.07) & (s > sl - 1.3) & (s < sl)
+            col = np.where((m1 | m2)[:, None], C(0.75, 0.75, 0.72), col)
+    if S_FIN - phase < 450:                                     # 终点线
+        fin = (s > S_FIN) & (s < S_FIN + 1.6) & (au < ROAD)
+        chk = ((np.floor(u / 0.8) + np.floor((s - S_FIN) / 0.8)) % 2 == 0)
+        col = np.where(fin[:, None], np.where(chk[:, None], C(0.8, 0.8, 0.8), C(0.03, 0.03, 0.03)), col)
     runoff = au >= ROAD + KERB
     col = np.where(runoff[:, None], col * 0.8 + C(0.0, 0.015, 0.03), col)
     L = lamp_light(u, s)                                        # 灯光 + 掠射反光
@@ -227,7 +297,7 @@ def env_blur(t, n=5):
     v = speed_at(t)
     ph0 = phase_at(t)
     curv = curve_at(t)
-    G = env_geom(curv, ph0 * curv * 40)
+    G = env_geom(curv, ph0 * curv * 40, ucam_at(t))
     acc = 0
     for k in np.linspace(-0.5, 0.5, n):
         acc = acc + env_shade(G, ph0 + v * k / FPS * 0.9)
@@ -241,18 +311,35 @@ ORANGE = (236, 104, 34)   # 赛车涂装橙
 LOGO = (217, 119, 87)
 
 
-def draw_car(t, sway=0.0, bounce=0.0, flash=0.0):
-    """三维透视绘制 F1 赛车（从后上方看），远到近依次画（画家算法）"""
+def car_patch(zc, xc, base, flash=0.0, sway=0.0, bounce=0.0):
+    """三维透视绘制一辆 F1 赛车（从后上方看）：zc = 车尾离相机的距离，xc = 横向偏移（米），base = 车身颜色。
+    只在车周围的小画布上绘制，返回 (预乘颜色, 透明度, 阴影, 尾灯, x0, y0)；太近/不在画面内返回 None"""
     S = 2   # 超采样
-    W, H = OW * S, OH * S
-    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    d = ImageDraw.Draw(layer)
     f = OW / 2 / np.tan(np.radians(FOV / 2))
     cx, cy = OW / 2 + sway, OH * HOR + bounce
+    if zc < 1.8:
+        return None
+
+    def pr(x, y, dz):
+        z = zc + dz
+        return cx + (xc + x) * f / z, cy + (HC - y) * f / z
+
+    pts = [pr(x, y, dz) for x in (-1.3, 1.3) for y in (-0.05, 1.25) for dz in (-0.5, 5.4)]
+    x0 = int(max(0, min(q[0] for q in pts) - 40)); bx1 = int(min(OW, max(q[0] for q in pts) + 40))
+    y0 = int(max(0, min(q[1] for q in pts) - 40)); by1 = int(min(OH, max(q[1] for q in pts) + 40))
+    if bx1 - x0 < 4 or by1 - y0 < 4:
+        return None
+    W, H = (bx1 - x0) * S, (by1 - y0) * S
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(layer)
+    kpx = f / zc * S * 0.8          # 每米约多少像素（用于线宽）
+
+    def lw(m, lo=1):
+        return max(lo, int(m * kpx))
 
     def P(x, y, dz=0.0):
-        z = CAR_Z + dz
-        return ((cx + x * f / z) * S, (cy + (HC - y) * f / z) * S)
+        px, py = pr(x, y, dz)
+        return ((px - x0) * S, (py - y0) * S)
 
     def poly(pts, fill):
         d.polygon([P(*p) for p in pts], fill=fill)
@@ -264,18 +351,18 @@ def draw_car(t, sway=0.0, bounce=0.0, flash=0.0):
             xs = x1 if x1 > 0 else x2      # 朝向车中心的那一侧
             poly([(xs, y1, z1), (xs, y2, z1), (xs, y2, z2), (xs, y1, z2)], side)
         a, b = P(x1, y2, z1), P(x2, y1, z1)
-        d.rounded_rectangle([a, b], radius=r * f / CAR_Z * S, fill=face)
+        d.rounded_rectangle([a, b], radius=r * f / zc * S, fill=face)
 
-    OR = ORANGE + (255,)
-    OR_T = tuple(min(255, int(c * 1.18)) for c in ORANGE) + (255,)   # 顶面更亮
-    OR_D = tuple(int(c * 0.62) for c in ORANGE) + (255,)              # 背光面
+    OR = tuple(base) + (255,)
+    OR_T = tuple(min(255, int(c * 1.18)) for c in base) + (255,)   # 顶面更亮
+    OR_D = tuple(int(c * 0.62) for c in base) + (255,)              # 背光面
     CB, CB_T = (24, 24, 28, 255), (48, 48, 54, 255)
     TY, TY_T, TY_S = (30, 30, 33, 255), (78, 78, 84, 255), (44, 44, 48, 255)
 
     # 车底阴影
     sh = Image.new("L", (W, H), 0)
     ImageDraw.Draw(sh).polygon([P(-1.2, 0, -0.5), P(1.2, 0, -0.5), P(1.1, 0, 5.2), P(-1.1, 0, 5.2)], fill=220)
-    sh = sh.filter(ImageFilter.GaussianBlur(9 * S))
+    sh = sh.filter(ImageFilter.GaussianBlur(max(1, 9 * S * 6.4 / zc)))
 
     # 前翼
     poly([(-0.95, 0.16, 4.75), (0.95, 0.16, 4.75), (0.95, 0.16, 5.15), (-0.95, 0.16, 5.15)], CB_T)
@@ -289,7 +376,7 @@ def draw_car(t, sway=0.0, bounce=0.0, flash=0.0):
     poly([(-0.13, 0.42, 3.0), (0.13, 0.42, 3.0), (0.07, 0.3, 4.85), (-0.07, 0.3, 4.85)], OR_T)
     # 前悬挂
     for sg in (-1, 1):
-        d.line([P(sg * 0.12, 0.38, 3.9), P(sg * 0.66, 0.36, 4.2)], fill=CB, width=int(0.03 * f / 9 * S) + 1)
+        d.line([P(sg * 0.12, 0.38, 3.9), P(sg * 0.66, 0.36, 4.2)], fill=CB, width=lw(0.03 * 0.7))
     # 座舱 / 单体壳
     poly([(-0.42, 0.62, 1.6), (0.42, 0.62, 1.6), (0.2, 0.5, 3.05), (-0.2, 0.5, 3.05)], OR_T)
     poly([(-0.2, 0.63, 2.0), (0.2, 0.63, 2.0), (0.17, 0.6, 2.75), (-0.17, 0.6, 2.75)], (10, 10, 12, 255))
@@ -300,7 +387,7 @@ def draw_car(t, sway=0.0, bounce=0.0, flash=0.0):
     d.rectangle([a, b], fill=(25, 25, 30, 255))                           # 面罩
     for sg in (-1, 1):
         d.line([P(sg * 0.2, 0.64, 2.0), P(sg * 0.17, 0.93, 2.3), P(0, 0.95, 2.75)], fill=CB,
-               width=int(0.04 * f / 8 * S) + 1)
+               width=lw(0.04 * 0.8))
     # 侧箱（可乐瓶形，前高后低）
     for sg in (-1, 1):
         xi, xo = sg * 0.3, sg * 0.78
@@ -317,20 +404,20 @@ def draw_car(t, sway=0.0, bounce=0.0, flash=0.0):
         x1, x2 = sorted((sg * 0.6, sg * 1.0))
         box(x1, x2, 0.0, 0.72, 0.0, 0.7, TY, TY_T, TY_S, 0.12)
         xo = x1 if sg < 0 else x2
-        d.line([P(xo, 0.1, 0), P(xo, 0.62, 0)], fill=(95, 95, 100, 255), width=max(2, int(0.015 * f / CAR_Z * S)))
+        d.line([P(xo, 0.1, 0), P(xo, 0.62, 0)], fill=(95, 95, 100, 255), width=lw(0.015, 1))
         xs = x2 - 0.035 if sg < 0 else x1 + 0.035
-        d.line([P(xs, 0.18, 0), P(xs, 0.54, 0)], fill=(215, 180, 40, 255), width=max(2, int(0.02 * f / CAR_Z * S)))
+        d.line([P(xs, 0.18, 0), P(xs, 0.54, 0)], fill=(215, 180, 40, 255), width=lw(0.02, 1))
     # 后悬挂
     for sg in (-1, 1):
-        for y0, y1 in ((0.4, 0.44), (0.27, 0.22)):
-            d.line([P(sg * 0.15, y0, -0.05), P(sg * 0.64, y1, 0.2)], fill=(8, 8, 10, 255), width=int(0.03 * f / CAR_Z * S))
+        for ya, yb in ((0.4, 0.44), (0.27, 0.22)):
+            d.line([P(sg * 0.15, ya, -0.05), P(sg * 0.64, yb, 0.2)], fill=(8, 8, 10, 255), width=lw(0.03))
     # 扩散器 + 变速箱
     poly([(-0.55, 0.04, -0.15), (0.55, 0.04, -0.15), (0.42, 0.3, -0.05), (-0.42, 0.3, -0.05)], (10, 10, 12, 255))
     for k in np.linspace(-0.38, 0.38, 6):
         poly([(k - 0.012, 0.05, -0.15), (k + 0.012, 0.05, -0.15), (k * 0.8 + 0.01, 0.28, -0.05), (k * 0.8 - 0.01, 0.28, -0.05)],
              (44, 44, 50, 255))
     a, b = P(-0.15, 0.42, -0.08), P(0.15, 0.25, -0.08)
-    d.rounded_rectangle([a, b], radius=6, fill=CB)
+    d.rounded_rectangle([a, b], radius=max(1, 6 * 6.4 / zc), fill=CB)
     # 梁翼 + 尾翼支架
     poly([(-0.46, 0.5, -0.12), (0.46, 0.5, -0.12), (0.46, 0.44, -0.12), (-0.46, 0.44, -0.12)], CB)
     poly([(-0.03, 0.42, -0.12), (0.03, 0.42, -0.12), (0.03, 0.82, -0.25), (-0.03, 0.82, -0.25)], CB)
@@ -339,7 +426,7 @@ def draw_car(t, sway=0.0, bounce=0.0, flash=0.0):
     poly([(-0.5, 0.78, -0.3), (0.5, 0.78, -0.3), (0.5, 0.82, -0.3), (-0.5, 0.82, -0.3)], CB)
     poly([(-0.5, 0.9, -0.35), (0.5, 0.9, -0.35), (0.5, 0.95, -0.15), (-0.5, 0.95, -0.15)], CB_T)
     poly([(-0.5, 0.86, -0.35), (0.5, 0.86, -0.35), (0.5, 0.9, -0.35), (-0.5, 0.9, -0.35)], CB)
-    d.line([P(-0.5, 0.95, -0.15), P(0.5, 0.95, -0.15)], fill=OR_T, width=max(2, int(0.012 * f / CAR_Z * S)))
+    d.line([P(-0.5, 0.95, -0.15), P(0.5, 0.95, -0.15)], fill=OR_T, width=lw(0.012, 1))
     for sg in (-1, 1):
         x = sg * 0.52
         poly([(x, 0.55, -0.4), (x, 0.98, -0.4), (x, 0.98, 0.3), (x, 0.6, 0.3)], CB_T)
@@ -348,8 +435,8 @@ def draw_car(t, sway=0.0, bounce=0.0, flash=0.0):
 
     arr = np.asarray(layer).astype(np.float32) / 255
     # 顶光：越往上越亮
-    yy = np.arange(H)[:, None] / S
-    yr = (yy - (cy + (HC - 1.1) * f / CAR_Z)) / ((1.1) * f / CAR_Z)
+    yy = np.arange(H)[:, None] / S + y0
+    yr = (yy - (cy + (HC - 1.1) * f / (zc + 1.0))) / ((1.1) * f / (zc + 1.0))
     arr[..., :3] *= np.clip(1.2 - 0.45 * yr, 0.6, 1.25)[..., None]
     al = arr[..., 3]
     edge = np.clip(al - np.roll(al, 2 * S, axis=0), 0, 1)
@@ -361,10 +448,14 @@ def draw_car(t, sway=0.0, bounce=0.0, flash=0.0):
     lamp_on = 0.45 + 0.55 * flash
     arr[..., :3] = np.where(gl[..., None] > 0, np.array([1.0, 0.1, 0.08]) * (1.5 + 2.5 * lamp_on), arr[..., :3])
 
-    def down(x):
-        return x.reshape(OH, S, OW, S, *x.shape[2:]).mean(axis=(1, 3))
+    arr[..., :3] *= arr[..., 3:4]                                   # 预乘透明度，边缘不发黑
 
-    return down(arr), down(np.asarray(sh).astype(np.float32) / 255), down(gl) * lamp_on, (cx, cy, f)
+    def down(x):
+        return x.reshape(by1 - y0, S, bx1 - x0, S, *x.shape[2:]).mean(axis=(1, 3))
+
+    rgba = down(arr)
+    return (rgba[..., :3], rgba[..., 3:4], down(np.asarray(sh).astype(np.float32) / 255),
+            down(gl) * lamp_on, x0, y0)
 
 
 def sparks(t, geo):
@@ -391,6 +482,104 @@ def sparks(t, geo):
         c = 1 - age / 0.12
         d.line([p1, p2], fill=(255, int(200 * c + 40), int(90 * c)), width=2 if z < 4 else 1)
     return np.asarray(img).astype(np.float32) / 255 * 1.5
+
+
+# ------------------------------------------------------------------ 场景物体
+def world_layer(t, phase, curv, ucam):
+    """起跑灯架、终点门架、挥白旗的工作人员（按赛道坐标投影到画面）。返回 (预乘颜色, 透明度, 发光) 或 None"""
+    show_start = t < 14 and S_GANTRY - phase > 1.8
+    show_fin = S_FIN - phase < 230
+    if not (show_start or show_fin):
+        return None
+    S = 2
+    f = OW / 2 / np.tan(np.radians(FOV / 2))
+    body = Image.new("RGBA", (OW * S, OH * S), (0, 0, 0, 0))
+    db = ImageDraw.Draw(body)
+    glow = Image.new("RGB", (OW * S, OH * S), (0, 0, 0))
+    dg = ImageDraw.Draw(glow)
+
+    def pj(u, y, sw):
+        z = sw - phase
+        if z < 1.8:
+            return None
+        x = u - ucam + curv * z * z
+        return ((OW / 2 + x * f / z) * S, (OH * HOR + (HC - y) * f / z) * S, f / z * S)
+
+    def quad(pts, fill, dr=None):
+        q = [pj(*pt) for pt in pts]
+        if any(v is None for v in q):
+            return
+        (dr or db).polygon([(v[0], v[1]) for v in q], fill=fill)
+
+    def gantry(sw, start):
+        for sg in (-1, 1):
+            quad([(sg * 10 - 0.3, 0, sw), (sg * 10 + 0.3, 0, sw), (sg * 10 + 0.3, 7.8, sw), (sg * 10 - 0.3, 7.8, sw)],
+                 (30, 30, 34, 255))
+        quad([(-10.3, 6.0, sw), (10.3, 6.0, sw), (10.3, 7.8, sw), (-10.3, 7.8, sw)], (22, 22, 26, 255))
+        if start:
+            for i, u in enumerate((-4, -2, 0, 2, 4)):
+                quad([(u - 0.55, 4.5, sw), (u + 0.55, 4.5, sw), (u + 0.55, 6.0, sw), (u - 0.55, 6.0, sw)], (10, 10, 12, 255))
+                lit = T_LIGHTS[i] <= t < T_OUT
+                for y in (5.6, 4.95):
+                    c = pj(u, y, sw)
+                    if c is None:
+                        continue
+                    rad = 0.25 * c[2]
+                    box = [c[0] - rad, c[1] - rad, c[0] + rad, c[1] + rad]
+                    db.ellipse(box, fill=(255, 70, 50, 255) if lit else (70, 10, 10, 255))
+                    if lit:
+                        dg.ellipse(box, fill=(255, 60, 40))
+        else:                                   # 黑白格横幅
+            for i in range(28):
+                for j in range(2):
+                    if (i + j) % 2 == 0:
+                        x0_ = -10.3 + i * 0.736
+                        quad([(x0_, 6.0 + j * 0.9, sw), (x0_ + 0.736, 6.0 + j * 0.9, sw),
+                              (x0_ + 0.736, 6.9 + j * 0.9, sw), (x0_, 6.9 + j * 0.9, sw)], (235, 235, 235, 255))
+
+    def marshal(u, sw, side, seed, scale):
+        p0, p1, p2 = pj(u, 0, sw), pj(u, 0.9, sw), pj(u, 1.55, sw)
+        if p0 is None:
+            return
+        k = p0[2]
+        hw = 0.2 * k
+        db.rectangle([p0[0] - hw, p1[1], p0[0] + hw, p0[1]], fill=(35, 35, 40, 255))               # 腿
+        db.rectangle([p0[0] - hw * 1.1, p2[1], p0[0] + hw * 1.1, p1[1]], fill=(235, 110, 20, 255))  # 橙色马甲
+        db.rectangle([p0[0] - hw * 1.1, (p1[1] + p2[1]) / 2 - 0.03 * k, p0[0] + hw * 1.1, (p1[1] + p2[1]) / 2 + 0.03 * k],
+                     (230, 230, 230, 255))
+        hd = pj(u, 1.7, sw)
+        db.ellipse([hd[0] - 0.12 * k, hd[1] - 0.12 * k, hd[0] + 0.12 * k, hd[1] + 0.12 * k], fill=(225, 225, 230, 255))
+        # 旗杆：绕手摆动
+        th = 0.95 * np.sin(t * 7.5 + seed)
+        L = 1.5 * scale
+        hu, hy = u - side * 0.25, 1.5
+        tu, ty = hu - side * L * np.sin(th) * 0.9, hy + L * np.cos(th)
+        h0, h1 = pj(hu, hy, sw), pj(tu, ty, sw)
+        db.line([(h0[0], h0[1]), (h1[0], h1[1])], fill=(60, 60, 64, 255), width=max(1, int(0.04 * k)))
+        # 白旗：随时间起伏的布面，沿杆顶向外飘
+        top, bot = [], []
+        for i in range(6):
+            wv = np.sin(t * 11 + seed + i * 0.9) * 0.1 * scale * (i / 5)
+            uu = tu - side * (0.95 * scale) * i / 5 * (-1)
+            top.append(pj(uu, ty + wv, sw))
+            bot.append(pj(uu, ty - 0.7 * scale + wv * 1.3, sw))
+        if all(v is not None for v in top + bot):
+            poly_ = [(v[0], v[1]) for v in top] + [(v[0], v[1]) for v in bot[::-1]]
+            db.polygon(poly_, fill=(240, 240, 244, 255))
+            dg.polygon(poly_, fill=(110, 110, 118))
+
+    if show_start:
+        gantry(S_GANTRY, True)
+    if show_fin:
+        gantry(S_FIN + 0.4, False)
+        ms = [(S_FIN - 6 - 13 * j, -1 if j % 2 == 0 else 1, j) for j in range(12)] + [(S_FIN + 9, -1, 12), (S_FIN + 9, 1, 13)]
+        for sw, side, j in sorted(ms, key=lambda m_: -m_[0]):
+            marshal(side * (WALL - 1.4), sw, side, j * 1.7, 1.5 if j < 4 else 1.15)
+
+    arr = np.asarray(body).astype(np.float32) / 255
+    arr[..., :3] *= arr[..., 3:4]
+    dn = lambda x: x.reshape(OH, S, OW, S, *x.shape[2:]).mean(axis=(1, 3))
+    return dn(arr[..., :3]), dn(arr[..., 3:4]), dn(np.asarray(glow).astype(np.float32) / 255) * 2.6
 
 
 # ------------------------------------------------------------------ 叠加：标题、标志
@@ -429,7 +618,8 @@ def overlay_layers():
 
 
 def title_alpha(t, total):
-    return float(smooth(t, 1.0, 2.5) * (1 - smooth(t, 9.0, 11.0)) + smooth(t, total - 9, total - 6.5))
+    """片头标题在起跑灯亮起前淡出；结尾冲线后出现"""
+    return float(smooth(t, 0.8, 2.2) * (1 - smooth(t, 4.0, 5.2)) + smooth(t, 123.0, 124.6))
 
 
 # ------------------------------------------------------------------ 合成一帧
@@ -441,18 +631,49 @@ def frame(t, layers, total=128.0, pulse=0.0):
     title, logo = layers
     r = np.random.default_rng(int(t * 1000))
     v = speed_at(t)
-    shake = (v / 90) ** 2 * 1.2
-    sway = 6 * np.sin(t * 0.9) + r.normal(0, shake)
+    phase, curv, ucam = phase_at(t), curve_at(t), ucam_at(t)
+    shake = (v / 90) ** 2 * 1.2 + (0.3 if v < 8 else 0.0)         # 怠速时车身也在微微抖动
+    sway = 6 * np.sin(t * 0.9) * min(1, v / 30) + r.normal(0, shake)
     bounce = r.normal(0, shake * 0.7)
     img = env_blur(t)
-    car, shadow, tail, geo = draw_car(t, sway, bounce, flash=pulse)
-    img *= (1 - 0.75 * shadow)[..., None]
-    # 尾灯在路面上的红色反光
-    refl = gaussian_filter(tail, 18) * 40
+
+    # 场景物体（灯架、门架、工作人员）
+    wl = world_layer(t, phase, curv, ucam)
+    glow_add = 0
+    if wl is not None:
+        img = img * (1 - wl[1]) + wl[0]
+        glow_add = wl[2]
+
+    # 所有赛车：本车 + 对手；先画阴影，再从远到近画车身
+    f = OW / 2 / np.tan(np.radians(FOV / 2))
+    cars = [dict(zc=CAR_Z, xc=0.0, base=ORANGE, flash=pulse, sway=sway, bounce=bounce)]
+    for k, rv in enumerate(RIVALS):
+        d, u = rival_state(rv, t)
+        zc = CAR_Z + d
+        if zc < 2.2 or zc > 260:
+            continue
+        xc = u - ucam + curv * (zc + 2.5) ** 2
+        rr = np.random.default_rng(int(t * 1000) + k)
+        cars.append(dict(zc=zc, xc=xc, base=rv["col"], flash=0.35 + 0.4 * pulse, sway=0.0,
+                         bounce=rr.normal(0, 0.4) * min(1, v / 40)))
+    patches = []
+    for c in sorted(cars, key=lambda c_: -c_["zc"]):
+        pt = car_patch(c["zc"], c["xc"], c["base"], c["flash"], c["sway"], c["bounce"])
+        if pt is not None:
+            patches.append(pt)
+    tail = np.zeros((OH, OW), np.float32)
+    for rgb, a_, sh, tl, x0, y0 in patches:
+        h, w = sh.shape
+        img[y0:y0 + h, x0:x0 + w] *= (1 - 0.75 * sh)[..., None]
+    for rgb, a_, sh, tl, x0, y0 in patches:
+        h, w = sh.shape
+        sl = (slice(y0, y0 + h), slice(x0, x0 + w))
+        img[sl] = img[sl] * (1 - a_) + rgb
+        tail[sl] = np.maximum(tail[sl], tl)
+    refl = gaussian_filter(tail, 18) * 40                           # 尾灯在路面上的红色反光
     img += refl[..., None] * np.array([0.9, 0.05, 0.03])
-    a = car[..., 3:4]
-    img = img * (1 - a) + car[..., :3] * a
-    img += sparks(t, geo) * min(1, v / 70)
+    img += sparks(t, (OW / 2 + sway, OH * HOR + bounce, f)) * min(1, v / 70)
+    img = img + glow_add
     # 泛光
     bright = np.clip(img - 0.85, 0, None)
     bloom = np.stack([gaussian_filter(bright[..., c], 6) + gaussian_filter(bright[..., c], 22) for c in range(3)], 2)
