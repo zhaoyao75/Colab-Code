@@ -116,14 +116,16 @@ def ink_mountains(img, layers, seed, col=INK, carve=None):
     h, w, _ = img.shape
     Y = np.arange(h, dtype=np.float32)[:, None]
     u = np.linspace(0, 1, w)
-    for i, (base, amp, dark, fl, rough, env) in enumerate(layers):
+    for i, (base, amp, dark, fl, rough, env, *opt) in enumerate(layers):
         r = ridge(w, seed + i, rough=rough)
+        if opt:   # 最低高度：保证包络处一定有山
+            r = opt[0] + (1 - opt[0]) * r
         if env is not None:
             r = r * env(u)
         top = (base - amp * r)[None, :] * h
         if carve is not None:   # 切出 V 形山谷：(谷底横坐标, 谷底高度, 谷壁斜率)
             us, yb, slope = carve
-            jag = (ridge(w, seed + 70 + i, rough=0.6) - 0.5) * 0.07 * h * np.clip(np.abs(u - us) * 12, 0, 1)
+            jag = (ridge(w, seed + 70 + i, rough=0.6) - 0.5) * 0.11 * h * np.clip(np.abs(u - us) * 10, 0, 1)
             top = np.maximum(top, (yb * h - slope * np.abs(u - us) * w + jag)[None, :])
         below = Y - top
         a = np.exp(-np.maximum(below, 0) / (fl * h)) * np.clip(below / 2.5, 0, 1)
@@ -249,7 +251,7 @@ def build_river():
     d = np.hypot(xx - BW * 0.84, yy - BH * 0.30)
     comp(img, RED * 1.1, 0.5 * smooth((66 - d) / 3))
     ink_mountains(img, [(0.47, 0.20, 0.20, 0.10, 0.55, None),
-                        (0.54, 0.17, 0.30, 0.08, 0.6, None)], seed=11, carve=(0.17, 0.60, 0.75))
+                        (0.54, 0.17, 0.30, 0.08, 0.6, None)], seed=11)
     # 河道：从峡谷口（画面中部）蜿蜒流向镜头，越近越宽
     y0 = BH * 0.585
     p = np.clip((yy[:, :1] - y0) / (BH - y0), 0, 1)
@@ -265,9 +267,10 @@ def build_river():
     # 沿河"宽度单位"累计的路程：波纹在河面上等距，透视下近大远小
     srow = np.cumsum(1.0 / wd[:, 0]) * (np.arange(BH) > y0)
     # 近景峡谷：左右两山夹住河口
-    gorge = lambda u: 0.06 + 0.9 * np.exp(-((u + 0.01) / 0.10) ** 2) + 0.8 * np.exp(-((u - 0.50) / 0.22) ** 2)
+    gorge = lambda u: (0.05 + 0.95 * np.exp(-((u - 0.03) / 0.11) ** 2) + 0.9 * np.exp(-((u - 0.33) / 0.13) ** 2)
+                       + 0.55 * np.exp(-((u - 0.72) / 0.20) ** 2))
     tmp = np.ones((BH, BW, 3), np.float32)
-    ink_mountains(tmp, [(0.66, 0.33, 0.92, 0.07, 0.6, gorge)], seed=31, col=(0, 0, 0), carve=(0.17, 0.63, 1.0))
+    ink_mountains(tmp, [(0.68, 0.42, 0.92, 0.07, 0.6, gorge, 0.6)], seed=31, col=(0, 0, 0), carve=(0.17, 0.61, 1.1))
     fga = 1 - tmp[..., 0]
     fga_r = fga * (1 - smooth((yy - y0 - 40) / 70))   # 河口在山后，流出后在山前
     under = img[ry, rx].copy()
