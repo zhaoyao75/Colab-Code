@@ -249,23 +249,30 @@ CHORDS = {  # 低音, 和弦音
     "G":  (m("G1"), [m("G3"), m("B3"), m("D4")]),
     "Em": (m("E2"), [m("G3"), m("B3"), m("E4")]),
 }
-HOOK_CH = ["D", "A", "Bm", "G", "D", "A", "G", "A"]
+HOOK_CH = ["D", "D", "A", "A", "Bm", "Bm", "G", "A"]      # 两小节一换和弦，不催
 HOOK_CH_END = HOOK_CH[:7] + ["D"]
 BUILD_CH = ["Bm", "G", "D", "A", "Bm", "G", "Em", "A"]
 
 # ---------------------------------------------------------------- 主旋律（原创）
-# 两小节一个动机：「哒哒-哒 哒-哒哒」切分节奏，前两句完全重复，便于记忆
+# 动机「哒 哒 哒——」放宽到两小节一句（以四分、二分音符为主），句尾留出换气。
+# 下面伴奏仍是十六分音符飞奔，上面旋律舒展——快慢对比让它不着急。
 HOOK = [
-    [("F#5", .5), ("F#5", .5), ("A5", 1), ("F#5", .5), ("E5", 1), ("D5", .5)],
-    [("E5", .5), ("E5", .5), ("F#5", .5), ("E5", 1), ("C#5", 1.5)],
-    [("F#5", .5), ("F#5", .5), ("A5", 1), ("B5", .5), ("A5", 1), ("F#5", .5)],
-    [("G5", 1.5), ("F#5", .5), ("E5", 2)],
-    [("F#5", .5), ("F#5", .5), ("A5", 1), ("F#5", .5), ("E5", 1), ("D5", .5)],
-    [("E5", .5), ("E5", .5), ("F#5", .5), ("E5", 1), ("C#5", 1.5)],
-    [("B5", .5), ("B5", .5), ("D6", 1), ("B5", .5), ("A5", 1), ("G5", .5)],
-    [("F#5", 1), ("E5", 1), ("A5", 2)],
+    [("F#5", 1), ("F#5", 1), ("A5", 2)],
+    [("F#5", 1), ("E5", 2), ("D5", 1)],
+    [("E5", 1), ("E5", 1), ("F#5", 1), ("E5", 1)],
+    [("C#5", 3), (None, 1)],
+    [("F#5", 1), ("F#5", 1), ("A5", 2)],
+    [("B5", 1), ("A5", 2), ("F#5", 1)],
+    [("G5", 3), ("F#5", 1)],
+    [("E5", 3), (None, 1)],
 ]
-HOOK_END = HOOK[:7] + [[("F#5", 1), ("E5", .5), ("D5", 2.5)]]
+HOOK_END = HOOK[:6] + [[("G5", 2), ("F#5", 1), ("E5", 1)], [("D5", 4)]]
+OUTRO_TAIL = [  # 尾声后半：动机轻声回响一次，落回主音
+    [("F#5", 1), ("F#5", 1), ("A5", 2)],
+    [("F#5", 1), ("E5", 2), ("D5", 1)],
+    [("D5", 4)],
+    [(None, 4)],
+]
 BUILD_MEL = [
     [("B4", 1.5), ("D5", 1.5), ("F#5", 1)],
     [("G5", 3), ("F#5", 1)],
@@ -286,6 +293,8 @@ def chord_of(sec, k):
         return ["D", "D", "Bm", "Bm", "G", "G", "A", "A"][k]
     if sec == "lead_in":
         return "A"
+    if sec == "outro":
+        return HOOK_CH_END[4 + k] if k < 4 else "D"
     return (HOOK_CH_END if last else HOOK_CH)[k]
 
 
@@ -397,18 +406,21 @@ for b, (sec, k) in enumerate(SECS):
     # ---- 主旋律
     if sec in ("verse", "verse2", "chorus", "chorus2", "breakdown", "climax", "outro"):
         phrase = HOOK_END if (sec == "outro" or (DEMO and sec == "chorus")) else HOOK
-        if sec == "outro" and k >= 4:
-            phrase = None
-        if phrase:
-            for t, note, length in bar_notes(phrase[k], t0, tr):
+        pb = phrase[k]
+        if sec == "outro":
+            pb = HOOK_END[4 + k] if k < 4 else OUTRO_TAIL[k - 4]
+        if pb:
+            for t, note, length in bar_notes(pb, t0, tr):
                 f = hz(note)
                 if sec == "verse":
                     add("pluck", t, pluck(f, length), 0.32, 0.1)
+                    add("pad", t, pad(f, length * 0.95, 0.05), 0.07, -0.1)
                 elif sec == "breakdown":
                     add("pluck", t, pluck(f, length), 0.3, 0.1)
                     add("pad", t, pad(f, length * 0.95, 0.05), 0.06, -0.1)
                 elif sec == "outro":
                     add("pluck", t, pluck(f, length), 0.3 * out_fade + 0.05, 0.1)
+                    add("pad", t, pad(f, length * 0.95, 0.05), 0.06 * out_fade + 0.02, -0.1)
                 else:
                     gl = {"verse2": .3, "chorus": .36, "chorus2": .36, "climax": .38}[sec]
                     add("lead", t, lead(f, length * 0.92), gl, 0.0)
