@@ -16,7 +16,7 @@
 | `video/stellar_echo_full_bw_30mb.mp4` | 压缩版 28.7MB（分享用） |
 | `narrated2/hohhot_full.mp4` | 《青城 · 呼和浩特》128 秒 AI 旁白解说短片（见第 8 节） |
 | `narrated2/hohhot_30mb.mp4` | 压缩版 28.6MB（发抖音、B 站、微信用） |
-| `narrated2/hohhot_vertical.mp4` | 抖音竖版 1080×1920 |
+| `narrated2/hohhot_vertical.mp4` | 抖音竖版 1080×1920，26.6MB（不用再压缩） |
 | `narrated2/tts_samples/` | 10 种中文语音合成试听样本 |
 
 ## 2. 一键复现
@@ -275,7 +275,7 @@ cd narrated2 && python3 render.py --vertical --still 6 26.5 38.5 70.5 100 106.5 
 ```
 
 ```bash
-cd narrated2 && python3 render.py --vertical      # → hohhot_vertical.mp4
+cd narrated2 && python3 render.py --vertical      # → hohhot_vertical.mp4，4 进程约 14 分钟，26.6MB
 ```
 
 - 场景不重画：横版画面放大到 760 高，居中裁出 1080 宽（两侧各裁约 10%）；上下用同一画面的模糊放大版压暗铺满。
