@@ -593,145 +593,163 @@ def _font(size):
     return _FONTS[size]
 
 
-def _gauge(d, g, S, cx, cy, R, vmin, vmax, val, major, minors, red=None, title="", fmt="{:.0f}", heat=0.0,
-           hero=False, needle=(255, 112, 28)):
-    """通用机械仪表：金属表圈 + 黑色表盘 + 刻度/数字 + 红区 + 锥形指针。cx, cy, R 为放大 S 倍后的像素。"""
-    span = vmax - vmin
-    th = lambda v_: np.radians(225 - 270 * (v_ - vmin) / span)
-    pt = lambda v_, rad: (cx + rad * np.cos(th(v_)), cy - rad * np.sin(th(v_)))
-    fnt = lambda size: _font(max(8, int(size)))
-    T = int(0.14 * R)
-    for k in range(T):                                              # 金属表圈（同心环模拟拉丝）
-        rad = R + T - k
-        c = int(46 + 64 * abs(np.sin(k * 0.33 + 0.6)))
-        d.ellipse([cx - rad, cy - rad, cx + rad, cy + rad], fill=(c, c, int(c * 1.04)))
-    d.arc([cx - R - T * 0.55, cy - R - T * 0.55, cx + R + T * 0.55, cy + R + T * 0.55], 195, 255,
-          fill=(235, 235, 240), width=max(2, int(T * 0.2)))
-    for k in range(30):                                             # 表盘
-        rad = R * (1 - k / 30)
-        c = int(5 + 15 * (k / 30) ** 2)
-        d.ellipse([cx - rad, cy - rad, cx + rad, cy + rad], fill=(c, c, c + 2))
-    if red:
-        vs = np.linspace(red[0], red[1], 30)
-        band = [pt(x, R * 0.97) for x in vs] + [pt(x, R * 0.88) for x in vs[::-1]]
-        d.polygon(band, fill=(190, 20, 20))
-        g.polygon(band, fill=(int(255 * (0.3 + 0.7 * heat)), int(30 * heat), int(25 * heat)))
-    n = int(round(span / major * minors))
-    for i in range(n + 1):
-        v_ = vmin + i * major / minors
-        is_major = i % minors == 0
-        in_red = red is not None and red[0] <= v_ <= red[1] + 1e-6
-        ln = 0.13 if is_major else 0.06
-        wd = max(1, int(R * (0.026 if is_major else 0.013)))
-        col = (255, 70, 55) if in_red else (228, 228, 232)
-        d.line([pt(v_, R * 0.88), pt(v_, R * (0.88 - ln))], fill=col, width=wd)
-        if in_red and is_major:
-            g.line([pt(v_, R * 0.88), pt(v_, R * (0.88 - ln))], fill=(255, 40, 30), width=wd)
-        if is_major:
-            x_, y_ = pt(v_, R * 0.66)
-            d.text((x_, y_), fmt.format(v_), font=fnt(R * (0.125 if hero else 0.15)), fill=(255, 80, 65) if in_red else (232, 232, 236), anchor="mm")
-    if title:
-        d.text((cx, cy - R * 0.36), title, font=fnt(R * 0.085), fill=(150, 150, 158), anchor="mm")
-    a_ = th(val)
-    ca, sa = np.cos(a_), np.sin(a_)
-    w = R * 0.04
-    loc = [(R * 0.90, 0), (R * 0.10, w), (-R * 0.20, w * 0.8), (-R * 0.20, -w * 0.8), (R * 0.10, -w)]
-    nd = lambda off=(0, 0): [(cx + off[0] + x * ca + y * sa, cy + off[1] - x * sa + y * ca) for x, y in loc]
-    d.polygon(nd((R * 0.035, R * 0.045)), fill=(2, 2, 3))
-    d.polygon(nd(), fill=needle)
-    d.line([(cx + R * 0.10 * ca, cy - R * 0.10 * sa), (cx + R * 0.88 * ca, cy - R * 0.88 * sa)],
-           fill=(255, 205, 140), width=max(1, int(R * 0.008)))
-    if heat > 0:
-        g.polygon(nd(), fill=(int(200 * heat), int(55 * heat), int(10 * heat)))
-    for rad, col in ((R * 0.13, (30, 30, 34)), (R * 0.115, (150, 150, 156)), (R * 0.085, (70, 70, 76)), (R * 0.05, (200, 200, 205))):
-        d.ellipse([cx - rad, cy - rad, cx + rad, cy + rad], fill=col)
-
-
 def dash_frame(t):
-    """仪表台特写：大转速表（主角）+ 时速表 + 水温 + 机油 + 涡轮增压 + 挡位 + 警示灯。
-    转速表指针冲进红区，其余各表也一起进入危险区，整个画面泛红闪烁；3 秒内镜头缓慢推向转速表。"""
+    """真实 F1 风格的座舱特写（车手视角）：halo 防滚架 + 碳纤维方向盘 + 顶部 15 颗转速灯 + 中央液晶屏（环形转速弧 + 挡位）
+    + 两侧彩色旋钮 + 戴手套的双手。转速弧一段段点亮，冲进红区后屏幕、转速灯、整个画面一起报警。"""
     S = 2
     p = float(np.clip((t - DASH_T0) / (DASH_T1 - DASH_T0), 0, 1))
     W, H = OW * S, OH * S
-    base = Image.new("RGB", (W, H), (7, 7, 10))
-    d = ImageDraw.Draw(base)
+    fg = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(fg)
     glow = Image.new("RGB", (W, H), (0, 0, 0))
     g = ImageDraw.Draw(glow)
     rr = np.random.default_rng(int(round(t * FPS)) + 7)
-    hx, hy = 520.0, 365.0
-    z = 1.0 + 0.10 * p                                              # 缓慢推近
-    Z = lambda x, y, r: ((hx + (x - hx) * z) * S, (hy + (y - hy) * z) * S, r * z * S)
+    hx, hy = 640.0, 500.0
+    z = 1.0 + 0.12 * p                                              # 缓慢推近
+    T = lambda x, y: ((hx + (x - hx) * z) * S, (hy + (y - hy) * z) * S)
+    K = z * S
 
-    # 仪表台底板：碳纤维斜纹 + 橙色饰线
-    for k_ in range(-700, 1400, 16):
-        d.line([(k_ * S, 0), ((k_ - 360) * S, H)], fill=(13, 13, 17), width=S)
-    d.rounded_rectangle([20 * S, 96 * S, 1260 * S, 624 * S], radius=50 * S, outline=(30, 30, 36), width=3 * S)
-    d.line([(60 * S, 616 * S), (1220 * S, 616 * S)], fill=(236, 104, 34), width=3 * S)
+    def poly(pts, fill, dr=None):
+        (dr or d).polygon([T(*q) for q in pts], fill=fill)
 
-    # 读数
+    def rrect(x0, y0, x1, y1, rad, fill, outline=None, width=0, dr=None):
+        (dr or d).rounded_rectangle([*T(x0, y0), *T(x1, y1)], radius=rad * K, fill=fill, outline=outline, width=int(width * K))
+
+    def ell(x, y, r, fill, outline=None, width=0, dr=None, ry=None):
+        cx_, cy_ = T(x, y)
+        (dr or d).ellipse([cx_ - r * K, cy_ - (ry or r) * K, cx_ + r * K, cy_ + (ry or r) * K], fill=fill, outline=outline, width=int(width * K))
+
+    def line(pts, fill, width, dr=None):
+        (dr or d).line([T(*q) for q in pts], fill=fill, width=max(1, int(width * K)))
+
+    def text(x, y, s_, size, fill, dr=None, anchor="mm"):
+        (dr or d).text(T(x, y), s_, font=_font(max(8, int(size * K))), fill=fill, anchor=anchor)
+
+    # ---- 读数
     v = 5.0 + 10.2 * (1 - (1 - p) ** 2.2)
     v += 0.16 * np.sin(t * 95) * smooth(v, 13.8, 14.6) + rr.normal(0, 0.05) * p
     heat = float(np.clip((v - 13.5) / 1.2, 0, 1))
-    spd = 250 + 100 * p ** 1.2 + rr.normal(0, 1.5) * heat
-    tmp = 88 + 36 * smooth(p, 0.1, 1.0) + rr.normal(0, 0.4) * heat
-    oil = 5.0 - 1.4 * p + 0.15 * np.sin(t * 60) * p
-    bst = 0.8 + 1.9 * smooth(p, 0.0, 0.9) + 0.05 * np.sin(t * 70) * heat
-
-    # 副表（先画，主表压在上面）：时速表（中）、水温 / 机油（小）、涡轮增压（小）
-    cx_, cy_, r_ = Z(965, 232, 128)
-    _gauge(d, g, S, cx_, cy_, r_, 0, 400, spd, 50, 5, red=(360, 400), title="KM/H", heat=heat)
-    cx_, cy_, r_ = Z(893, 478, 82)
-    _gauge(d, g, S, cx_, cy_, r_, 60, 130, tmp, 10, 2, red=(110, 130), title="WATER", heat=smooth(tmp, 108, 118))
-    cx_, cy_, r_ = Z(1087, 478, 82)
-    _gauge(d, g, S, cx_, cy_, r_, 0, 8, oil, 1, 2, red=(0, 1.5), title="OIL", heat=0.0)
-    cx_, cy_, r_ = Z(158, 262, 92)
-    _gauge(d, g, S, cx_, cy_, r_, 0, 3, bst, 0.5, 5, red=(2.5, 3.0), title="BOOST", fmt="{:.1f}", heat=smooth(bst, 2.3, 2.8))
-
-    # 左下：挡位小屏 + 三个警示灯
-    gx, gy, gw = Z(158, 440, 60)
-    d.rounded_rectangle([gx - gw, gy - gw * 0.85, gx + gw, gy + gw * 0.85], radius=gw * 0.2, fill=(3, 3, 5),
-                        outline=(70, 70, 78), width=2 * S)
-    d.text((gx, gy - gw * 0.1), str(7 if p < 0.55 else 8), font=_font(int(gw * 1.15)), fill=(236, 120, 40), anchor="mm")
-    d.text((gx, gy + gw * 0.62), "GEAR", font=_font(int(gw * 0.2)), fill=(130, 130, 140), anchor="mm")
+    alert = v > 14.0
     flash = int(t * 8) % 2 == 0
-    for i_, (name, lit, col) in enumerate((("ENG", heat > 0.2 and flash, (255, 160, 20)),
-                                           ("TEMP", tmp > 110 and flash, (255, 50, 40)),
-                                           ("OIL", False, (255, 50, 40)))):
-        lx, ly, lw = Z(98 + i_ * 60, 550, 24)
-        d.rounded_rectangle([lx - lw, ly - lw * 0.6, lx + lw, ly + lw * 0.6], radius=lw * 0.2,
-                            fill=col if lit else tuple(int(c * 0.14) for c in col), outline=(60, 60, 66), width=S)
-        d.text((lx, ly), name, font=_font(int(lw * 0.5)), fill=(20, 8, 8) if lit else (90, 90, 96), anchor="mm")
+    spd = int(250 + 100 * p ** 1.2)
+    orange = (236, 104, 34, 255)
+
+    # ---- halo 防滚架（在方向盘前方，中间立柱 + 两侧弧臂）
+    poly([(610, 170), (670, 170), (682, 340), (598, 340)], (66, 68, 74, 255))
+    line([(640, 170), (640, 340)], (118, 120, 128, 255), 2.5)
+    for sg in (-1, 1):
+        line([(640 + sg * 8, 175), (640 + sg * 400, 118), (640 + sg * 600, 150)], (58, 60, 66, 255), 24)
+        line([(640 + sg * 8, 168), (640 + sg * 400, 111), (640 + sg * 600, 143)], (112, 114, 122, 255), 3)
+
+    # ---- 座舱仪表台（碳纤维 + 橙色涂装饰线），两侧低中间高
+    xs = np.linspace(-40, 1320, 40)
+    top = [(x, 318 + 0.00028 * (x - 640) ** 2) for x in xs]
+    poly(top + [(1320, 760), (-40, 760)], (12, 12, 15, 255))
+    line(top, orange, 5)
+
+    # ---- 方向盘主体：中央身 + 左右握把（碳纤维黑 + 橙色边线）
+    carbon, edge = (17, 17, 21, 255), (44, 44, 52, 255)
+    for sg in (-1, 1):
+        rrect(640 + sg * 540 - 105, 350, 640 + sg * 540 + 105, 780, 80, carbon, edge, 3)
+    rrect(246, 316, 1034, 790, 52, carbon, edge, 3)
+    line([(270, 322), (1010, 322)], orange, 4)
+    line([(270, 342), (1010, 342)], (30, 30, 36, 255), 2)
+
+    # ---- 15 颗转速灯（绿 5 / 红 5 / 蓝 5）+ 两侧报警灯
+    n_on = int(np.clip((v - 7.0) / 7.0, 0, 1) * 15 + 0.5)
+    for i in range(15):
+        x = 640 + (i - 7) * 26
+        col = (40, 255, 90) if i < 5 else (255, 40, 30) if i < 10 else (80, 130, 255)
+        on = i < n_on
+        if on and alert:
+            on = flash or i % 2 == 0
+        ell(x, 336, 9, col + (255,) if on else tuple(int(c * 0.14) for c in col) + (255,), (36, 36, 42, 255), 1.5)
+        if on:
+            ell(x, 336, 10, col, dr=g)
+    for sg in (-1, 1):
+        lit = alert and flash
+        ell(640 + sg * 215, 338, 8, (255, 40, 30, 255) if lit else (50, 10, 10, 255), (36, 36, 42, 255), 1.5)
         if lit:
-            g.rounded_rectangle([lx - lw, ly - lw * 0.6, lx + lw, ly + lw * 0.6], radius=lw * 0.2, fill=col)
+            ell(640 + sg * 215, 338, 9, (255, 40, 30), dr=g)
 
-    # 主角：转速表（最大），REDLINE 粗刻线 + 警示字
-    cx_, cy_, r_ = Z(hx, hy, 235)
-    _gauge(d, g, S, cx_, cy_, r_, 0, 16, v, 1, 4, red=(13.5, 16.0), title="RPM x1000", heat=heat, hero=True)
-    ang = np.radians(225 - 270 * 14 / 16)
-    p1 = (cx_ + r_ * 1.0 * np.cos(ang), cy_ - r_ * 1.0 * np.sin(ang))
-    p2 = (cx_ + r_ * 0.62 * np.cos(ang), cy_ - r_ * 0.62 * np.sin(ang))
-    d.line([p1, p2], fill=(255, 40, 30), width=int(9 * z * S))
-    g.line([p1, p2], fill=(255, 40, 30), width=int(9 * z * S))
-    on = v > 14 and int(t * 8) % 2 == 0
-    for dr_ in ((d, g) if on else (d,)):
-        dr_.text((cx_, cy_ + r_ * 0.58), "REDLINE", font=_font(int(r_ * 0.15)), fill=(255, 45, 35) if on else (60, 14, 14), anchor="mm")
-    # 主表玻璃反光
-    refl = Image.new("L", (W, H), 0)
-    ImageDraw.Draw(refl).polygon([(cx_ - r_ * 0.95, cy_ - r_ * 0.15), (cx_ - r_ * 0.35, cy_ - r_ * 0.92),
-                                  (cx_ + r_ * 0.30, cy_ - r_ * 0.92), (cx_ - r_ * 0.62, cy_ + r_ * 0.12)], fill=13)
-    msk = Image.new("L", (W, H), 0)
-    ImageDraw.Draw(msk).ellipse([cx_ - r_, cy_ - r_, cx_ + r_, cy_ + r_], fill=255)
-    rf = np.asarray(refl).astype(np.float32) / 255 * np.asarray(msk).astype(np.float32) / 255
+    # ---- 中央液晶屏
+    border = (255, 50, 40, 255) if (alert and flash) else (70, 70, 80, 255)
+    rrect(438, 362, 842, 590, 22, (3, 4, 7, 255), border, 3)
+    N = 40
+    ccx, ccy, r_in, r_out = 640, 482, 66, 88
+    for i in range(N):
+        a0 = np.radians(220 - 260 * i / N)
+        a1 = np.radians(220 - 260 * (i + 0.8) / N)
+        pts = [(ccx + r_out * np.cos(a0), ccy - r_out * np.sin(a0)), (ccx + r_out * np.cos(a1), ccy - r_out * np.sin(a1)),
+               (ccx + r_in * np.cos(a1), ccy - r_in * np.sin(a1)), (ccx + r_in * np.cos(a0), ccy - r_in * np.sin(a0))]
+        fi = (i + 0.5) / N
+        col = (60, 230, 110) if fi < 0.5 else (250, 210, 50) if fi < 0.72 else (255, 130, 30) if fi < 0.84 else (255, 40, 30)
+        lit = (i + 0.5) / N <= v / 16.0
+        poly(pts, col + (255,) if lit else (28, 30, 36, 255))
+        if lit:
+            poly(pts, col, g)
+    ang = np.radians(220 - 260 * 0.84)                              # 红线刻度
+    line([(ccx + (r_in - 8) * np.cos(ang), ccy - (r_in - 8) * np.sin(ang)), (ccx + (r_out + 8) * np.cos(ang), ccy - (r_out + 8) * np.sin(ang))],
+         (255, 255, 255, 255), 2.5)
+    text(ccx, ccy - 6, str(7 if p < 0.55 else 8), 78, (255, 70, 55, 255) if alert else (236, 236, 240, 255))
+    text(ccx, ccy + 42, "RPM %.1f" % v, 15, (150, 150, 160, 255))
+    for (lx, rows) in ((488, (("LAP", "3/3", (236, 236, 240)), ("DELTA", "-0.412", (60, 230, 110)), ("ERS", "78%", (250, 210, 50)))),
+                       (792, (("KM/H", str(spd), (236, 236, 240)), ("BIAS", "57.5", (236, 236, 240)), ("TEMP", "112C" if p > 0.7 else "104C", (255, 70, 55) if p > 0.7 else (236, 236, 240))))):
+        for k_, (lab, val, col) in enumerate(rows):
+            y0_ = 412 + k_ * 52
+            text(lx, y0_, lab, 13, (130, 130, 140, 255))
+            text(lx, y0_ + 20, val, 24, col + (255,))
+    # REDLINE 横幅：进入红区后红底白字闪烁
+    if alert:
+        rrect(442, 366, 838, 394, 8, (230, 25, 25, 255) if flash else (70, 10, 10, 255))
+        text(640, 380, "REDLINE", 20, (255, 255, 255, 255) if flash else (140, 60, 60, 255))
+        if flash:
+            rrect(442, 366, 838, 394, 8, (255, 40, 30), dr=g)
 
-    arr = np.asarray(base).astype(np.float32) / 255 + rf[..., None]
-    gl = np.asarray(glow).astype(np.float32) / 255 * (1.3 + 1.4 * heat)
-    dn = lambda x: x.reshape(OH, S, OW, S, 3).mean(axis=(1, 3))
-    img = dn(arr) + dn(gl)
+    # ---- 两侧彩色旋钮 / 按键
+    for (bx, by, col) in ((300, 430, (230, 40, 40)), (372, 430, (240, 200, 40)), (300, 502, (60, 120, 235)), (372, 502, (60, 200, 90)),
+                          (908, 430, (235, 235, 238)), (980, 430, (230, 40, 40)), (908, 502, (60, 200, 90)), (980, 502, (240, 200, 40))):
+        ell(bx, by, 29, (8, 8, 10, 255), (84, 84, 92, 255), 2)
+        for k_ in range(12):
+            a_ = k_ * np.pi / 6
+            line([(bx + 24 * np.cos(a_), by + 24 * np.sin(a_)), (bx + 29 * np.cos(a_), by + 29 * np.sin(a_))], (150, 150, 158, 255), 2)
+        ell(bx, by, 18, col + (255,), (20, 20, 24, 255), 1.5)
+        line([(bx, by), (bx + 12 * np.cos(bx * 0.05), by - 12 * np.sin(bx * 0.05 + 1.0))], (20, 20, 24, 255), 3)
+    for (bx, by, lab, col) in ((330, 372, "OT", (225, 35, 35)), (950, 372, "DRS", (60, 120, 235))):
+        rrect(bx - 26, by - 15, bx + 26, by + 15, 8, col + (255,), (20, 20, 24, 255), 2)
+        text(bx, by, lab, 14, (255, 255, 255, 255))
+
+    # ---- 戴手套的双手（握住握把，大拇指搭在内侧）
+    glove, glove_e, glove_l = (40, 42, 58, 255), (96, 100, 124, 255), (66, 70, 94, 255)
+    for sg in (-1, 1):
+        gx = 640 + sg * 540
+        ell(gx, 610, 100, glove, glove_e, 3, ry=130)
+        for k_ in range(4):                                         # 四指
+            yk = 520 + k_ * 38
+            ell(gx - sg * 18, yk, 82, glove, glove_e, 2.5, ry=21)
+            line([(gx - 90, yk - 6), (gx + 54, yk - 8)], glove_l, 3)
+        ell(gx - sg * 78, 420, 34, glove, glove_e, 3, ry=52)        # 大拇指
+        line([(gx - sg * 78 - 20, 405), (gx - sg * 78 + 20, 395)], glove_l, 3)
+        line([(gx - 96, 650), (gx + 96, 650)], orange, 8)           # 手套橙色饰条
+
+    # ---- 背景：赛道前方景象（虚化 + 压暗），上方透出
+    bg = gaussian_filter(env_blur(t), (5, 5, 0)) * 0.55
+    arr = np.asarray(fg).astype(np.float32) / 255
+    # 碳纤维编织纹
+    yy_, xx_ = np.mgrid[0:H, 0:W]
+    weave = (((xx_ // (7 * S) + yy_ // (7 * S)) % 2).astype(np.float32) - 0.5) * 0.028
+    dn3 = lambda x: x.reshape(OH, S, OW, S, 3).mean(axis=(1, 3))
+    a1 = arr[..., 3:4]
+    rgb = (arr[..., :3] + weave[..., None] * (arr[..., :3].mean(axis=2, keepdims=True) < 0.2)) * a1
+    rgb, al = dn3(rgb), dn3(np.repeat(a1, 3, axis=2))[..., :1]
+    gl = dn3(np.asarray(glow).astype(np.float32) / 255) * (1.3 + 1.4 * heat)
+    img = bg * (1 - al) + rgb + gl
+    # 进入红区：整个画面泛红、随节拍闪烁
     yy, xx = np.mgrid[0:OH, 0:OW]
-    edge = np.clip(np.hypot((xx - OW / 2) / (OW / 2), (yy - OH / 2) / (OH / 2)), 0, 1.3)
+    edge_ = np.clip(np.hypot((xx - OW / 2) / (OW / 2), (yy - OH / 2) / (OH / 2)), 0, 1.3)
     pulse = 0.6 + 0.4 * np.sin(t * 2 * np.pi * 4)
-    img += (heat * pulse * (0.12 + 0.45 * edge ** 2))[..., None] * np.array([1.0, 0.04, 0.03], np.float32)
-    sh = 1.0 + 7 * heat
+    img += (heat * pulse * (0.10 + 0.40 * edge_ ** 2))[..., None] * np.array([1.0, 0.04, 0.03], np.float32)
+    sh = 1.0 + 6 * heat
     return np.roll(img, (int(rr.normal(0, sh)), int(rr.normal(0, sh))), axis=(0, 1)).astype(np.float32)
 
 
