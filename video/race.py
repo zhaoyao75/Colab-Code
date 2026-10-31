@@ -17,17 +17,18 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from scipy.ndimage import gaussian_filter, zoom
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OW, OH = 1280, 720            # 输出分辨率
+PORTRAIT = "--portrait" in sys.argv      # 抖音竖版：720x1280（最后用 ffmpeg 升到 1080x1920）
+OW, OH = (720, 1280) if PORTRAIT else (1280, 720)   # 输出分辨率
 SS = 1.0                      # 环境超采样倍数
 RW, RH = int(OW * SS), int(OH * SS)
 FPS = 30
 AUDIO = os.path.join(HERE, "..", "music", "redline.mp3")
-LETTER = 88                   # 2.39:1 宽银幕黑边（像素，输出分辨率）
+LETTER = 0 if PORTRAIT else 88   # 横版：2.39:1 宽银幕黑边（像素）；竖版不加
 
 # 相机 / 场景（单位：米）
-HC = 1.75                     # 相机高度
-HOR = 0.40                    # 地平线位置（画面高度比例）
-FOV = 66                      # 水平视场
+HC = 2.3 if PORTRAIT else 1.75   # 相机高度（竖版抬高，让车落到画面中下部）
+HOR = 0.45 if PORTRAIT else 0.40    # 地平线位置（画面高度比例）
+FOV = 60 if PORTRAIT else 66      # 水平视场
 ROAD = 7.0                    # 赛道半宽
 KERB = 1.1                    # 路肩宽
 WALL = 13.0                   # 护墙到中心距离
@@ -604,10 +605,13 @@ def dash_frame(t):
     glow = Image.new("RGB", (W, H), (0, 0, 0))
     g = ImageDraw.Draw(glow)
     rr = np.random.default_rng(int(round(t * FPS)) + 7)
-    hx, hy = 640.0, 500.0
-    z = 1.0 + 0.12 * p                                              # 缓慢推近
-    T = lambda x, y: ((hx + (x - hx) * z) * S, (hy + (y - hy) * z) * S)
-    K = z * S
+    kd = 0.88 if PORTRAIT else 1.0                                  # 竖版：整体缩小到画面宽度内
+    Y0 = 830.0 if PORTRAIT else 500.0
+    hx, hy = (OW / 2, 900.0) if PORTRAIT else (640.0, 500.0)
+    z = 1.0 + (0.05 if PORTRAIT else 0.12) * p                      # 缓慢推近（竖版幅度小，免得旋钮被切）
+    M = lambda x, y: (OW / 2 + (x - 640) * kd, Y0 + (y - 500) * kd)
+    T = lambda x, y: (lambda X, Y: ((hx + (X - hx) * z) * S, (hy + (Y - hy) * z) * S))(*M(x, y))
+    K = z * S * kd
 
     def poly(pts, fill, dr=None):
         (dr or d).polygon([T(*q) for q in pts], fill=fill)
@@ -644,14 +648,14 @@ def dash_frame(t):
     # ---- 座舱仪表台（碳纤维 + 橙色涂装饰线），两侧低中间高
     xs = np.linspace(-40, 1320, 40)
     top = [(x, 318 + 0.00028 * (x - 640) ** 2) for x in xs]
-    poly(top + [(1320, 760), (-40, 760)], (12, 12, 15, 255))
+    poly(top + [(1320, 2200), (-40, 2200)], (12, 12, 15, 255))
     line(top, orange, 5)
 
     # ---- 方向盘主体：中央身 + 左右握把（碳纤维黑 + 橙色边线）
     carbon, edge = (17, 17, 21, 255), (44, 44, 52, 255)
     for sg in (-1, 1):
-        rrect(640 + sg * 540 - 105, 350, 640 + sg * 540 + 105, 780, 80, carbon, edge, 3)
-    rrect(246, 316, 1034, 790, 52, carbon, edge, 3)
+        rrect(640 + sg * 540 - 105, 350, 640 + sg * 540 + 105, 2200, 80, carbon, edge, 3)
+    rrect(246, 316, 1034, 2200, 52, carbon, edge, 3)
     line([(270, 322), (1010, 322)], orange, 4)
     line([(270, 342), (1010, 342)], (30, 30, 36, 255), 2)
 
@@ -757,8 +761,8 @@ def dash_frame(t):
 def overlay_layers():
     title = Image.new("RGBA", (OW, OH), (0, 0, 0, 0))
     dr = ImageDraw.Draw(title)
-    zh = ImageFont.truetype("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc", 64)
-    en = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18)
+    zh = ImageFont.truetype("/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc", 150 if PORTRAIT else 64)
+    en = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 28 if PORTRAIT else 18)
 
     def spaced(text, font, y, spacing, fill):
         widths = [dr.textlength(c, font=font) for c in text]
@@ -768,13 +772,13 @@ def overlay_layers():
             dr.text((x, y), c, font=font, fill=fill)
             x += w + spacing
 
-    spaced("红线", zh, 104, 40, (245, 240, 232, 255))
-    spaced("R E D L I N E", en, 184, 6, (230, 90, 60, 255))
+    spaced("红线", zh, 250 if PORTRAIT else 104, 70 if PORTRAIT else 40, (245, 240, 232, 255))
+    spaced("R E D L I N E", en, 450 if PORTRAIT else 184, 12 if PORTRAIT else 6, (230, 90, 60, 255))
     title = title.filter(ImageFilter.GaussianBlur(0.3))
 
     logo = Image.new("RGBA", (OW, OH), (0, 0, 0, 0))
     dl = ImageDraw.Draw(logo)
-    cx, cy, R = OW - 132, OH - LETTER - 34, 13
+    cx, cy, R = (44, 150, 13) if PORTRAIT else (OW - 132, OH - LETTER - 34, 13)   # 竖版放左上，避开抖音右侧按钮和底部文案
     lr = np.random.default_rng(11)
     for i in range(12):   # Claude 星芒标志（简化绘制）
         ang = i * 2 * np.pi / 12 + lr.uniform(-0.12, 0.12)
@@ -786,6 +790,29 @@ def overlay_layers():
     dl.text((cx + 22, cy - 13), "Claude", font=lf, fill=(235, 230, 222, 255))
     to_np = lambda im: np.asarray(im).astype(np.float32) / 255
     return to_np(title), to_np(logo)
+
+
+POS_EVENTS = [(25.6, 5), (51.2, 4), (64.0, 3), (102.4, 2), (107.2, 1)]   # 每次超车后的名次（发车 P6）
+
+
+def hud_layer(t):
+    """竖版名次显示：P6 → P1，每次超车数字弹一下并变橙；冲线后显示 WINNER"""
+    pos, t_ev = 6, -99.0
+    for te, ps in POS_EVENTS:
+        if t >= te:
+            pos, t_ev = ps, te
+    if t < 5.4:
+        return None
+    im = Image.new("RGBA", (OW, OH), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    age = t - t_ev
+    pop = 1.0 + 0.45 * float(np.exp(-age / 0.18)) if age >= 0 else 1.0
+    col = (255, 150, 50, 255) if age < 0.5 else (245, 245, 245, 255)
+    big = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", int(120 * pop))
+    lab = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 26)
+    d.text((44, 206), "WINNER" if t >= T_FIN else "POSITION", font=lab, fill=(205, 205, 212, 255), anchor="lm")
+    d.text((40, 290), "P%d" % pos, font=big, fill=col, anchor="lm", stroke_width=4, stroke_fill=(20, 10, 8, 255))
+    return np.asarray(im).astype(np.float32) / 255
 
 
 def title_alpha(t, total):
@@ -874,6 +901,10 @@ def frame(t, layers, total=128.0, pulse=0.0):
     ta = title[..., 3:4] * title_alpha(t, total)
     img = img * (1 - ta) + title[..., :3] * ta
     img = img * (1 - logo[..., 3:4]) + logo[..., :3] * logo[..., 3:4]
+    if PORTRAIT:
+        hud = hud_layer(t)
+        if hud is not None:
+            img = img * (1 - hud[..., 3:4]) + hud[..., :3] * hud[..., 3:4]
     img[:LETTER] = 0
     img[OH - LETTER:] = 0
     return (np.clip(img, 0, 1) * 255).astype(np.uint8)
@@ -937,12 +968,13 @@ def main():
     warnings.filterwarnings("ignore")
     LAYERS = overlay_layers()
     if "--still" in sys.argv:
-        ts = [float(x) for x in sys.argv[sys.argv.index("--still") + 1:]]
+        ts = [float(x) for x in sys.argv[sys.argv.index("--still") + 1:] if not x.startswith("--")]
+        pre = "p" if PORTRAIT else ""
         for t in ts:
-            Image.fromarray(frame(t, LAYERS)).save(os.path.join(HERE, "race_still_%g.png" % t))
-            print("saved race_still_%g.png" % t)
+            Image.fromarray(frame(t, LAYERS)).save(os.path.join(HERE, "race_still_%s%g.png" % (pre, t)))
+            print("saved race_still_%s%g.png" % (pre, t))
         return
-    out = os.path.join(HERE, "redline.mp4")
+    out = os.path.join(HERE, "redline_portrait.mp4" if PORTRAIT else "redline.mp4")
     if "--demo" in sys.argv:            # --demo 起始秒 时长
         k = sys.argv.index("--demo")
         T0, DUR = float(sys.argv[k + 1]), float(sys.argv[k + 2])
@@ -950,7 +982,7 @@ def main():
     PULSE = audio_pulse(int(TOTAL * FPS) + 1)
     nf = int(round(DUR * FPS))
     workers = os.cpu_count() or 4
-    tag = "demo" if "--demo" in sys.argv else "full"
+    tag = ("demo" if "--demo" in sys.argv else "full") + ("_p" if PORTRAIT else "")
     CH = 120
     jobs = [(k, i0, min(nf, i0 + CH), tag) for k, i0 in enumerate(range(0, nf, CH))]
     done = sum(os.path.exists(os.path.join(HERE, f".seg_{tag}_{k:03d}.mp4")) for k, *_ in jobs)
