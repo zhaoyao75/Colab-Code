@@ -510,17 +510,21 @@ def render_frame(i):
 
 
 def worker(args):
-    k, i0, i1 = args
-    seg = os.path.join(HERE, f".seg_{k}.mp4")
+    """渲染一小块（默认 4 秒）；已存在的块直接跳过，所以中断后可以接着渲"""
+    k, i0, i1, tag = args
+    seg = os.path.join(HERE, f".seg_{tag}_{k:03d}.mp4")
+    if os.path.exists(seg):
+        return seg
+    tmp = seg + ".part.mp4"
     p = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
                           "-s", f"{OW}x{OH}", "-r", str(FPS), "-i", "-", "-c:v", "libx264",
-                          "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", seg], stdin=subprocess.PIPE)
+                          "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", tmp], stdin=subprocess.PIPE)
     for i in range(i0, i1):
         p.stdin.write(render_frame(i).tobytes())
-        if (i - i0) % 100 == 0:
-            print(f"  worker {k}: {i - i0}/{i1 - i0}", flush=True)
     p.stdin.close()
     p.wait()
+    os.replace(tmp, seg)
+    print(f"  chunk {k} done ({i1 - i0} frames)", flush=True)
     return seg
 
 
@@ -543,10 +547,14 @@ def main():
         out = os.path.join(HERE, "redline_demo.mp4")
     PULSE = audio_pulse(int(TOTAL * FPS) + 1)
     nf = int(round(DUR * FPS))
-    workers = 4
-    bounds = np.linspace(0, nf, workers + 1).astype(int)
+    workers = os.cpu_count() or 4
+    tag = "demo" if "--demo" in sys.argv else "full"
+    CH = 120
+    jobs = [(k, i0, min(nf, i0 + CH), tag) for k, i0 in enumerate(range(0, nf, CH))]
+    done = sum(os.path.exists(os.path.join(HERE, f".seg_{tag}_{k:03d}.mp4")) for k, *_ in jobs)
+    print(f"{len(jobs)} chunks, {done} already done, {workers} workers", flush=True)
     with mp.get_context("fork").Pool(workers) as pool:
-        segs = pool.map(worker, [(k, bounds[k], bounds[k + 1]) for k in range(workers)])
+        segs = pool.map(worker, jobs, chunksize=1)
     lst = os.path.join(HERE, ".segs.txt")
     with open(lst, "w") as fh:
         fh.writelines(f"file '{x}'\n" for x in segs)
