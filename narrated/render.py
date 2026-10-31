@@ -941,24 +941,115 @@ def build_skyline():
             sprites.append(dict(sp=Sprite(im), x=x, y=base - h - 30, h=h + 30,
                                 order=rng.random() * 0.85))
             x += w + int(rng.uniform(-10, 18))
-    # 「大玉米」（千玺广场）
-    hh, ww = 470, 130
-    im = Image.new("RGBA", (ww, hh), (0, 0, 0, 0))
-    d = ImageDraw.Draw(im)
-    for y in range(hh):
-        v = y / hh
-        r = (0.32 + 0.38 * math.sin(min(1, (1 - v) * 1.15) * math.pi * 0.85)) * ww / 2 if v < 0.97 else 0
-        if v < 0.12:
-            r = ww / 2 * 0.70 * math.sqrt(max(0, 1 - ((0.12 - v) / 0.12) ** 2))
-        if r <= 0:
-            continue
-        rib = (y % 9) < 3
-        c = (255, 196, 90, 255) if rib else (40, 34, 30, 255)
-        d.line((ww / 2 - r, y, ww / 2 + r, y), fill=c)
-    d.line((ww / 2, 0, ww / 2, 40), fill=(255, 196, 90, 255), width=3)
-    sprites.append(dict(sp=Sprite(im), x=int(W * 0.60), y=base - hh, h=hh, order=1.0))
+    # 「大玉米」（千玺广场）：修长、中段微鼓、顶部圆润收尖，立面是一粒粒金色「玉米粒」
+    sprites.append(dict(sp=corn_sprite(), x=int(W * 0.60), y=base - 480, h=480, order=1.0))
     sprites.sort(key=lambda s: s["sp"].rgb[..., 0].mean() < 0.12)  # 后排先画
     return sprites, base
+
+
+def corn_sprite(hh=480, R=46):
+    ww = 2 * R + 6
+    v = np.linspace(0, 1, hh)
+    r = np.interp(v, [0, .025, .08, .20, .45, .70, .90, 1.0],
+                  [0, .32, .60, .86, 1.0, .95, .83, .80]) * R
+    y, x = np.mgrid[0:hh, 0:ww].astype(np.float32)
+    dx = x - ww / 2
+    rr = np.maximum(r[:, None], 1e-3)
+    a = np.clip(rr - np.abs(dx) + 0.5, 0, 1)
+    th = np.arcsin(np.clip(dx / rr, -1, 1))
+    cu = (th + np.pi / 2) / np.pi * 12            # 可见半圈 12 列玉米粒
+    col_i = np.floor(cu)
+    fx = cu % 1
+    fy = (y / 11 + 0.5 * (col_i % 2)) % 1          # 相邻列错开半粒
+    kern = smooth((0.5 - np.abs(fx - 0.5)) / 0.17) * smooth((0.5 - np.abs(fy - 0.5)) / 0.20)
+    shade = (0.30 + 0.70 * np.clip(np.cos(th + 0.25), 0, 1) ** 0.7)[..., None]
+    gold = np.array([1.0, 0.80, 0.34], np.float32)
+    gap = np.array([0.30, 0.18, 0.06], np.float32)
+    rgb = (gap * (1 - kern[..., None]) + gold * kern[..., None]) * shade
+    rgb += 0.25 * kern[..., None] * np.exp(-((th + 0.35) / 0.25) ** 2)[..., None]   # 高光
+    sp = Sprite.__new__(Sprite)
+    sp.rgb, sp.a = np.clip(rgb, 0, 1).astype(np.float32), a.astype(np.float32)
+    sp.h, sp.w = hh, ww
+    return sp
+
+
+@lru_cache(None)
+def build_textile():
+    """平纹布（经纬交织）+ 锯齿屋顶的国棉厂厂房 + 「纺织城」题字"""
+    fx0, fy0, fw, fh, c = int(W * 0.20), int(H * 0.16), int(W * 0.60), int(H * 0.24), 12
+    y, x = np.mgrid[0:fh, 0:fw].astype(np.float32)
+    i, j = np.floor(x / c), np.floor(y / c)
+    px, py = (x % c) / c, (y % c) / c
+    warp_top = ((i + j) % 2) == 0
+    warp_prof = np.clip(np.cos((px - 0.5) * np.pi * 1.25), 0, 1)
+    weft_prof = np.clip(np.cos((py - 0.5) * np.pi * 1.25), 0, 1)
+    warp_c = np.array([0.95, 0.76, 0.40], np.float32)
+    weft_c = np.array([0.97, 0.93, 0.85], np.float32)
+    top_is_warp = warp_top[..., None]
+    rgb = np.where(top_is_warp, warp_c * (0.55 + 0.45 * warp_prof)[..., None],
+                   weft_c * (0.55 + 0.45 * weft_prof)[..., None])
+    a = np.where(warp_top, warp_prof > 0.05, weft_prof > 0.05).astype(np.float32) * 0.92
+    warp_only = (warp_prof > 0.15).astype(np.float32) * 0.45 * warp_prof
+    # 厂房
+    base = int(H * 0.78)
+    mh = 150
+    im = Image.new("RGBA", (W, mh), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    body = (22, 22, 36, 255)
+    d.rectangle((int(W * 0.04), 70, int(W * 0.96), mh), fill=body)
+    for k, x0 in enumerate(range(int(W * 0.04), int(W * 0.96), 64)):
+        d.polygon([(x0, 70), (x0, 34), (x0 + 64, 70)], fill=body)                 # 锯齿屋顶
+        d.line((x0 + 3, 40, x0 + 3, 68), fill=(255, 205, 130, 200), width=4)       # 天窗
+    rng = np.random.default_rng(23)
+    for wy in (88, 112):
+        for wx in range(int(W * 0.05), int(W * 0.95), 18):
+            if rng.random() < 0.65:
+                d.rectangle((wx, wy, wx + 9, wy + 10), fill=(255, 205, 130, int(rng.uniform(150, 255))))
+    chim = [int(W * 0.24), int(W * 0.74)]
+    mills = Sprite(im)
+    label = seal_sprite("纺织城", 74, vertical=False)
+    en = text_sprite("Textile City", SERIF_BOLD, 34, fill=(255, 225, 180))
+    return dict(fx0=fx0, fy0=fy0, fw=fw, fh=fh, rgb=rgb.astype(np.float32), a=a, warp=warp_only,
+                warp_c=warp_c, mills=mills, mill_y=base - mh, chim=chim, base=base,
+                label=label, en=en)
+
+
+def draw_textile(frame, t, s1, s2):
+    tx = build_textile()
+    lt = t - s1
+    al = fade(t, s1 - 0.2, s2 + 0.6, 0.6, 0.8)
+    if al <= 0:
+        return
+    fx0, fy0, fw, fh = tx["fx0"], tx["fy0"], tx["fw"], tx["fh"]
+    reg = frame[fy0:fy0 + fh, fx0:fx0 + fw]
+    reg += tx["warp"][..., None] * tx["warp_c"] * 0.35 * al          # 先垂下的经线
+    k = ease(t, s1 + 0.3, s2 - 0.2)
+    rows = int(k * fh)
+    if rows > 0:
+        comp(reg[:rows], tx["rgb"][:rows], tx["a"][:rows] * al)
+        # 梭子：沿织口来回
+        ph = (lt * 0.9) % 2
+        sx = fx0 + fw * (ph if ph < 1 else 2 - ph)
+        paste(frame, glow_dot(9, (1, 0.92, 0.75)), sx, fy0 + rows, alpha=al, center=True, add=True)
+        frame[fy0 + rows - 1:fy0 + rows + 1, fx0:fx0 + fw] += 0.25 * al
+    la = al * ease(t, s1 + 0.8, s1 + 1.6)
+    paste(frame, tx["label"], W / 2, fy0 + fh + 62, alpha=la, center=True)
+    paste(frame, tx["en"], W / 2, fy0 + fh + 122, alpha=la, center=True)
+
+
+def draw_mills(frame, t, s1, s2):
+    tx = build_textile()
+    al = fade(t, s1 - 0.4, s2 + 1.4, 0.8, 1.2)
+    if al <= 0:
+        return
+    for cx in tx["chim"]:
+        ov = frame[tx["mill_y"] - 120:tx["mill_y"] + 40, cx - 14:cx + 14]
+        ov[:] = ov * (1 - al) + np.array([0.09, 0.09, 0.14]) * al
+        for n in range(8):
+            age = (t * 0.6 + n / 8) % 1
+            paste(frame, glow_dot(10 + 26 * age, (0.75, 0.72, 0.78)), cx + 50 * age, tx["mill_y"] - 125 - 120 * age,
+                  alpha=0.18 * al * (1 - age), center=True)
+    paste(frame, tx["mills"], 0, tx["mill_y"], alpha=al)
 
 
 def draw_skyline(frame, grow, t):
@@ -1008,20 +1099,11 @@ def scene_modern(t, tl):
         paste(frame, a, p0[0], p0[1] - 60, alpha=al, center=True)
         paste(frame, b, p1[0], p1[1] - 66, alpha=al * k, center=True)
         paste(frame, yr, (p0[0] + p1[0]) / 2, p1[1] + 60, alpha=al * k, center=True)
-    # 纺织：经线 + 往返的梭子
-    al2 = fade(t, subs[1]["start"] - 0.3, subs[2]["start"] + 0.8, 0.6, 0.8)
-    if al2 > 0:
-        X = np.arange(W)
-        warp = ((X % 22) < 2).astype(np.float32)[None, :] * np.ones((int(H * 0.5), 1))
-        frame[:int(H * 0.5)] += warp[..., None] * 0.10 * al2 * GOLD
-        lt = t - subs[1]["start"]
-        rows = int(np.clip(lt * 3, 0, 40))
-        for r in range(rows):
-            y = int(H * 0.08 + r * 9)
-            frame[y:y + 3] += 0.10 * al2 * GOLD
-        sx = W * (0.5 + 0.45 * math.sin(lt * 3.0))
-        paste(frame, glow_dot(8, (1, 0.9, 0.7)), sx, H * 0.08 + rows * 9, alpha=al2, center=True, add=True)
-    grow = (t - (subs[0]["start"] + 1.5)) / (SC[6]["end"] - subs[0]["start"] - 3.0)
+    # 纺织城：织布 + 国棉厂厂房；讲到「一路生长」时高楼才升起
+    s1, s2 = subs[1]["start"], subs[2]["start"]
+    draw_textile(frame, t, s1, s2)
+    draw_mills(frame, t, s1, s2)
+    grow = (t - (s2 - 0.6)) / 3.2
     base = draw_skyline(frame, grow, t)
     frame[base:] = frame[base:] * 0.2 + np.array([0.02, 0.025, 0.05]) * 0.8
     return frame
