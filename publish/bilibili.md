@@ -1,7 +1,7 @@
 # 《红线 REDLINE》B站发布材料
 
 成片：`video/redline_30mb.mp4`（28.8MB，分享/上传用）或 `video/redline_full.mp4`（81MB，高画质存档）。
-封面：`publish/cover.png`（1146×717，B站推荐尺寸）。
+封面：`publish/cover_4x3.png`（1440×1080，**4:3**，当前使用）；另有 `publish/cover.png`（1146×717，16:10）备用。
 
 ---
 
@@ -89,7 +89,7 @@
 ## 8. 发布前检查清单
 
 - [ ] 上传 `redline_30mb.mp4`（或存档版），确认声音和画面同步
-- [ ] 封面用 `publish/cover.png`
+- [ ] 封面用 `publish/cover_4x3.png`（4:3）
 - [ ] 勾选「使用AI合成技术」声明
 - [ ] 标题、简介、标签按上面复制
 - [ ] 发布后马上发置顶评论
