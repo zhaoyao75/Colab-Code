@@ -164,7 +164,7 @@ cd narrated2 && python3 render.py --demo 26 10     # 10 秒 demo（含声音）
 ```
 
 ```bash
-cd narrated2 && python3 render.py                  # 完整 128 秒，4 进程约 15 分钟
+cd narrated2 && python3 render.py                  # 完整 128 秒，4 进程约 13 分钟，输出约 65MB
 ```
 
 ### 数据流
