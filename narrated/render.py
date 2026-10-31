@@ -263,10 +263,10 @@ def build_river():
     trees = Image.new("L", (BW, BH), 0)
     td = ImageDraw.Draw(trees)
     hz = BH * 0.585
-    td.line((BW * 0.45, hz + 2, BW, hz + 2), fill=40, width=2)
+    td.line((BW * 0.62, hz + 2, BW, hz + 2), fill=40, width=2)
     for yh, n, sz, al in [(0.0, 160, 2.5, 60), (0.012, 110, 3.5, 70), (0.03, 60, 5, 80)]:
         for _ in range(n):
-            x = rng.uniform(BW * 0.50, BW)
+            x = rng.uniform(BW * 0.66, BW)
             if rng.random() < 0.35:
                 continue
             y = hz + BH * yh + rng.normal(0, 2)
@@ -275,15 +275,15 @@ def build_river():
                 xx0 = x + k * sz * 1.6
                 td.ellipse((xx0 - r, y - r * 1.6, xx0 + r, y + r * 0.4), fill=int(al * rng.uniform(0.5, 1.0)))
     ta = np.asarray(trees.filter(ImageFilter.GaussianBlur(0.8)), np.float32) / 255
-    ta *= smooth((xx / BW - 0.48) / 0.10)
+    ta *= smooth((xx / BW - 0.64) / 0.08)
     comp(img, INK, ta)
     comp(img, (0.88, 0.84, 0.74), 0.25 * smooth((yy - BH * 0.63) / 200))
     # 河道：从峡谷口（画面中部）蜿蜒流向镜头，越近越宽
     y0 = BH * 0.585
     p = np.clip((yy[:, :1] - y0) / (BH - y0), 0, 1)
     q = p ** 1.5   # 源头附近先顺着谷底往下流，再开始拐弯
-    xc = BW * (0.17 + 0.32 * q + 0.17 * (0.5 + 0.5 * q) * np.sin(q * 2 * np.pi * 1.1))
-    wd = 34 + BW * 0.22 * p ** 1.25
+    xc = BW * (0.32 + 0.22 * q + 0.15 * (0.5 + 0.5 * q) * np.sin(q * 2 * np.pi * 1.1))
+    wd = 55 + BW * 0.30 * p ** 1.2
     dd = (xx - xc) / wd
     lim = 1 + 0.28 * (noise2d(BH, BW, 36, 12, 3) - 0.5)          # 不规则的岸线
     soft = np.maximum(1.5, 0.12 * wd)
@@ -294,7 +294,7 @@ def build_river():
     srow = np.cumsum(1.0 / wd[:, 0]) * (np.arange(BH) > y0)
     # 邙山：黄河南岸一道低缓浑圆的黄土长丘，西端紧挨出山口，往东落进平原
     u1 = xx[:1] / BW
-    bump = smooth((u1 - 0.185) / 0.07) * (1 - smooth((u1 - 0.40) / 0.17))
+    bump = smooth((u1 - 0.34) / 0.07) * (1 - smooth((u1 - 0.55) / 0.15))
     hh = BH * bump * (0.072 * (0.88 + 0.12 * np.sin(u1 * 38 + 1.0))
                       + 0.010 * (ridge(BW, 33, rough=0.45)[None, :] - 0.5))
     base_y = hz + BH * 0.012
@@ -307,7 +307,7 @@ def build_river():
     fga_r = fga * (1 - smooth((yy - y0 - 15) / 40))   # 出山口在丘后，流出后在丘前
     under = img[ry, rx].copy()
     comp(img, INK, fga)
-    mist = 0.85 * np.exp(-((yy - y0 + 10) / 40) ** 2) * np.exp(-((xx - BW * 0.20) / (BW * 0.28)) ** 2)
+    mist = 0.85 * np.exp(-((yy - y0 + 10) / 40) ** 2) * np.exp(-((xx - BW * 0.34) / (BW * 0.28)) ** 2)
     comp(img, (0.93, 0.90, 0.83), mist)
     river = dict(ry=ry, rx=rx, m=m[ry, rx], dd=dd[ry, rx], s=srow[ry], under=under,
                  bank=bank[ry, rx], fga=fga_r[ry, rx], mist=mist[ry, rx],
@@ -347,7 +347,7 @@ def build_prehistory():
     img = vgrad(H, W, (0.88, 0.74, 0.52), (0.60, 0.40, 0.24), 1.3)
     img *= (0.94 + 0.08 * noise2d(H, W, 140, 2, 5))[..., None]
     yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
-    cx, cy = W * 0.5, H * 0.52
+    cx, cy = W * 0.33, H * 0.52
     ang = np.arctan2(yy - cy, xx - cx)
     rad = np.hypot(xx - cx, yy - cy)
     comp(img, (0.98, 0.86, 0.60), 0.55 * smooth((250 - rad) / 36))
@@ -443,7 +443,7 @@ def scene_prehistory(t, tl):
     rng = np.random.default_rng(4)
     for k in range(34):
         side = -1 if k % 2 == 0 else 1
-        x0 = W / 2 + side * (420 + rng.random() * 560)
+        x0 = jar["cx"] - (260 + rng.random() * 360) if side < 0 else jar["cx"] + 330 + rng.random() * 920
         s = 0.7 + rng.random() * 0.6
         sway = 0.06 * math.sin(0.9 * tl + k * 1.7)
         millet(d, x0, H + 10, (260 + rng.random() * 220) * s, side * (0.15 + rng.random() * 0.25), sway, s)
@@ -690,14 +690,15 @@ def build_culture():
     a = np.asarray(m.filter(ImageFilter.GaussianBlur(1)), np.float32) / 255
     comp(img, INK * 1.2, a * (0.8 + 0.25 * noise2d(BH, BW, 30, 56, 3)))
     YY, XX = np.mgrid[0:H, 0:W].astype(np.float32)
-    dist = np.hypot(XX - W * 0.5, (YY - H * 0.66) * 1.6)
+    dist = np.hypot(XX - W * 0.5, (YY - H * 0.66) * 1.7)
+    rn = noise2d(H, W, 24, 57, 3)
     labels = [(vtext_sprite("杜甫", SERIF_BLACK, 76, (30, 26, 24, 255)), seal_sprite("巩义", 52), W * 0.86),
               (vtext_sprite("白居易", SERIF_BLACK, 76, (30, 26, 24, 255)), seal_sprite("新郑", 52), W * 0.77)]
-    return Image.fromarray(to_u8(img)), dist.astype(np.float32), labels
+    return Image.fromarray(to_u8(img)), dist.astype(np.float32), labels, rn
 
 
 def scene_culture(t, tl):
-    big, dist, labels = build_culture()
+    big, dist, labels, rn = build_culture()
     frame = kb(big, 1.0 + 0.04 * tl / 13, 0.5, 0.55)
     subs = subs_of(4)
     for i, (txt, seal, x) in enumerate(labels):
@@ -709,9 +710,17 @@ def scene_culture(t, tl):
     for k in range(6):
         age = t - (t0 + k * 1.6)
         if 0 < age < 4.5:
-            r = age * 230
-            ring = np.exp(-((dist - r) / 7) ** 2) * 0.45 * (1 - age / 4.5)
-            comp(frame, RED * 0.9, ring)
+            r = 30 + age * 210
+            w = 3 + r * 0.018                      # 越往外笔触越宽、越淡
+            life = (1 - age / 4.5) ** 1.5
+            brush = np.clip((rn - 0.30) * 2.2, 0, 1)   # 断续的笔触
+            core = np.exp(-((dist - r) / w) ** 2)
+            echo = 0.55 * np.exp(-((dist - r * 0.90 + 6) / (w * 0.55)) ** 2)
+            halo = 0.25 * np.exp(-((dist - r) / (w * 4)) ** 2)
+            comp(frame, (0.30, 0.24, 0.18), np.clip((core * brush + echo * brush * 0.8) * 0.75 * life, 0, 1))
+            frame += (halo * life * 0.5)[..., None] * np.array([0.55, 0.40, 0.16], np.float32)
+        if 0 < age < 1.4:   # 敲钟瞬间，寺院一圈暖光
+            frame += (np.exp(-dist / 140) * 0.30 * (1 - age / 1.4))[..., None] * np.array([1.0, 0.82, 0.5], np.float32)
     return frame
 
 
@@ -790,7 +799,7 @@ def scene_rail_map(t, tl):
     comp(frame, layers[1][..., :3], layers[1][..., 3] * (X < rv2))
     ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(ov)
-    for (p0, p1), t0, v in ((NS, 2.2, 150), (EW, 3.0, 190)):
+    for (p0, p1), t0, v in ((NS, 2.0, 210), (EW, 3.4, 200)):
         s = (tl - t0) * v
         if s > 0:
             for k in range(14):
@@ -804,7 +813,7 @@ def scene_rail_map(t, tl):
                 r = 10 + 26 * age
                 al = int(150 * max(0, 1 - age / 3.1))
                 d.ellipse((x - r, y - r, x + r, y + r), fill=(240, 236, 228, al))
-            train(d, p0, p1, s)
+            train(d, p0, p1, s, n=5)
     o = np.asarray(ov, np.float32) / 255
     comp(frame, o[..., :3], o[..., 3])
     for i, (sp, x, y) in enumerate(labels):
@@ -845,10 +854,10 @@ def erqi(d, cx, base, S):
 def build_erqi():
     img = vgrad(H, W, (0.13, 0.10, 0.22), (0.98, 0.58, 0.30), 1.6)
     Y, X = np.mgrid[0:H, 0:W].astype(np.float32)
-    sun = np.hypot(X - W * 0.5, Y - H * 0.70)
-    comp(img, (1.0, 0.86, 0.6), smooth((170 - sun) / 6) * 0.9)
+    sun = np.hypot(X - W * 0.24, Y - H * 0.64)
+    comp(img, (1.0, 0.86, 0.6), smooth((125 - sun) / 5) * 0.9)
     img += (np.exp(-sun / 420) * 0.25)[..., None] * np.array([1.0, 0.6, 0.3])
-    ang = np.arctan2(Y - H * 0.70, X - W * 0.5)
+    ang = np.arctan2(Y - H * 0.64, X - W * 0.24)
     S = 2
     m = Image.new("L", (W * S, H * S), 0)
     d = ImageDraw.Draw(m)
@@ -860,7 +869,7 @@ def build_erqi():
         hgt = rng.uniform(40, 170)
         d.rectangle((x * S, (H * 0.90 - hgt) * S, (x + w) * S, H * S), fill=200)
         x += w + rng.uniform(0, 10)
-    wins, clock, star = erqi(d, W * 0.5 * S, H * 0.90 * S, S * 0.88)
+    wins, clock, star = erqi(d, W * 0.68 * S, H * 0.90 * S, S * 0.88)
     d.rectangle((0, int(H * 0.90 * S), W * S, H * S), fill=255)
     a = np.asarray(m.resize((W, H), Image.LANCZOS), np.float32) / 255
     comp(img, (0.07, 0.05, 0.09), a)
@@ -883,8 +892,6 @@ def star_sprite(r):
 def scene_erqi(t, tl, t_on):
     img, ang, sun, wins, clock, star = build_erqi()
     frame = img.copy()
-    rays = (0.5 + 0.5 * np.cos(28 * (ang + 0.02 * tl))) ** 8
-    frame += (rays * np.exp(-sun / 700) * 0.18)[..., None] * np.array([1, 0.7, 0.4]) * (sun > 170)[..., None]
     lit = ease(t, t_on + 0.5, t_on + 2.5)
     for i, (x, y) in enumerate(wins):
         fl = 0.75 + 0.25 * math.sin(tl * 2 + i)
