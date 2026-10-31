@@ -3,7 +3,7 @@
 风格参考：Hans Zimmer《F1：狂飙飞车》配乐的手法（脉冲合成器低音、十六分音符弦乐 ostinato、
 重型鼓组、失真吉他、引擎呼啸、上升音效、最后一段升调）。主旋律为原创。
 
-105 BPM，4/4 拍，每小节 2.2857 秒，56 小节 = 128 秒；D 大调（高潮升到 E 大调）。
+150 BPM，4/4 拍，每小节 1.6 秒，80 小节 = 128 秒；D 大调（高潮升到 E 大调）。
 运行：python3 redline.py          ->  完整版 redline.wav / .mp3
      python3 redline.py demo     ->  16 秒 demo redline_demo.wav / .mp3（2 小节引入 + 8 小节副歌）
 """
@@ -15,11 +15,11 @@ from scipy.io import wavfile
 
 SR = 44100
 DEMO = len(sys.argv) > 1 and sys.argv[1] == "demo"
-BPM = next((int(a) for a in sys.argv[1:] if a.isdigit()), 120)   # 128 秒整数小节：75/90/105/120/150
-OUT = ("redline_demo" if DEMO else "redline") + "_%d" % BPM
-BEAT = 60 / BPM          # 0.571 s
-BAR = 4 * BEAT           # 2.286 s
-S16 = BEAT / 4           # 0.143 s
+OUT = "redline_demo" if DEMO else "redline"
+BPM = 150
+BEAT = 60 / BPM          # 0.4 s
+BAR = 4 * BEAT           # 1.6 s
+S16 = BEAT / 4           # 0.1 s
 rng = np.random.default_rng(11)
 
 NOTE = {"C": 0, "C#": 1, "D": 2, "D#": 3, "E": 4, "F": 5, "F#": 6, "G": 7,
@@ -37,12 +37,11 @@ def hz(midi):
 # ---------------------------------------------------------------- 段落表
 # 每 8 小节一段；demo 只取「引入 2 小节 + 副歌 8 小节」= 10 小节 = 16 秒
 if DEMO:
-    PLAN = [("lead_in", 2), ("chorus", 8)] if BPM == 150 else [("lead_in", 1), ("chorus", 6)]
+    PLAN = [("lead_in", 2), ("chorus", 8)]
 else:
-    PLAN = {105: [("intro", 8), ("verse", 8), ("build", 8), ("chorus", 8),
-                  ("breakdown", 8), ("climax", 8), ("outro", 8)],
-            120: [("intro", 8), ("verse", 8), ("build", 8), ("chorus", 8), ("chorus2", 8),
-                  ("breakdown", 8), ("climax", 8), ("outro", 8)]}[BPM]
+    PLAN = [("intro", 8), ("verse", 8), ("verse2", 8), ("build", 8),
+            ("chorus", 8), ("chorus2", 8), ("breakdown", 8), ("build2", 8),
+            ("climax", 8), ("outro", 8)]
 SECS = []
 for name, n in PLAN:
     SECS += [(name, k) for k in range(n)]
@@ -133,6 +132,16 @@ def guitar(root, dur):
             sig += 2 * (ph % 1) - 1
     sig = np.tanh(4 * sig)
     return sig * env_adsr(n, 0.002, dur, 0.04, t) * np.exp(-t / 0.12)
+
+
+def stab(root, dur):
+    """明亮的超级锯齿和弦重音（铜管感）：根音 + 五度 + 八度 + 十二度"""
+    n = int((dur + 0.15) * SR)
+    t = np.arange(n) / SR
+    fc = 1500 + 7000 * np.exp(-t / 0.09)
+    sig = sum(saw_lp(hz(root + iv) * d, t, fc, 30, rng.random() * 6.28)
+              for iv in (0, 7, 12, 19) for d in (0.996, 1.004))
+    return np.tanh(0.8 * sig) * env_adsr(n, 0.004, dur, 0.12, t) / 3
 
 
 def braam(root, dur):
@@ -310,7 +319,7 @@ def bar_notes(phrase_bar, t0, tr):
 
 # ---------------------------------------------------------------- 编排
 INTENS = {"lead_in": .6, "intro": .35, "verse": .5, "verse2": .7, "build": .75,
-          "chorus": 1.0, "chorus2": 1.0, "breakdown": .35, "build2": .7, "climax": 1.1, "outro": .6}
+          "chorus": 1.0, "chorus2": 1.0, "breakdown": .35, "build2": .7, "climax": 1.4, "outro": .6}
 
 for b, (sec, k) in enumerate(SECS):
     t0 = b * BAR
@@ -328,20 +337,25 @@ for b, (sec, k) in enumerate(SECS):
     # ---- 引擎呼啸 / 上升音效 / 冲击
     if (sec == "intro" and k in (0, 6)) or (sec == "lead_in" and k == 0) or (sec == "outro" and k == 5):
         add("engine", t0 - (0.2 if b else 0), engine_pass(2.6, 200 if k == 0 else 240), 0.5)
-    if sec in ("intro", "build", "breakdown") and k == 6:
+    if sec in ("intro", "build", "build2") and k == 6:
         add("fx", t0, riser(2 * BAR), 0.35)
     if sec == "lead_in" and k == 0:
         add("fx", t0, riser(2 * BAR), 0.3)
-    if (k == 0 and sec in ("verse", "chorus", "chorus2", "climax")) or (sec == "outro" and k == 0):
+    if (k == 0 and sec in ("verse2", "chorus", "chorus2", "climax", "build2")) or (sec == "outro" and k == 0):
         add("crash", t0, crash(), 0.3, 0.2)
         add("boom", t0, boom(), 0.55)
         add("braam", t0, braam(low + 12, BAR * 1.8), 0.16)
+    if sec == "climax" and k == 0:        # 高潮第一下：全频段重击
+        add("boom", t0, boom(), 0.9)
+        add("crash", t0, crash(), 0.5, -0.2)
+        add("crash", t0 + 0.01, crash(), 0.4, 0.2)
+        add("braam", t0, braam(low, BAR * 2.5), 0.3)
 
     # ---- 脉冲低音（十六分音符，八度跳动）
     if sec not in ("breakdown",) or k >= 6:
         pat = [0, 0, 12, 0, 0, 12, 0, 12, 0, 0, 12, 0, 0, 12, 0, 12]
         acc = [1, .55, .8, .55] * 4
-        bg = 0.3 * min(1, I + 0.25) * out_fade
+        bg = 0.3 * min(1, I + 0.25) * out_fade * (1.25 if sec == "climax" else 1)
         if sec == "intro" and k < 2:
             bg *= 0.5
         for s in range(16):
@@ -354,13 +368,13 @@ for b, (sec, k) in enumerate(SECS):
         r = tones[0]
         ext = [r, tones[1], tones[2], r + 12, tones[1] + 12, tones[2]]
         pat = [0, 3, 2, 3, 1, 3, 2, 4, 0, 3, 2, 3, 1, 5, 4, 3]
-        sg = 0.18 * (0.6 + 0.4 * I) * out_fade
+        sg = 0.18 * (0.6 + 0.4 * I) * out_fade * (1.4 if sec == "climax" else 1)
         for s in range(16):
             add("strings", t0 + s * S16, spiccato(hz(ext[pat[s]])), sg * (1.25 if s % 4 == 0 else .85),
                 -0.35 + 0.7 * (pat[s] / 5))
 
     # ---- 铺底和弦
-    pgain = {"intro": .1, "breakdown": .16}.get(sec, .08 if not big else .12) * out_fade
+    pgain = {"intro": .1, "breakdown": .16, "climax": .2}.get(sec, .08 if not big else .12) * out_fade
     for x in tones:
         add("pad", t0, pad(hz(x), BAR * 0.98, att=0.3 if big else 0.6), pgain, 0.4 if x == tones[0] else -0.4)
 
@@ -369,7 +383,7 @@ for b, (sec, k) in enumerate(SECS):
         gr = low + 12 if low + 12 < m("A2") + 3 else low
         for s in range(8):
             dur = BEAT * 0.45 if s else BEAT * 0.9
-            gg = 0.09 * (1.3 if s == 0 else 0.8) * (1.1 if big else 0.8)
+            gg = 0.09 * (1.3 if s == 0 else 0.8) * (1.1 if big else 0.8) * (1.5 if sec == "climax" else 1)
             add("guitar", t0 + s * BEAT / 2, guitar(gr, dur), gg, -0.55)
             add("guitar", t0 + s * BEAT / 2 + 0.012, guitar(gr, dur), gg, 0.55)
 
@@ -382,7 +396,7 @@ for b, (sec, k) in enumerate(SECS):
         elif sec == "intro" or sec == "lead_in":
             kpat, spat = [0, 1, 2, 3], []
         else:
-            kpat, spat = [0, 1.5, 2, 3.5] if big else [0, 1.5, 2], [1, 3]
+            kpat, spat = ([0, 1, 2, 2.5, 3, 3.5] if sec == "climax" else [0, 1.5, 2, 3.5]) if big else [0, 1.5, 2], [1, 3]
         if sec == "lead_in" and k == 1:
             kpat, spat = [0, 1, 2, 3], []
         for x in kpat:
@@ -396,13 +410,35 @@ for b, (sec, k) in enumerate(SECS):
         if big:
             add("hat", t0 + 3.5 * BEAT, hat(True), 0.1, 0.4)
     # 过门：段落最后一小节 / build 末两小节小军鼓滚奏
-    if (sec in ("build", "breakdown") and k >= 6) or (sec == "lead_in" and k == 0):
+    if (sec in ("build", "build2") and k >= 6) or (sec == "lead_in" and k == 1):
         start = 0 if (sec != "lead_in" and k == 7) or sec == "lead_in" else 2
         for s in range(start * 4, 16):
             add("snare", t0 + s * S16, snare(), 0.12 + 0.3 * s / 16, 0.05)
-    elif last_bar and sec in ("verse", "chorus", "chorus2", "climax"):
+    elif last_bar and sec in ("verse", "verse2", "chorus", "chorus2", "climax"):
         for s, f in zip(range(8, 16, 2), (180, 150, 120, 95)):
             add("tom", t0 + s * S16, tom(f), 0.45, -0.4 + 0.25 * (s - 8) / 2)
+
+    # ---- 高潮加料
+    if sec == "climax":
+        # 合成器和弦重音：每小节第 1 拍、第 2 拍半、第 4 拍
+        for x in (0, 1.5, 3):
+            for iv in (0, 12):
+                add("lead", t0 + x * BEAT, stab(low + 12 + iv, BEAT * 0.8), 0.2 if x == 0 else 0.14, 0)
+        # 次低频轰鸣：每小节第 1 拍
+        add("boom", t0, boom(), 0.55)
+        # 掌声般的军鼓叠层 + 开镲
+        for x in (1, 3):
+            add("snare", t0 + x * BEAT + 0.008, snare(), 0.3, -0.1)
+            add("crash", t0 + x * BEAT, crash()[: int(0.35 * SR)], 0.06, 0.3)
+        for s_ in range(4):
+            add("hat", t0 + (s_ + 0.5) * BEAT, hat(True), 0.08, -0.4)
+        # 每 4 小节一个定音鼓 + 上升扫频过门
+        if k % 4 == 3:
+            for s_, f_ in zip(range(8, 16), (220, 200, 180, 160, 140, 120, 100, 80)):
+                add("tom", t0 + s_ * S16, tom(f_), 0.4, -0.5 + 0.14 * (s_ - 8))
+            add("fx", t0 + 2 * BEAT, riser(2 * BEAT), 0.3)
+        if k % 4 == 0 and k:
+            add("crash", t0, crash(), 0.35, 0.2)
 
     # ---- 主旋律
     if sec in ("verse", "verse2", "chorus", "chorus2", "breakdown", "climax", "outro"):
@@ -423,11 +459,15 @@ for b, (sec, k) in enumerate(SECS):
                     add("pluck", t, pluck(f, length), 0.3 * out_fade + 0.05, 0.1)
                     add("pad", t, pad(f, length * 0.95, 0.05), 0.06 * out_fade + 0.02, -0.1)
                 else:
-                    gl = {"verse2": .3, "chorus": .36, "chorus2": .36, "climax": .38}[sec]
+                    gl = {"verse2": .3, "chorus": .36, "chorus2": .36, "climax": .44}[sec]
                     add("lead", t, lead(f, length * 0.92), gl, 0.0)
                     if big:
                         add("lead", t, lead(f / 2, length * 0.92), gl * 0.45, 0.0)
                         add("pluck", t, pluck(f * 2, length), 0.1, 0.3)
+                    if sec == "climax":
+                        add("lead", t, lead(f * 2, length * 0.92), gl * 0.4, 0.3)
+                        add("lead", t, lead(f * 1.4983, length * 0.92), gl * 0.35, -0.3)   # 上方五度
+                        add("pad", t, pad(f, length * 0.97, 0.05), 0.14, 0)
     if sec in ("build", "build2"):
         for t, note, length in bar_notes(BUILD_MEL[k], t0, tr):
             f = hz(note)
@@ -485,7 +525,7 @@ wet = np.stack([fftconvolve(send[c], ir[c])[:N] for c in range(2)])
 mix = dry + 0.8 * wet
 mix = sosfilt(butter(2, 30 / (SR / 2), btype="high", output="sos"), mix, axis=1)
 mix = mix[:, : int(LENGTH * SR)]
-mix /= np.max(np.abs(mix)) + 1e-9
+mix /= np.percentile(np.abs(mix), 99.8) * 1.15 + 1e-9
 mix = np.tanh(1.8 * mix) / np.tanh(1.8)
 fade = np.ones(mix.shape[1])
 fade[: int(0.01 * SR)] = np.linspace(0, 1, int(0.01 * SR))
