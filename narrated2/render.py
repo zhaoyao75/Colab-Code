@@ -977,17 +977,17 @@ def cow_frames(seed, n=8, sc=1.4):
 
 
 class TodayScene(Scene):
-    """今天：草场上的奶牛（乳都）+ 城市与数据中心，数据汇成天上的一朵「云」（云计算）"""
+    """今天：开阔草场上的奶牛（乳都，背后不放建筑）+ 画面最右侧的数据中心，数据汇成天上的一朵「云」（云计算）"""
     def __init__(self):
         super().__init__()
         self.sky = sky([(0, "#0a1634"), (0.38, "#27497d"), (0.58, "#a9849e"), (0.69, "#f0b07c"), (1, "#f0b07c")])
         hz = C("#f0b07c")
         self.stars = starfield(91, 500, 300)
         far, _ = ridge(92, 712, 45, mix(C("#5a5f80"), hz, 0.35), C("#4a4f70"), 2, ridged=True)
-        city = ModernCity._skyline(self, 93, 800, 28, 105, C("#2a3358"), C("#ffd79a"), 4, tower=True, tower_h=250)
         dc = paint(self._datacenter, 4)
         pasture, self.h_p = ridge(94, 850, 20, C("#7b9452"), C("#2f4226"), 10, octaves=3, f0=0.0012, fade=110)
-        self.layers = [far, haze(740, 30, hz, 0.45), city[0], ModernCity._win(self, city), dc,
+        mid, _ = ridge(97, 790, 26, mix(C("#5d6f52"), hz, 0.35), C("#46573f"), 3, octaves=3, f0=0.0014, fade=80)
+        self.layers = [far, haze(740, 30, hz, 0.45), mid, dc,
                        haze(812, 22, hz, 0.25), pasture, self._cows,
                        grass(95, 1005, C("#86a056"), C("#28361f"), C("#121a0e"), 16, blade=(30, 100), amp=8)]
         self.herd = [(cow_frames(100 + i), wx, fl, ph) for i, (wx, fl, ph) in
@@ -1000,7 +1000,7 @@ class TodayScene(Scene):
 
     def _datacenter(self, d, k):
         body, led = rgb255(C("#161d33")), rgb255(C("#6fd6ff"))
-        for x0, x1, h in [(1470, 1700, 62), (1715, 1930, 74), (1945, 2160, 58)]:
+        for x0, x1, h in [(1690, 1870, 56), (1885, 2060, 66)]:
             d.rectangle([x0 * k, (815 - h) * k, x1 * k, 830 * k], fill=body)
             for j in range(3):
                 y = 815 - h + 14 + j * 16
@@ -1042,7 +1042,7 @@ class TodayScene(Scene):
         self.net = net + gaussian_filter(net, 9) * 2.5
         self.cnodes, self.cedges = P_, list(edges)
         self.k_p = kernel(4)
-        self.streams = [(rng.uniform(1490, 2140), rng.integers(0, len(P_)), rng.random(), rng.uniform(0.25, 0.4))
+        self.streams = [(rng.uniform(1710, 2040), rng.integers(0, len(P_)), rng.random(), rng.uniform(0.25, 0.4))
                         for _ in range(60)]
 
     def _cows(self, f, tl):
