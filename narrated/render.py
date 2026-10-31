@@ -145,6 +145,7 @@ def to_u8(img):
 def kb(big, s, cx=0.5, cy=0.5):
     """Ken Burns：big 为 PIL 图，s ≥ 1 为放大倍数，cx/cy 为视窗中心（相对）"""
     bw, bh = big.size
+    s = max(s, 1.0)   # 交叉淡化时本地时间可能为负，放大倍数不能小于 1
     vw, vh = bw / s, bh / s
     x0 = np.clip(cx * bw - vw / 2, 0, bw - vw)
     y0 = np.clip(cy * bh - vh / 2, 0, bh - vh)
