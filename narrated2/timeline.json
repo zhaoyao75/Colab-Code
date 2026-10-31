@@ -1,0 +1,268 @@
+{
+ "total": 128.0,
+ "lines": [
+  {
+   "zh": "阴山以南，黄河以北，",
+   "en": "South of the Yinshan Mountains, north of the Yellow River,",
+   "t0": 2.0,
+   "t1": 4.032,
+   "ch": 0
+  },
+  {
+   "zh": "坐落着一座“青色的城”。",
+   "en": "stands a city known as \"the Blue City\".",
+   "t0": 4.382,
+   "t1": 6.298,
+   "ch": 0
+  },
+  {
+   "zh": "蒙古语里，它叫呼和浩特。",
+   "en": "In Mongolian, its name is Hohhot.",
+   "t0": 6.648,
+   "t1": 9.064,
+   "ch": 0
+  },
+  {
+   "zh": "早在几十万年前，",
+   "en": "Hundreds of thousands of years ago,",
+   "t0": 16.0,
+   "t1": 17.52,
+   "ch": 1
+  },
+  {
+   "zh": "远古人类就在大窑一带打制石器。",
+   "en": "early humans were already making stone tools at Dayao.",
+   "t0": 17.87,
+   "t1": 20.876,
+   "ch": 1
+  },
+  {
+   "zh": "战国时，赵武灵王在此设云中郡，",
+   "en": "In the Warring States era, King Wuling of Zhao founded Yunzhong Commandery here,",
+   "t0": 21.226,
+   "t1": 24.292,
+   "ch": 1
+  },
+  {
+   "zh": "农耕与游牧，从此在这里交汇。",
+   "en": "and here farming and nomadic life began to meet.",
+   "t0": 24.642,
+   "t1": 27.313,
+   "ch": 1
+  },
+  {
+   "zh": "西汉，王昭君远嫁匈奴，",
+   "en": "In the Western Han, Wang Zhaojun married into the Xiongnu,",
+   "t0": 32.0,
+   "t1": 34.487,
+   "ch": 2
+  },
+  {
+   "zh": "换来汉匈之间数十年的和平。",
+   "en": "bringing decades of peace between the Han and the Xiongnu.",
+   "t0": 34.837,
+   "t1": 37.254,
+   "ch": 2
+  },
+  {
+   "zh": "她的青冢，至今静立在城南。",
+   "en": "Her tomb, the Green Mound, still stands south of the city.",
+   "t0": 37.604,
+   "t1": 40.051,
+   "ch": 2
+  },
+  {
+   "zh": "北魏的先祖，曾以盛乐为都；",
+   "en": "The forebears of the Northern Wei once made Shengle their capital;",
+   "t0": 48.0,
+   "t1": 50.592,
+   "ch": 3
+  },
+  {
+   "zh": "辽代，丰州城里建起一座白塔，",
+   "en": "under the Liao, a White Pagoda rose in the city of Fengzhou,",
+   "t0": 50.942,
+   "t1": 53.687,
+   "ch": 3
+  },
+  {
+   "zh": "千年风雨，它依然挺立。",
+   "en": "and after a thousand years, it still stands.",
+   "t0": 54.037,
+   "t1": 56.101,
+   "ch": 3
+  },
+  {
+   "zh": "1572年，阿勒坦汗在此筑城，",
+   "en": "In 1572, Altan Khan began building a city here,",
+   "t0": 64.0,
+   "t1": 66.873,
+   "ch": 4
+  },
+  {
+   "zh": "明朝赐名“归化”。",
+   "en": "and the Ming court named it Guihua.",
+   "t0": 67.223,
+   "t1": 68.501,
+   "ch": 4
+  },
+  {
+   "zh": "大召寺随之兴建，城因寺兴，",
+   "en": "With Dazhao Temple built, the city grew around its monasteries,",
+   "t0": 68.851,
+   "t1": 71.713,
+   "ch": 4
+  },
+  {
+   "zh": "人们称它“召城”。",
+   "en": "and people called it \"the City of Temples\".",
+   "t0": 72.063,
+   "t1": 73.257,
+   "ch": 4
+  },
+  {
+   "zh": "清代，又在东北筑起绥远城，",
+   "en": "In the Qing, the city of Suiyuan was built to the northeast;",
+   "t0": 80.0,
+   "t1": 82.504,
+   "ch": 5
+  },
+  {
+   "zh": "两城合称“归绥”。",
+   "en": "together, the two were called Guisui.",
+   "t0": 82.854,
+   "t1": 84.212,
+   "ch": 5
+  },
+  {
+   "zh": "驼队从这里出发，穿越大漠，",
+   "en": "Camel caravans set out from here across the desert,",
+   "t0": 84.562,
+   "t1": 86.88,
+   "ch": 5
+  },
+  {
+   "zh": "把茶叶与丝绸运向远方。",
+   "en": "carrying tea and silk to distant lands.",
+   "t0": 87.23,
+   "t1": 89.309,
+   "ch": 5
+  },
+  {
+   "zh": "1954年，归绥更名为呼和浩特，",
+   "en": "In 1954, Guisui was renamed Hohhot,",
+   "t0": 96.0,
+   "t1": 99.047,
+   "ch": 6
+  },
+  {
+   "zh": "成为内蒙古自治区首府。",
+   "en": "becoming the capital of the Inner Mongolia Autonomous Region.",
+   "t0": 99.397,
+   "t1": 101.44,
+   "ch": 6
+  },
+  {
+   "zh": "今天，这里是“中国乳都”，",
+   "en": "Today it is known as China's \"Dairy Capital\",",
+   "t0": 101.79,
+   "t1": 104.05,
+   "ch": 6
+  },
+  {
+   "zh": "也是北方重要的云计算基地。",
+   "en": "and a major cloud-computing hub in the north.",
+   "t0": 104.4,
+   "t1": 106.51,
+   "ch": 6
+  },
+  {
+   "zh": "青城依旧。",
+   "en": "The Blue City endures.",
+   "t0": 112.0,
+   "t1": 112.929,
+   "ch": 7
+  },
+  {
+   "zh": "草原的风，从千年前吹到今天。",
+   "en": "The grassland wind still blows, from a thousand years ago to today.",
+   "t0": 113.279,
+   "t1": 116.208,
+   "ch": 7
+  }
+ ],
+ "chapters": [
+  {
+   "id": "open",
+   "era_zh": "",
+   "era_en": "",
+   "voice0": 2.0,
+   "voice1": 9.064,
+   "t0": 0.0,
+   "t1": 12.532
+  },
+  {
+   "id": "ancient",
+   "era_zh": "远古 · 战国",
+   "era_en": "Prehistory · Warring States",
+   "voice0": 16.0,
+   "voice1": 27.313,
+   "t0": 12.532,
+   "t1": 29.657
+  },
+  {
+   "id": "han",
+   "era_zh": "西汉",
+   "era_en": "Western Han",
+   "voice0": 32.0,
+   "voice1": 40.051,
+   "t0": 29.657,
+   "t1": 44.026
+  },
+  {
+   "id": "liao",
+   "era_zh": "北魏 · 辽",
+   "era_en": "Northern Wei · Liao",
+   "voice0": 48.0,
+   "voice1": 56.101,
+   "t0": 44.026,
+   "t1": 60.05
+  },
+  {
+   "id": "ming",
+   "era_zh": "明 · 1572",
+   "era_en": "Ming · 1572",
+   "voice0": 64.0,
+   "voice1": 73.257,
+   "t0": 60.05,
+   "t1": 76.629
+  },
+  {
+   "id": "qing",
+   "era_zh": "清",
+   "era_en": "Qing",
+   "voice0": 80.0,
+   "voice1": 89.309,
+   "t0": 76.629,
+   "t1": 92.654
+  },
+  {
+   "id": "modern",
+   "era_zh": "1954 · 今天",
+   "era_en": "1954 · Today",
+   "voice0": 96.0,
+   "voice1": 106.51,
+   "t0": 92.654,
+   "t1": 109.255
+  },
+  {
+   "id": "end",
+   "era_zh": "",
+   "era_en": "",
+   "voice0": 112.0,
+   "voice1": 116.208,
+   "t0": 109.255,
+   "t1": 128.0
+  }
+ ]
+}

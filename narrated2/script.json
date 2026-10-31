@@ -1,0 +1,51 @@
+{
+  "title_zh": "青城 · 呼和浩特的前世今生",
+  "title_en": "The Blue City · Hohhot Through the Ages",
+  "voice": "zh-CN-YunjianNeural",
+  "rate": "+0%",
+  "chapters": [
+    {"id": "open", "start": 2.0, "era_zh": "", "era_en": "", "lines": [
+      ["阴山以南，黄河以北，", "South of the Yinshan Mountains, north of the Yellow River,"],
+      ["坐落着一座“青色的城”。", "stands a city known as \"the Blue City\"."],
+      ["蒙古语里，它叫呼和浩特。", "In Mongolian, its name is Hohhot."]
+    ]},
+    {"id": "ancient", "start": 16.0, "era_zh": "远古 · 战国", "era_en": "Prehistory · Warring States", "lines": [
+      ["早在几十万年前，", "Hundreds of thousands of years ago,"],
+      ["远古人类就在大窑一带打制石器。", "early humans were already making stone tools at Dayao."],
+      ["战国时，赵武灵王在此设云中郡，", "In the Warring States era, King Wuling of Zhao founded Yunzhong Commandery here,"],
+      ["农耕与游牧，从此在这里交汇。", "and here farming and nomadic life began to meet."]
+    ]},
+    {"id": "han", "start": 32.0, "era_zh": "西汉", "era_en": "Western Han", "lines": [
+      ["西汉，王昭君远嫁匈奴，", "In the Western Han, Wang Zhaojun married into the Xiongnu,"],
+      ["换来汉匈之间数十年的和平。", "bringing decades of peace between the Han and the Xiongnu."],
+      ["她的青冢，至今静立在城南。", "Her tomb, the Green Mound, still stands south of the city."]
+    ]},
+    {"id": "liao", "start": 48.0, "era_zh": "北魏 · 辽", "era_en": "Northern Wei · Liao", "lines": [
+      ["北魏的先祖，曾以盛乐为都；", "The forebears of the Northern Wei once made Shengle their capital;"],
+      ["辽代，丰州城里建起一座白塔，", "under the Liao, a White Pagoda rose in the city of Fengzhou,"],
+      ["千年风雨，它依然挺立。", "and after a thousand years, it still stands."]
+    ]},
+    {"id": "ming", "start": 64.0, "era_zh": "明 · 1572", "era_en": "Ming · 1572", "lines": [
+      ["1572年，阿勒坦汗在此筑城，", "In 1572, Altan Khan began building a city here,"],
+      ["明朝赐名“归化”。", "and the Ming court named it Guihua."],
+      ["大召寺随之兴建，城因寺兴，", "With Dazhao Temple built, the city grew around its monasteries,"],
+      ["人们称它“召城”。", "and people called it \"the City of Temples\"."]
+    ]},
+    {"id": "qing", "start": 80.0, "era_zh": "清", "era_en": "Qing", "lines": [
+      ["清代，又在东北筑起绥远城，", "In the Qing, the city of Suiyuan was built to the northeast;"],
+      ["两城合称“归绥”。", "together, the two were called Guisui."],
+      ["驼队从这里出发，穿越大漠，", "Camel caravans set out from here across the desert,"],
+      ["把茶叶与丝绸运向远方。", "carrying tea and silk to distant lands."]
+    ]},
+    {"id": "modern", "start": 96.0, "era_zh": "1954 · 今天", "era_en": "1954 · Today", "lines": [
+      ["1954年，归绥更名为呼和浩特，", "In 1954, Guisui was renamed Hohhot,"],
+      ["成为内蒙古自治区首府。", "becoming the capital of the Inner Mongolia Autonomous Region."],
+      ["今天，这里是“中国乳都”，", "Today it is known as China's \"Dairy Capital\","],
+      ["也是北方重要的云计算基地。", "and a major cloud-computing hub in the north."]
+    ]},
+    {"id": "end", "start": 112.0, "era_zh": "", "era_en": "", "lines": [
+      ["青城依旧。", "The Blue City endures."],
+      ["草原的风，从千年前吹到今天。", "The grassland wind still blows, from a thousand years ago to today."]
+    ]}
+  ]
+}

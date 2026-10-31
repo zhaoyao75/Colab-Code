@@ -8,3 +8,5 @@ __pycache__/
 narrated2/**/*.onnx
 narrated2/**/*.onnx.json
 narrated2/.cache/
+narrated2/.cache/
+narrated2/.seg_*
