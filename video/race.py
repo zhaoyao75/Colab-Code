@@ -582,6 +582,94 @@ def world_layer(t, phase, curv, ucam):
     return dn(arr[..., :3]), dn(arr[..., 3:4]), dn(np.asarray(glow).astype(np.float32) / 255) * 2.6
 
 
+# ------------------------------------------------------------------ 特写：方向盘转速灯 → REDLINE
+DASH_T0, DASH_T1 = 99.2, 102.4        # 对上高潮前的上升音效 + 军鼓滚奏，102.4 的重击硬切回赛道
+_FONTS = {}
+
+
+def _font(size):
+    if size not in _FONTS:
+        _FONTS[size] = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", size)
+    return _FONTS[size]
+
+
+def dash_frame(t):
+    """方向盘特写：15 颗转速灯随进度点亮（绿→红→蓝），转速数字上升到 15 000，满灯后 REDLINE 闪烁"""
+    S = 2
+    p = float(np.clip((t - DASH_T0) / (DASH_T1 - DASH_T0), 0, 1))
+    W, H = OW * S, OH * S
+    base = Image.new("RGB", (W, H), (4, 4, 7))
+    d = ImageDraw.Draw(base)
+    glow = Image.new("RGB", (W, H), (0, 0, 0))
+    g = ImageDraw.Draw(glow)
+    rr = np.random.default_rng(int(round(t * FPS)) + 7)
+
+    def txt(x, y, s_, size, fill, dr=None, anchor="mm"):
+        (dr or d).text((x * S, y * S), s_, font=_font(int(size * S)), fill=fill, anchor=anchor)
+
+    # 速度线：从中心向外飞出，越接近满转越密越亮
+    for _ in range(int(60 + 90 * p)):
+        ang = rr.uniform(0, 2 * np.pi)
+        r0, r1 = rr.uniform(240, 620), rr.uniform(300, 900) + rr.uniform(0, 200) * p
+        c = int((30 + 130 * p) * rr.random())
+        d.line([((640 + r0 * np.cos(ang)) * S, (330 + r0 * 0.7 * np.sin(ang)) * S),
+                ((640 + r1 * np.cos(ang)) * S, (330 + r1 * 0.7 * np.sin(ang)) * S)], fill=(c, c, int(c * 1.2)), width=S)
+
+    # 方向盘：深色碳纤维外壳 + 两侧握把 + 橙色饰线
+    d.rounded_rectangle([320 * S, 118 * S, 960 * S, 640 * S], radius=70 * S, fill=(15, 15, 18), outline=(34, 34, 40), width=3 * S)
+    for sg in (-1, 1):
+        cxg = 640 + sg * 400
+        d.rounded_rectangle([(cxg - 105) * S, 210 * S, (cxg + 105) * S, 640 * S], radius=60 * S, fill=(11, 11, 14),
+                            outline=(30, 30, 36), width=3 * S)
+        for k_, col_ in enumerate(((235, 80, 40), (230, 200, 40), (60, 200, 90), (70, 130, 235))):
+            bx, by = cxg + sg * 10, 270 + k_ * 62
+            d.ellipse([(bx - 17) * S, (by - 17) * S, (bx + 17) * S, (by + 17) * S], fill=tuple(int(c * 0.55) for c in col_),
+                      outline=(50, 50, 56), width=2 * S)
+    d.line([(335 * S, 200 * S), (945 * S, 200 * S)], fill=(236, 104, 34), width=3 * S)    # 橙色饰线
+    # 碳纤维纹理
+    for k_ in range(0, 640, 14):
+        d.line([((320 + k_) * S, 120 * S), ((320 + k_ - 70) * S, 640 * S)], fill=(18, 18, 22), width=S)
+
+    # 15 颗转速灯（绿 5 / 红 5 / 蓝 5）
+    n_on = int(round(15 * p ** 0.75))
+    full = p > 0.93
+    for i in range(15):
+        x = 640 + (i - 7) * 42
+        y = 168 + 0.00016 * (x - 640) ** 2 * 1.0
+        col_ = (40, 255, 90) if i < 5 else (255, 40, 30) if i < 10 else (80, 130, 255)
+        on = i < n_on
+        if on and full:
+            on = (int(t * 12) % 2 == 0) or i % 2 == 0
+        box = [(x - 17) * S, (y - 12) * S, (x + 17) * S, (y + 12) * S]
+        d.ellipse(box, fill=col_ if on else tuple(int(c * 0.12) for c in col_), outline=(40, 40, 46), width=S)
+        if on:
+            g.ellipse(box, fill=col_)
+
+    # 中央屏幕
+    red_alert = p > 0.8
+    border = (255, 50, 40) if (red_alert and int(t * 8) % 2 == 0) else (70, 70, 78)
+    d.rounded_rectangle([420 * S, 225 * S, 860 * S, 560 * S], radius=26 * S, fill=(3, 3, 5), outline=border, width=4 * S)
+    gear = 7 if p < 0.55 else 8
+    txt(488, 350, str(gear), 170, (235, 235, 240))
+    txt(488, 462, "GEAR", 24, (130, 130, 140))
+    rpm = int(10400 + 4600 * p ** 1.4 + rr.integers(-40, 40) * (1 - p))
+    rpm = min(rpm, 15000)
+    txt(842, 300, f"{rpm // 1000:d} {rpm % 1000:03d}", 78, (255, 90, 70) if p > 0.7 else (235, 235, 240), anchor="rm")
+    txt(700, 362, "RPM", 26, (130, 130, 140))
+    txt(700, 425, f"{int(296 + 52 * p)}", 62, (235, 235, 240))
+    txt(700, 468, "KM/H", 22, (130, 130, 140))
+    if red_alert and int(t * 8) % 2 == 0:
+        txt(640, 522, "REDLINE", 58, (255, 50, 40))
+        txt(640, 522, "REDLINE", 58, (255, 50, 40), g)
+
+    arr = np.asarray(base).astype(np.float32) / 255
+    gl = np.asarray(glow).astype(np.float32) / 255 * (1.4 + 1.2 * p)
+    dn = lambda x: x.reshape(OH, S, OW, S, 3).mean(axis=(1, 3))
+    img = dn(arr) + dn(gl)
+    sh = 1.5 + 6 * p                                              # 越接近满转，抖得越厉害
+    return np.roll(img, (int(rr.normal(0, sh)), int(rr.normal(0, sh))), axis=(0, 1)).astype(np.float32)
+
+
 # ------------------------------------------------------------------ 叠加：标题、标志
 def overlay_layers():
     title = Image.new("RGBA", (OW, OH), (0, 0, 0, 0))
@@ -626,9 +714,8 @@ def title_alpha(t, total):
 _VIG = None
 
 
-def frame(t, layers, total=128.0, pulse=0.0):
-    global _VIG
-    title, logo = layers
+def _exterior(t, pulse):
+    """赛道外景：环境 + 场景物体 + 所有赛车 + 火花"""
     r = np.random.default_rng(int(t * 1000))
     v = speed_at(t)
     phase, curv, ucam = phase_at(t), curve_at(t), ucam_at(t)
@@ -674,6 +761,17 @@ def frame(t, layers, total=128.0, pulse=0.0):
     img += refl[..., None] * np.array([0.9, 0.05, 0.03])
     img += sparks(t, (OW / 2 + sway, OH * HOR + bounce, f)) * min(1, v / 70)
     img = img + glow_add
+    return img
+
+
+def frame(t, layers, total=128.0, pulse=0.0):
+    global _VIG
+    title, logo = layers
+    r = np.random.default_rng(int(t * 1000))
+    v = speed_at(t)
+    img = dash_frame(t) if DASH_T0 <= t < DASH_T1 else _exterior(t, pulse)
+    if DASH_T1 <= t < DASH_T1 + 0.3:                               # 切回赛道的那一拍：白闪
+        img = img + 0.6 * (1 - (t - DASH_T1) / 0.3)
     # 泛光
     bright = np.clip(img - 0.85, 0, None)
     bloom = np.stack([gaussian_filter(bright[..., c], 6) + gaussian_filter(bright[..., c], 22) for c in range(3)], 2)
