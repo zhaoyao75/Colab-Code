@@ -140,3 +140,43 @@ ffmpeg -y -i stellar_echo_full_bw.mp4 -c:v libx264 -preset slower -b:v 1650k -pa
 - 「先出静帧 / 10 秒 demo」——确认风格后再出完整版，省时间。
 - 「彩色 / 黑白 / 标志保留颜色」「标题出现时间」「分享平台的大小限制」——一开始说明，可以少改几轮。
 - 想换旋律或音色：改 `compose.py` 里的 `THEME` 和乐器函数；想换画面：改第 4 节的参数表。
+
+---
+
+## 8. 带 AI 旁白的短视频（`narrated3/`《黄永玉 · 永远长不大的老头》）
+
+### 流程与命令
+```bash
+cd narrated3 && python3 tts.py && python3 music.py && python3 mix.py   # 旁白 → 配乐 → 混音（约 1 分钟）
+python3 render.py --still 4 24 38 56 70 92 104 120 127                  # 关键帧静帧
+python3 render.py --demo 0 16                                           # 16 秒 demo（约 40 秒）
+python3 render.py                                                       # 完整 128 秒（4 进程约 5 分钟）
+```
+文案唯一来源是 `script.json`（每句中文 + 英文）；改文案后重跑整条链路，字幕时间轴自动更新。
+
+### 语音合成（TTS）选型
+| 方案 | 结论 |
+|---|---|
+| **edge-tts**（微软在线，免费、无需 key） | 中文最自然，首选。云健=浑厚讲故事，云希=青年，晓晓=温暖女声 |
+| Kokoro（sherpa-onnx，HF `csukuangfj/kokoro-int8-multi-lang-v1_1`） | 离线兜底；sid 3–57 女声、58–102 男声 |
+| piper huayan / gTTS / espeak-ng | 依次变差，espeak 只是机器人腔 |
+
+### 坑
+| 问题 | 解决 |
+|---|---|
+| edge-tts 报 `CERTIFICATE_VERIFY_FAILED` | 沙箱代理的 CA 不在 certifi 里：`edge_tts.communicate._SSL_CTX = ssl.create_default_context(cafile="/root/.ccr/ca-bundle.crt")`，并传 `proxy=$HTTPS_PROXY` |
+| GitHub releases 403（piper / sherpa 模型） | 改从 HuggingFace 下载（`huggingface_hub.snapshot_download`） |
+| 字幕时间对不准 | 逐句合成、裁掉首尾静音、自己排时间轴，比用 TTS 的边界事件更可控 |
+| 马善政字体里没有「·」→ 方块 | 标题避开生僻符号；DejaVu 没有中文，中英文分别用不同字体 |
+| PIL 在 RGBA 图上用半透明颜色画线不会混合，而是直接改写成半透明像素 | 半透明效果画到单独图层再 `alpha_composite` |
+| 纸张纹理自带暗角，拼成书页后中间出现亮带 | `paper(vig=False)` |
+| 字幕挡住画面主体 | 主体放在画面上 80%，静帧检查时专门看底部 |
+
+### 混音
+- 旁白说话时音乐比人声低约 15–18 dB，空隙处低约 8–12 dB（按人声包络自动压低，0.25 秒平滑）。
+- 两遍 `loudnorm` 到 -14 LUFS、真峰值 -1.5 dB（抖音 / B 站常用）。
+- 配乐音区偏高（钢片琴、马林巴），低切 120Hz，给人声让出中低频。
+
+### 内容注意
+- 讲真实人物时只用公开事实，不编造引语；形象原创，不临摹作者原作。
+- 片尾标注「AI 配音 / 代码生成」，符合平台的 AI 内容标识要求。
