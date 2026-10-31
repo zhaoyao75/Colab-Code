@@ -594,79 +594,119 @@ def _font(size):
 
 
 def dash_frame(t):
-    """方向盘特写：15 颗转速灯随进度点亮（绿→红→蓝），转速数字上升到 15 000，满灯后 REDLINE 闪烁"""
+    """机械指针转速表特写：指针从低转速一路扫进红区（13.5–16 千转），红区发光、画面泛红闪烁，指针顶在红线上抖动"""
     S = 2
     p = float(np.clip((t - DASH_T0) / (DASH_T1 - DASH_T0), 0, 1))
     W, H = OW * S, OH * S
-    base = Image.new("RGB", (W, H), (4, 4, 7))
+    base = Image.new("RGB", (W, H), (5, 5, 8))
     d = ImageDraw.Draw(base)
     glow = Image.new("RGB", (W, H), (0, 0, 0))
     g = ImageDraw.Draw(glow)
     rr = np.random.default_rng(int(round(t * FPS)) + 7)
+    cx, cy, R = 640 * S, 362 * S, 272 * S
 
-    def txt(x, y, s_, size, fill, dr=None, anchor="mm"):
-        (dr or d).text((x * S, y * S), s_, font=_font(int(size * S)), fill=fill, anchor=anchor)
+    # 指针读数：先猛地扫上去，约 100.8 秒冲进红区，之后顶在红线上颤抖
+    v = 5.0 + 10.2 * (1 - (1 - p) ** 2.2)
+    v += 0.16 * np.sin(t * 95) * smooth(v, 13.8, 14.6) + rr.normal(0, 0.05) * p
+    heat = float(np.clip((v - 13.5) / 1.2, 0, 1))                 # 0 → 1：进入红区的程度
 
-    # 速度线：从中心向外飞出，越接近满转越密越亮
-    for _ in range(int(60 + 90 * p)):
+    def th(val):
+        return np.radians(225 - 270 * val / 16)
+
+    def pt(val, rad):
+        a_ = th(val)
+        return (cx + rad * np.cos(a_), cy - rad * np.sin(a_))
+
+    def txt(x, y, s_, size, fill, dr=None):
+        (dr or d).text((x, y), s_, font=_font(int(size * S)), fill=fill, anchor="mm")
+
+    # 背景：暗色仪表台 + 向外飞出的速度线
+    for _ in range(int(40 + 60 * p)):
         ang = rr.uniform(0, 2 * np.pi)
-        r0, r1 = rr.uniform(240, 620), rr.uniform(300, 900) + rr.uniform(0, 200) * p
-        c = int((30 + 130 * p) * rr.random())
-        d.line([((640 + r0 * np.cos(ang)) * S, (330 + r0 * 0.7 * np.sin(ang)) * S),
-                ((640 + r1 * np.cos(ang)) * S, (330 + r1 * 0.7 * np.sin(ang)) * S)], fill=(c, c, int(c * 1.2)), width=S)
+        r0, r1 = rr.uniform(330, 520), rr.uniform(420, 900)
+        c = int((25 + 90 * p) * rr.random())
+        d.line([(cx + r0 * S * np.cos(ang), cy + r0 * S * 0.8 * np.sin(ang)),
+                (cx + r1 * S * np.cos(ang), cy + r1 * S * 0.8 * np.sin(ang))], fill=(c, c, int(c * 1.2)), width=S)
 
-    # 方向盘：深色碳纤维外壳 + 两侧握把 + 橙色饰线
-    d.rounded_rectangle([320 * S, 118 * S, 960 * S, 640 * S], radius=70 * S, fill=(15, 15, 18), outline=(34, 34, 40), width=3 * S)
-    for sg in (-1, 1):
-        cxg = 640 + sg * 400
-        d.rounded_rectangle([(cxg - 105) * S, 210 * S, (cxg + 105) * S, 640 * S], radius=60 * S, fill=(11, 11, 14),
-                            outline=(30, 30, 36), width=3 * S)
-        for k_, col_ in enumerate(((235, 80, 40), (230, 200, 40), (60, 200, 90), (70, 130, 235))):
-            bx, by = cxg + sg * 10, 270 + k_ * 62
-            d.ellipse([(bx - 17) * S, (by - 17) * S, (bx + 17) * S, (by + 17) * S], fill=tuple(int(c * 0.55) for c in col_),
-                      outline=(50, 50, 56), width=2 * S)
-    d.line([(335 * S, 200 * S), (945 * S, 200 * S)], fill=(236, 104, 34), width=3 * S)    # 橙色饰线
-    # 碳纤维纹理
-    for k_ in range(0, 640, 14):
-        d.line([((320 + k_) * S, 120 * S), ((320 + k_ - 70) * S, 640 * S)], fill=(18, 18, 22), width=S)
+    # 金属表圈（同心环模拟拉丝）+ 高光
+    for k in range(40):
+        rad = R + (40 - k) * S
+        c = int(46 + 64 * abs(np.sin(k * 0.33 + 0.6)))
+        d.ellipse([cx - rad, cy - rad, cx + rad, cy + rad], fill=(c, c, int(c * 1.04)))
+    d.arc([cx - R - 22 * S, cy - R - 22 * S, cx + R + 22 * S, cy + R + 22 * S], 195, 255, fill=(235, 235, 240), width=5 * S)
+    # 表盘（中心略亮的黑色渐变）
+    for k in range(40):
+        rad = R * (1 - k / 40)
+        c = int(5 + 15 * (k / 40) ** 2)
+        d.ellipse([cx - rad, cy - rad, cx + rad, cy + rad], fill=(c, c, c + 2))
 
-    # 15 颗转速灯（绿 5 / 红 5 / 蓝 5）
-    n_on = int(round(15 * p ** 0.75))
-    full = p > 0.93
-    for i in range(15):
-        x = 640 + (i - 7) * 42
-        y = 168 + 0.00016 * (x - 640) ** 2 * 1.0
-        col_ = (40, 255, 90) if i < 5 else (255, 40, 30) if i < 10 else (80, 130, 255)
-        on = i < n_on
-        if on and full:
-            on = (int(t * 12) % 2 == 0) or i % 2 == 0
-        box = [(x - 17) * S, (y - 12) * S, (x + 17) * S, (y + 12) * S]
-        d.ellipse(box, fill=col_ if on else tuple(int(c * 0.12) for c in col_), outline=(40, 40, 46), width=S)
-        if on:
-            g.ellipse(box, fill=col_)
+    # 红区：13.5–16 的粗弧线（会发光）
+    vs = np.linspace(13.5, 16.0, 40)
+    band = [pt(x, R * 0.97) for x in vs] + [pt(x, R * 0.88) for x in vs[::-1]]
+    d.polygon(band, fill=(190, 20, 20))
+    g.polygon(band, fill=(int(255 * (0.35 + 0.65 * heat)), int(30 * heat), int(25 * heat)))
+    # 刻度 + 数字
+    for i in range(65):
+        val = i * 0.25
+        red = val >= 13.5
+        if i % 4 == 0:
+            ln, wd = 0.13, 5
+        elif i % 2 == 0:
+            ln, wd = 0.085, 3
+        else:
+            ln, wd = 0.05, 2
+        col = (255, 70, 55) if red else (228, 228, 232)
+        d.line([pt(val, R * 0.88), pt(val, R * (0.88 - ln))], fill=col, width=wd * S)
+        if red and i % 4 == 0:
+            g.line([pt(val, R * 0.88), pt(val, R * (0.88 - ln))], fill=(255, 40, 30), width=wd * S)
+    for n in range(17):
+        x_, y_ = pt(n, R * 0.66)
+        txt(x_, y_, str(n), 31, (255, 80, 65) if n >= 14 else (232, 232, 236))
+    # REDLINE 刻线：14 千转处一根特别粗的红线
+    d.line([pt(14, R * 1.0), pt(14, R * 0.62)], fill=(255, 40, 30), width=9 * S)
+    g.line([pt(14, R * 1.0), pt(14, R * 0.62)], fill=(255, 40, 30), width=9 * S)
+    txt(cx, cy - R * 0.36, "RPM x1000", 21, (150, 150, 158))
+    if v > 14 and int(t * 8) % 2 == 0:
+        txt(cx, cy + R * 0.56, "REDLINE", 38, (255, 45, 35))
+        txt(cx, cy + R * 0.56, "REDLINE", 38, (255, 45, 35), g)
+    else:
+        txt(cx, cy + R * 0.56, "REDLINE", 38, (60, 14, 14))
 
-    # 中央屏幕
-    red_alert = p > 0.8
-    border = (255, 50, 40) if (red_alert and int(t * 8) % 2 == 0) else (70, 70, 78)
-    d.rounded_rectangle([420 * S, 225 * S, 860 * S, 560 * S], radius=26 * S, fill=(3, 3, 5), outline=border, width=4 * S)
-    gear = 7 if p < 0.55 else 8
-    txt(488, 350, str(gear), 170, (235, 235, 240))
-    txt(488, 462, "GEAR", 24, (130, 130, 140))
-    rpm = int(10400 + 4600 * p ** 1.4 + rr.integers(-40, 40) * (1 - p))
-    rpm = min(rpm, 15000)
-    txt(842, 300, f"{rpm // 1000:d} {rpm % 1000:03d}", 78, (255, 90, 70) if p > 0.7 else (235, 235, 240), anchor="rm")
-    txt(700, 362, "RPM", 26, (130, 130, 140))
-    txt(700, 425, f"{int(296 + 52 * p)}", 62, (235, 235, 240))
-    txt(700, 468, "KM/H", 22, (130, 130, 140))
-    if red_alert and int(t * 8) % 2 == 0:
-        txt(640, 522, "REDLINE", 58, (255, 50, 40))
-        txt(640, 522, "REDLINE", 58, (255, 50, 40), g)
+    # 指针：影子 + 橙色锥形针身 + 中心亮线 + 配重尾 + 轮毂
+    a_ = th(v)
+    ca, sa = np.cos(a_), np.sin(a_)
+
+    def needle(off=(0, 0), scale=1.0):
+        w = 10 * S * scale
+        loc = [(R * 0.90, 0), (R * 0.10, w), (-R * 0.20, w * 0.8), (-R * 0.20, -w * 0.8), (R * 0.10, -w)]
+        return [(cx + off[0] + x * ca - y * sa * -1 * -1 if False else cx + off[0] + x * ca + y * sa,
+                 cy + off[1] - x * sa + y * ca) for x, y in loc]
+    d.polygon(needle((9 * S, 12 * S)), fill=(2, 2, 3))
+    d.polygon(needle(), fill=(255, 112, 28))
+    d.line([(cx + R * 0.10 * ca, cy - R * 0.10 * sa), (cx + R * 0.88 * ca, cy - R * 0.88 * sa)], fill=(255, 205, 140), width=2 * S)
+    if heat > 0:
+        g.polygon(needle(), fill=(int(200 * heat), int(55 * heat), int(10 * heat)))
+    for rad, col in ((R * 0.13, (30, 30, 34)), (R * 0.115, (150, 150, 156)), (R * 0.085, (70, 70, 76)), (R * 0.05, (200, 200, 205))):
+        d.ellipse([cx - rad, cy - rad, cx + rad, cy + rad], fill=col)
 
     arr = np.asarray(base).astype(np.float32) / 255
-    gl = np.asarray(glow).astype(np.float32) / 255 * (1.4 + 1.2 * p)
+    gl = np.asarray(glow).astype(np.float32) / 255 * (1.3 + 1.4 * heat)
+    # 玻璃反光
+    refl = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(refl).polygon([(cx - R * 0.95, cy - R * 0.15), (cx - R * 0.35, cy - R * 0.92),
+                                  (cx + R * 0.30, cy - R * 0.92), (cx - R * 0.62, cy + R * 0.12)], fill=13)
+    msk = Image.new("L", (W, H), 0)
+    ImageDraw.Draw(msk).ellipse([cx - R, cy - R, cx + R, cy + R], fill=255)
+    rf = np.asarray(refl).astype(np.float32) / 255 * np.asarray(msk).astype(np.float32) / 255
+    arr += rf[..., None]
     dn = lambda x: x.reshape(OH, S, OW, S, 3).mean(axis=(1, 3))
     img = dn(arr) + dn(gl)
-    sh = 1.5 + 6 * p                                              # 越接近满转，抖得越厉害
+    # 进入红区后整个画面泛红、随节拍闪烁（边缘更红）
+    yy, xx = np.mgrid[0:OH, 0:OW]
+    edge = np.clip(np.hypot((xx - OW / 2) / (OW / 2), (yy - OH / 2) / (OH / 2)), 0, 1.3)
+    pulse = 0.6 + 0.4 * np.sin(t * 2 * np.pi * 4)
+    img += (heat * pulse * (0.12 + 0.45 * edge ** 2))[..., None] * np.array([1.0, 0.04, 0.03], np.float32)
+    sh = 1.0 + 7 * heat                                          # 顶在红线上，整个画面剧烈抖动
     return np.roll(img, (int(rr.normal(0, sh)), int(rr.normal(0, sh))), axis=(0, 1)).astype(np.float32)
 
 
