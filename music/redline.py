@@ -15,8 +15,8 @@ from scipy.io import wavfile
 
 SR = 44100
 DEMO = len(sys.argv) > 1 and sys.argv[1] == "demo"
-OUT = "redline_demo" if DEMO else "redline"
-BPM = 105
+BPM = next((int(a) for a in sys.argv[1:] if a.isdigit()), 120)   # 128 秒整数小节：75/90/105/120/150
+OUT = ("redline_demo" if DEMO else "redline") + "_%d" % BPM
 BEAT = 60 / BPM          # 0.571 s
 BAR = 4 * BEAT           # 2.286 s
 S16 = BEAT / 4           # 0.143 s
@@ -37,10 +37,12 @@ def hz(midi):
 # ---------------------------------------------------------------- 段落表
 # 每 8 小节一段；demo 只取「引入 2 小节 + 副歌 8 小节」= 10 小节 = 16 秒
 if DEMO:
-    PLAN = [("lead_in", 1), ("chorus", 6)]
+    PLAN = [("lead_in", 2), ("chorus", 8)] if BPM == 150 else [("lead_in", 1), ("chorus", 6)]
 else:
-    PLAN = [("intro", 8), ("verse", 8), ("build", 8), ("chorus", 8),
-            ("breakdown", 8), ("climax", 8), ("outro", 8)]
+    PLAN = {105: [("intro", 8), ("verse", 8), ("build", 8), ("chorus", 8),
+                  ("breakdown", 8), ("climax", 8), ("outro", 8)],
+            120: [("intro", 8), ("verse", 8), ("build", 8), ("chorus", 8), ("chorus2", 8),
+                  ("breakdown", 8), ("climax", 8), ("outro", 8)]}[BPM]
 SECS = []
 for name, n in PLAN:
     SECS += [(name, k) for k in range(n)]
@@ -330,7 +332,7 @@ for b, (sec, k) in enumerate(SECS):
         add("fx", t0, riser(2 * BAR), 0.35)
     if sec == "lead_in" and k == 0:
         add("fx", t0, riser(2 * BAR), 0.3)
-    if (k == 0 and sec in ("verse", "chorus", "climax")) or (sec == "outro" and k == 0):
+    if (k == 0 and sec in ("verse", "chorus", "chorus2", "climax")) or (sec == "outro" and k == 0):
         add("crash", t0, crash(), 0.3, 0.2)
         add("boom", t0, boom(), 0.55)
         add("braam", t0, braam(low + 12, BAR * 1.8), 0.16)
@@ -398,7 +400,7 @@ for b, (sec, k) in enumerate(SECS):
         start = 0 if (sec != "lead_in" and k == 7) or sec == "lead_in" else 2
         for s in range(start * 4, 16):
             add("snare", t0 + s * S16, snare(), 0.12 + 0.3 * s / 16, 0.05)
-    elif last_bar and sec in ("verse", "chorus", "climax"):
+    elif last_bar and sec in ("verse", "chorus", "chorus2", "climax"):
         for s, f in zip(range(8, 16, 2), (180, 150, 120, 95)):
             add("tom", t0 + s * S16, tom(f), 0.45, -0.4 + 0.25 * (s - 8) / 2)
 
