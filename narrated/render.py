@@ -247,92 +247,160 @@ def glow_dot(r, col):
     return sp
 
 
-# ================================================================ 1. 黄河出峡谷
+# ================================================================ 1. 登邙山，望黄河
 @lru_cache(None)
 def build_river():
     BW, BH = int(W * 1.08), int(H * 1.08)
-    img = paper(BH, BW, seed=1)
+    img = paper(BH, BW, seed=2)
     yy, xx = np.mgrid[0:BH, 0:BW].astype(np.float32)
-    d = np.hypot(xx - BW * 0.84, yy - BH * 0.30)
-    comp(img, RED * 1.1, 0.5 * smooth((66 - d) / 3))
-    west = lambda u: np.clip(1.25 - 1.5 * u, 0.04, 1)
-    ink_mountains(img, [(0.53, 0.13, 0.13, 0.10, 0.5, west),
-                        (0.575, 0.10, 0.20, 0.08, 0.5, west)], seed=11)
-    # 平原：地平线上几排淡墨树影
-    rng = np.random.default_rng(17)
+    u, v = xx / BW, yy / BH
+    u1 = np.linspace(0, 1, BW, dtype=np.float32)
+    SX, SY = 0.885, 0.33
+    dsun = np.hypot((u - SX) * BW, (v - SY) * BH)
+    comp(img, (0.97, 0.82, 0.64), 0.20 * np.exp(-dsun / 450))          # 天边暖光
+    comp(img, RED * 1.1, 0.55 * smooth((58 - dsun) / 3))
+    hz = 0.50
+    west = lambda q: np.clip(1.0 - 1.8 * q, 0, 1)
+    ink_mountains(img, [(hz, 0.09, 0.12, 0.07, 0.5, west), (hz + 0.004, 0.05, 0.18, 0.05, 0.5, west)], seed=12)
+    # 黄河两岸：北岸（远）几乎贴着地平线，南岸（近）向右下张开
+    jag = lambda s: (ridge(BW, s, rough=0.5) - 0.5)
+    bend = 0.035 * np.sin(u1 * 3.4 - 0.4) * u1
+    yn = BH * (hz + 0.003 + 0.055 * u1 ** 1.6 + bend * 0.5 + 0.004 * jag(41) * u1)
+    ys = BH * (hz + 0.008 + 0.33 * u1 ** 1.45 + bend + 0.010 * jag(42) * u1)
+    yn, ys = yn[None, :], ys[None, :]
+    soft = 1.5 + 0.004 * (ys - yn)
+    m = np.clip((yy - yn) / soft, 0, 1) * np.clip((ys - yy) / soft, 0, 1) * smooth((u - 0.02) / 0.06)
+    dd = np.clip((yy - yn) / np.maximum(ys - yn, 1), 0, 1)
+    # 北岸平原：远树
+    rng = np.random.default_rng(18)
     trees = Image.new("L", (BW, BH), 0)
     td = ImageDraw.Draw(trees)
-    hz = BH * 0.585
-    td.line((BW * 0.62, hz + 2, BW, hz + 2), fill=40, width=2)
-    for yh, n, sz, al in [(0.0, 160, 2.5, 60), (0.012, 110, 3.5, 70), (0.03, 60, 5, 80)]:
-        for _ in range(n):
-            x = rng.uniform(BW * 0.66, BW)
-            if rng.random() < 0.35:
-                continue
-            y = hz + BH * yh + rng.normal(0, 2)
-            for k in range(int(rng.integers(2, 6))):   # 一小簇树
-                r = sz * rng.uniform(0.7, 1.2)
-                xx0 = x + k * sz * 1.6
-                td.ellipse((xx0 - r, y - r * 1.6, xx0 + r, y + r * 0.4), fill=int(al * rng.uniform(0.5, 1.0)))
-    ta = np.asarray(trees.filter(ImageFilter.GaussianBlur(0.8)), np.float32) / 255
-    ta *= smooth((xx / BW - 0.64) / 0.08)
+    for _ in range(420):
+        x = rng.uniform(BW * 0.15, BW)
+        k = int(x)
+        y = yn[0, k] - rng.uniform(2, 10) * (0.4 + x / BW)
+        if y < BH * hz:
+            continue
+        for c in range(int(rng.integers(1, 4))):
+            r = (1.6 + 3.0 * x / BW) * rng.uniform(0.7, 1.2)
+            xx0 = x + c * r * 1.7
+            td.ellipse((xx0 - r, y - r * 1.7, xx0 + r, y + r * 0.3), fill=int(rng.uniform(40, 95)))
+    ta = np.asarray(trees.filter(ImageFilter.GaussianBlur(0.7)), np.float32) / 255
     comp(img, INK, ta)
-    comp(img, (0.88, 0.84, 0.74), 0.25 * smooth((yy - BH * 0.63) / 200))
-    # 河道：从峡谷口（画面中部）蜿蜒流向镜头，越近越宽
-    y0 = BH * 0.585
-    p = np.clip((yy[:, :1] - y0) / (BH - y0), 0, 1)
-    q = p ** 1.5   # 源头附近先顺着谷底往下流，再开始拐弯
-    xc = BW * (0.32 + 0.22 * q + 0.15 * (0.5 + 0.5 * q) * np.sin(q * 2 * np.pi * 1.1))
-    wd = 55 + BW * 0.30 * p ** 1.2
-    dd = (xx - xc) / wd
-    lim = 1 + 0.28 * (noise2d(BH, BW, 36, 12, 3) - 0.5)          # 不规则的岸线
-    soft = np.maximum(1.5, 0.12 * wd)
-    m = np.clip((lim - np.abs(dd)) * wd / soft, 0, 1) * smooth((yy - y0 + 5) / 40)
-    ry, rx = np.nonzero(m > 0.002)
-    bank = np.exp(-(((lim - np.abs(dd)) * wd) / (2 + 0.025 * wd)) ** 2)  # 岸边一道淡墨
-    # 沿河"宽度单位"累计的路程：波纹在河面上等距，透视下近大远小
-    srow = np.cumsum(1.0 / wd[:, 0]) * (np.arange(BH) > y0)
-    # 邙山：黄河南岸一道低缓浑圆的黄土长丘，西端紧挨出山口，往东落进平原
-    u1 = xx[:1] / BW
-    bump = smooth((u1 - 0.34) / 0.07) * (1 - smooth((u1 - 0.55) / 0.15))
-    hh = BH * bump * (0.072 * (0.88 + 0.12 * np.sin(u1 * 38 + 1.0))
-                      + 0.010 * (ridge(BW, 33, rough=0.45)[None, :] - 0.5))
-    base_y = hz + BH * 0.012
-    top = base_y - hh
-    below = yy - top
-    fga = (0.40 * np.exp(-np.maximum(below, 0) / (BH * 0.028)) + 0.06) * np.clip(below / 2, 0, 1)
-    fga *= (1 - smooth((yy - base_y) / (BH * 0.03))) * np.clip(bump * 6, 0, 1)
-    fga *= 0.8 + 0.35 * noise2d(BH, BW, 30, 34, 3)
-    fga = np.clip(fga, 0, 1)
-    fga_r = fga * (1 - smooth((yy - y0 - 15) / 40))   # 出山口在丘后，流出后在丘前
-    under = img[ry, rx].copy()
-    comp(img, INK, fga)
-    mist = 0.85 * np.exp(-((yy - y0 + 10) / 40) ** 2) * np.exp(-((xx - BW * 0.34) / (BW * 0.28)) ** 2)
+    comp(img, INK, 0.10 * np.exp(-((yy - yn) / 3) ** 2) * smooth((u - 0.1) / 0.2))   # 北岸一道淡墨
+    # 沙洲（在河道坐标 u-dd 中的椭圆）
+    sand = np.zeros((BH, BW), np.float32)
+    nz = noise2d(BH, BW, 30, 43, 3)
+    for uc, dc, lu, td_ in [(0.43, 0.60, 0.09, 0.07), (0.61, 0.30, 0.11, 0.06), (0.76, 0.66, 0.13, 0.075),
+                            (0.93, 0.40, 0.10, 0.06)]:
+        e = ((u - uc) / lu) ** 2 + ((dd - dc) / td_) ** 2
+        sand = np.maximum(sand, smooth((1 + 0.7 * (nz - 0.5) - e) / 0.30))
+    sand *= m
+    wet = np.clip(sand * (1 - sand) * 4, 0, 1)
+    under = img.copy()
+    comp(under, (0.91, 0.86, 0.74), sand * 0.9)
+    comp(under, (0.62, 0.52, 0.38), wet * 0.45)
+    mw = m * (1 - sand)
+    # 南岸芦苇
+    reeds = Image.new("L", (BW, BH), 0)
+    rd = ImageDraw.Draw(reeds)
+    for _ in range(260):
+        x = rng.uniform(BW * 0.40, BW)
+        y0_ = ys[0, int(x)] + rng.uniform(3, 18)
+        hgt = rng.uniform(8, 22) * (0.5 + x / BW)
+        lean = rng.uniform(-0.35, 0.15)
+        rd.line((x, y0_, x + lean * hgt, y0_ - hgt), fill=int(rng.uniform(60, 130)), width=1)
+    comp(under, INK, np.asarray(reeds.filter(ImageFilter.GaussianBlur(0.5)), np.float32) / 255)
+    # 前景邙山：左下角的黄土坡
+    top = np.where(u1 < 0.13, 0.585 + 0.05 * ((0.13 - u1) / 0.13) ** 2,
+                   0.585 + 0.42 * ((u1 - 0.13) / 0.60) ** 2)
+    top = BH * (top + 0.008 * jag(44))
+    below = yy - top[None, :]
+    ha = (0.42 * np.exp(-np.maximum(below, 0) / (BH * 0.035)) + 0.05) * np.clip(below / 2, 0, 1)
+    ha *= (0.75 + 0.4 * noise2d(BH, BW, 34, 45, 3)) * (0.7 + 0.5 * noise2d(BH, BW, 5, 47, 2))   # 枯笔
+    # 黄土梯田：顺着山势的几道淡墨线
+    for k in range(1, 8):
+        off = BH * 0.03 * k * (1 + 0.25 * k)
+        line = np.exp(-((below - off) / 1.6) ** 2) * (below > 0)
+        brk = np.clip((noise2d(BH, BW, 40, 60 + k, 2) - 0.35) * 3, 0, 1)
+        ha = np.maximum(ha, line * brk * 0.30)
+    ha = np.clip(ha, 0, 1)
+    # 山顶小亭 + 松
+    S = 2
+    pm = Image.new("L", (BW * S, BH * S), 0)
+    pd = ImageDraw.Draw(pm)
+    px, py = BW * 0.15 * S, (top[int(BW * 0.15)] + 2) * S
+    pd.rectangle((px - 34 * S, py - 8 * S, px + 34 * S, py), fill=230)                       # 台基
+    for dx in (-22, 22):
+        pd.rectangle((px + (dx - 2) * S, py - 46 * S, px + (dx + 2) * S, py - 8 * S), fill=230)  # 柱
+    pd.polygon([(px - 52 * S, py - 42 * S), (px - 30 * S, py - 52 * S), (px + 30 * S, py - 52 * S),
+                (px + 52 * S, py - 42 * S), (px + 26 * S, py - 64 * S), (px - 26 * S, py - 64 * S)], fill=230)
+    pd.polygon([(px - 30 * S, py - 62 * S), (px - 16 * S, py - 70 * S), (px + 16 * S, py - 70 * S),
+                (px + 30 * S, py - 62 * S), (px, py - 90 * S)], fill=230)
+    tx_, ty_ = BW * 0.205 * S, (top[int(BW * 0.205)] + 2) * S
+    pd.line((tx_, ty_, tx_ - 6 * S, ty_ - 80 * S), fill=210, width=5 * S)
+    for k, (ox, oy, r) in enumerate([(-30, -70, 26), (8, -84, 22), (-14, -100, 18), (14, -62, 18)]):
+        pd.ellipse((tx_ + (ox - r * 1.6) * S, ty_ + (oy - r * 0.55) * S,
+                    tx_ + (ox + r * 1.6) * S, ty_ + (oy + r * 0.55) * S), fill=200)
+    pa = np.asarray(pm.resize((BW, BH), Image.LANCZOS), np.float32) / 255
+    ha = np.maximum(ha, pa * 0.9)
+    # 远处雾带：让上游渐渐隐入天边
+    mist = 0.80 * np.exp(-((yy - BH * (hz + 0.012)) / 26) ** 2) * (1 - smooth((u - 0.10) / 0.40))
+    ry, rx = np.nonzero(mw > 0.002)
+    base = under.copy()
+    comp(img, (0.0, 0.0, 0.0), np.zeros_like(m))
+    img = under
+    comp(img, (0.83, 0.68, 0.46), mw * 0.85)          # 静态河水（每帧会重画）
+    comp(img, INK, ha)
     comp(img, (0.93, 0.90, 0.83), mist)
-    river = dict(ry=ry, rx=rx, m=m[ry, rx], dd=dd[ry, rx], s=srow[ry], under=under,
-                 bank=bank[ry, rx], fga=fga_r[ry, rx], mist=mist[ry, rx],
-                 n0=noise2d(BH, BW, 60, 13, 3)[ry, rx], nm=noise2d(BH, BW, 22, 14, 3)[ry, rx])
+    tex = noise2d(256, 2048, 20, 46, 4)
+    tex = (tex - tex.mean()) / tex.std()
+    wash = noise2d(BH, BW, 60, 48, 3)
+    river = dict(ry=ry, rx=rx, mw=mw[ry, rx], dd=dd[ry, rx], u=u[ry, rx], under=base[ry, rx], wash=wash[ry, rx],
+                 ha=ha[ry, rx], mist=mist[ry, rx], tex=tex, sx=SX * BW)
     return img, river
 
 
 def scene_river(t, tl):
     img, rv = build_river()
     frame = img.copy()
-    tint = np.array([0.89, 0.79, 0.62], np.float32)
-    c = rv["under"] * tint * (1 - 0.35 * rv["bank"])[:, None]
-    arg = 2 * np.pi * (rv["s"] * 1.5 - tl * 0.6) + 1.6 * np.sin(rv["dd"] * 2.4 + rv["s"] * 0.5) + 2 * rv["n0"]
-    crest = np.clip((np.cos(arg) - 0.90) * 9, 0, 1) * np.clip((rv["nm"] - 0.35) * 3, 0, 1)
-    crest *= 1 - np.abs(rv["dd"]) ** 4
-    c = c * (1 - 0.55 * crest[:, None]) + np.array([0.97, 0.94, 0.86]) * 0.55 * crest[:, None]
-    m = rv["m"][:, None]
+    dd, u = rv["dd"], rv["u"]
+    edge = np.exp(-np.minimum(dd, 1 - dd) / 0.10)
+    c = rv["under"] * np.array([0.88, 0.76, 0.56], np.float32) * ((1 - 0.22 * edge) * (0.92 + 0.14 * rv["wash"]))[:, None]
+    # 顺流的水纹（向东流，近处快）
+    tx = ((rv["rx"] * 1.1 - tl * (40 + 140 * u)) % 2048).astype(int)
+    ty = ((dd * 700) % 256).astype(int)
+    n = rv["tex"][ty, tx]
+    streak = np.clip((n - 1.2) * 1.4, 0, 1) * (0.4 + 0.6 * u)
+    c = c * (1 - 0.45 * streak[:, None]) + np.array([0.95, 0.90, 0.80]) * 0.45 * streak[:, None]
+    # 太阳倒影：一道闪烁的金色光带
+    tx2 = ((rv["rx"] * 3.0 + tl * 90) % 2048).astype(int)
+    ty2 = ((dd * 2400 + tl * 40) % 256).astype(int)
+    sp = np.clip((rv["tex"][ty2, tx2] - 0.9) * 1.5, 0, 1)
+    refl = np.exp(-((rv["rx"] - rv["sx"]) / (18 + 60 * dd)) ** 2) * (0.25 + 0.75 * sp)
+    c = c + refl[:, None] * np.array([0.30, 0.24, 0.12]) + (refl * sp)[:, None] * 0.25
+    m = rv["mw"][:, None]
     px = rv["under"] * (1 - m) + c * m
-    fa = rv["fga"][:, None]
-    px = px * (1 - fa) + INK * fa
+    ha = rv["ha"][:, None]
+    px = px * (1 - ha) + INK * ha
     mi = rv["mist"][:, None]
     frame[rv["ry"], rv["rx"]] = px * (1 - mi) + np.array([0.93, 0.90, 0.83]) * mi
-    big = Image.fromarray(to_u8(frame))
-    out = kb(big, 1.0 + 0.06 * tl / 14, 0.48, 0.50)
-    paste(out, mang_label(), W * 0.055, H * 0.47, alpha=0.9 * fade(tl, 3.0, 13.0, 1.2, 1.0))
+    big = Image.fromarray(to_u8(np.clip(frame, 0, 1)))
+    out = kb(big, 1.0 + 0.05 * tl / 14, 0.52, 0.55)
+    # 飞鸟
+    ov = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(ov)
+    for k, (bx, by, sc) in enumerate([(0.30, 0.42, 1.0), (0.34, 0.40, 0.8), (0.37, 0.435, 0.7),
+                                      (0.62, 0.36, 0.9), (0.66, 0.38, 0.65)]):
+        x = W * bx + tl * 18 * sc
+        y = H * by + 6 * math.sin(tl * 1.3 + k)
+        flap = 0.6 + 0.4 * math.sin(tl * 6 + k * 1.7)
+        s = 11 * sc
+        d.line([(x - s, y - s * 0.5 * flap), (x - s * 0.35, y - s * 0.15), (x, y)], fill=(40, 34, 30, 200), width=2)
+        d.line([(x, y), (x + s * 0.35, y - s * 0.15), (x + s, y - s * 0.5 * flap)], fill=(40, 34, 30, 200), width=2)
+    o = np.asarray(ov, np.float32) / 255
+    comp(out, o[..., :3], o[..., 3])
+    paste(out, mang_label(), W * 0.055, H * 0.68, alpha=0.9 * fade(tl, 3.0, 13.0, 1.2, 1.0))
     return out
 
 
