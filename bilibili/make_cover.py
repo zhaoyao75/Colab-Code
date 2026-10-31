@@ -89,7 +89,7 @@ def compose(img, w, h):
     en = ImageFont.truetype(EN, int(38 * s))
     spaced(dr, "STELLAR ECHO", en, w / 2, h * 0.835, int(16 * s), (205, 205, 205, 255))
     tag = ImageFont.truetype(ZH, int(40 * s))
-    spaced(dr, "致敬《星际穿越》· 全部由代码生成的原创配乐", tag, w / 2, h * 0.905, int(4 * s), (170, 170, 170, 255))
+    spaced(dr, "致敬《星际穿越》", tag, w / 2, h * 0.905, int(10 * s), (170, 170, 170, 255))
     claude_mark(dr, w - 250 * s, 70 * s, 26 * s, int(40 * s))   # 右上角，避开 B 站右下角时长角标
     glow = layer.filter(ImageFilter.GaussianBlur(6 * s))
     out = canvas.convert("RGBA")
