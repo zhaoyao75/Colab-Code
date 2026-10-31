@@ -15,6 +15,7 @@
 | `video/stellar_echo_full_bw.mp4` | 完整 128 秒黑白版（81MB，高画质存档） |
 | `video/stellar_echo_full_bw_30mb.mp4` | 压缩版 28.7MB（分享用） |
 | `narrated2/hohhot_full.mp4` | 《青城 · 呼和浩特》128 秒 AI 旁白解说短片（见第 8 节） |
+| `narrated2/hohhot_30mb.mp4` | 压缩版 28.6MB（发抖音、B 站、微信用） |
 | `narrated2/tts_samples/` | 10 种中文语音合成试听样本 |
 
 ## 2. 一键复现
@@ -180,7 +181,7 @@ ffmpeg -y -i stellar_echo_full_bw.mp4 -c:v libx264 -preset slower -b:v 1650k -pa
 | ⑥ 静帧 | `python3 render.py --still 6 20 26.5 38.5 52 70.5 86 104 106.5` | 约 40 秒 | `stills/contact_sheet.jpg` 九宫格 |
 | ⑦ 短 demo | `python3 render.py --demo 26 10` | 约 3 分钟 | 动态、转场、字幕节奏 |
 | ⑧ 完整版 | `python3 render.py`（放后台跑） | 4 进程约 12 分钟 | 成片 |
-| ⑨ 压缩版（可选） | 见第 2 节两遍编码 | 约 3 分钟 | — |
+| ⑨ 压缩版（可选） | 见第 2 节两遍编码（视频 1650k + 音频 128k，加 `-tune film`） | 约 4.5 分钟 | → `hohhot_30mb.mp4` 28.6MB，SSIM 0.98 |
 
 全部在 `narrated2/` 目录下运行。环境准备：
 
