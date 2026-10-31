@@ -5,54 +5,54 @@
    "id": "river",
    "voice_start": 3.0,
    "start": 0.0,
-   "end": 13.36
+   "end": 14.665
   },
   {
    "id": "prehistory",
-   "voice_start": 14.732,
-   "start": 13.36,
-   "end": 29.239
+   "voice_start": 15.95,
+   "start": 14.665,
+   "end": 30.369
   },
   {
    "id": "shang",
-   "voice_start": 30.611,
-   "start": 29.239,
-   "end": 44.248
+   "voice_start": 31.654,
+   "start": 30.369,
+   "end": 45.204
   },
   {
    "id": "names",
-   "voice_start": 45.62,
-   "start": 44.248,
-   "end": 59.534
+   "voice_start": 46.49,
+   "start": 45.204,
+   "end": 60.317
   },
   {
    "id": "culture",
-   "voice_start": 60.907,
-   "start": 59.534,
-   "end": 72.352
+   "voice_start": 61.602,
+   "start": 60.317,
+   "end": 72.962
   },
   {
    "id": "railway",
-   "voice_start": 73.725,
-   "start": 72.352,
-   "end": 88.41
+   "voice_start": 74.247,
+   "start": 72.962,
+   "end": 88.845
   },
   {
    "id": "modern",
-   "voice_start": 89.782,
-   "start": 88.41,
-   "end": 101.761
+   "voice_start": 90.13,
+   "start": 88.845,
+   "end": 102.022
   },
   {
    "id": "today",
-   "voice_start": 103.133,
-   "start": 101.761,
-   "end": 112.864
+   "voice_start": 103.307,
+   "start": 102.022,
+   "end": 112.951
   },
   {
    "id": "ending",
    "voice_start": 114.236,
-   "start": 112.864,
+   "start": 112.951,
    "end": 128.0
   }
  ],
@@ -60,154 +60,154 @@
   {
    "scene": 0,
    "start": 3.0,
-   "end": 6.05,
-   "zh": "黄河在这里走出峡谷，奔向平原。",
-   "en": "Here, the Yellow River leaves its gorges and spreads across the plain."
+   "end": 7.442,
+   "zh": "黄河流过邙山脚下，从这里进入下游，奔向平原。",
+   "en": "The Yellow River flows past Mount Mang, entering its lower reaches here on its way to the plain."
   },
   {
    "scene": 0,
-   "start": 6.55,
-   "end": 8.983,
+   "start": 7.942,
+   "end": 10.375,
    "zh": "这片中原腹地，就是郑州。",
    "en": "This heartland of the Central Plains is Zhengzhou."
   },
   {
    "scene": 0,
-   "start": 9.483,
-   "end": 11.988,
+   "start": 10.875,
+   "end": 13.379,
    "zh": "它的故事，要从八千年前说起。",
    "en": "Its story begins eight thousand years ago."
   },
   {
    "scene": 1,
-   "start": 14.732,
-   "end": 18.808,
+   "start": 15.95,
+   "end": 20.026,
    "zh": "在新郑裴李岗，先民磨制石器、种下粟米；",
    "en": "At Peiligang, early people ground stone tools and planted millet;"
   },
   {
    "scene": 1,
-   "start": 19.308,
-   "end": 23.533,
+   "start": 20.526,
+   "end": 24.751,
    "zh": "大河村彩陶上的太阳纹，记录着五千年前的天空。",
    "en": "sun motifs on Dahecun pottery recorded the sky of five thousand years ago."
   },
   {
    "scene": 1,
-   "start": 24.033,
-   "end": 27.866,
+   "start": 25.251,
+   "end": 29.084,
    "zh": "传说中，人文始祖黄帝也诞生在这片土地。",
    "en": "Legend says the Yellow Emperor was born on this land."
   },
   {
    "scene": 2,
-   "start": 30.611,
-   "end": 34.086,
+   "start": 31.654,
+   "end": 35.13,
    "zh": "约三千六百年前，商朝在这里筑起都城。",
    "en": "About 3,600 years ago, the Shang dynasty built a capital here."
   },
   {
    "scene": 2,
-   "start": 34.586,
-   "end": 38.451,
+   "start": 35.63,
+   "end": 39.495,
    "zh": "近七公里的夯土城墙，至今仍立在城市中心，",
    "en": "Nearly seven kilometres of rammed-earth walls still stand downtown,"
   },
   {
    "scene": 2,
-   "start": 38.951,
-   "end": 42.875,
+   "start": 39.995,
+   "end": 43.919,
    "zh": "出土的青铜方鼎，见证着早期中国的模样。",
    "en": "and bronze cauldrons unearthed here show what early China looked like."
   },
   {
    "scene": 3,
-   "start": 45.62,
-   "end": 49.09,
+   "start": 46.49,
+   "end": 49.96,
    "zh": "周代，这里是管国，郑州至今别称“管城”。",
    "en": "Under the Zhou it was the State of Guan, so Zhengzhou is still called Guancheng."
   },
   {
    "scene": 3,
-   "start": 49.59,
-   "end": 53.487,
+   "start": 50.46,
+   "end": 54.356,
    "zh": "春秋战国，郑国、韩国先后建都新郑。",
    "en": "In the Spring and Autumn and Warring States eras, Zheng and Han made Xinzheng their capital."
   },
   {
    "scene": 3,
-   "start": 53.987,
-   "end": 58.162,
+   "start": 54.856,
+   "end": 59.032,
    "zh": "公元五八三年，隋朝设立郑州，名字沿用至今。",
    "en": "In 583 AD, the Sui dynasty named it Zhengzhou, a name it still bears."
   },
   {
    "scene": 4,
-   "start": 60.907,
-   "end": 65.876,
+   "start": 61.602,
+   "end": 66.572,
    "zh": "这里文脉绵长：诗圣杜甫生于巩义，白居易生于新郑；",
    "en": "Its culture runs deep: the poet Du Fu was born in Gongyi, Bai Juyi in Xinzheng;"
   },
   {
    "scene": 4,
-   "start": 66.376,
-   "end": 70.98,
+   "start": 67.072,
+   "end": 71.676,
    "zh": "嵩山脚下的少林寺，晨钟暮鼓已有一千五百多年。",
    "en": "at the foot of Mount Song, Shaolin Temple's bells have rung for over 1,500 years."
   },
   {
    "scene": 5,
-   "start": 73.725,
-   "end": 78.1,
+   "start": 74.247,
+   "end": 78.621,
    "zh": "二十世纪初，京汉、汴洛两条铁路在这里交汇，",
    "en": "In the early 1900s, the Beijing–Hankou and Kaifeng–Luoyang railways met here,"
   },
   {
    "scene": 5,
-   "start": 78.6,
-   "end": 81.899,
+   "start": 79.121,
+   "end": 82.421,
    "zh": "一座小县城，被火车拉成了交通枢纽。",
    "en": "and trains turned a small county town into a transport hub."
   },
   {
    "scene": 5,
-   "start": 82.399,
-   "end": 87.038,
+   "start": 82.921,
+   "end": 87.56,
    "zh": "一九二三年的二七大罢工，让二七塔成为城市的记忆。",
    "en": "The February 7th strike of 1923 made the Erqi Tower the city's landmark of memory."
   },
   {
    "scene": 6,
-   "start": 89.782,
-   "end": 93.216,
+   "start": 90.13,
+   "end": 93.564,
    "zh": "一九五四年，河南省会从开封迁到郑州，",
    "en": "In 1954, Henan's provincial capital moved from Kaifeng to Zhengzhou,"
   },
   {
    "scene": 6,
-   "start": 93.716,
-   "end": 97.692,
+   "start": 94.064,
+   "end": 98.04,
    "zh": "国棉厂的织机声日夜不停，它有了“纺织城”的名号，",
    "en": "its cotton mills hummed day and night, earning it the name \"Textile City\","
   },
   {
    "scene": 6,
-   "start": 98.192,
-   "end": 100.388,
+   "start": 98.54,
+   "end": 100.736,
    "zh": "这座城市从此一路生长。",
    "en": "and the city has been growing ever since."
   },
   {
    "scene": 7,
-   "start": 103.133,
-   "end": 106.917,
+   "start": 103.307,
+   "end": 107.091,
    "zh": "今天，“米”字形高铁网从这里通向四面八方，",
    "en": "Today, a star-shaped high-speed rail network radiates from here in every direction,"
   },
   {
    "scene": 7,
-   "start": 107.417,
-   "end": 111.491,
+   "start": 107.591,
+   "end": 111.665,
    "zh": "航空港连接世界，常住人口超过一千三百万。",
    "en": "its airport links the world, and more than thirteen million people call it home."
   },
