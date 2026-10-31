@@ -59,7 +59,7 @@ def text_layer():
 
     spaced("星际回响", ImageFont.truetype(ZH, 132), 230, 30, (245, 245, 245, 255))
     spaced("STELLAR  ECHO", ImageFont.truetype(EN, 30), 392, 13, (190, 190, 190, 255))
-    spaced("致敬《星际穿越》· 全部由代码生成", ImageFont.truetype(ZH, 34), 1310, 3, (165, 165, 165, 255))
+    spaced("致敬《星际穿越》", ImageFont.truetype(ZH, 34), 1310, 6, (165, 165, 165, 255))
     # Claude 标志（保留橙色），居中放在副标题下方
     f = ImageFont.truetype(EN, 32)
     label_w = dr.textlength("Claude", font=f)
