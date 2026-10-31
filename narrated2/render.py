@@ -20,6 +20,13 @@ CACHE = os.path.join(HERE, ".cache")
 W, H, FPS = 1920, 1080, 30
 WW = W + 720                     # 图层比画面宽，留出横移余量
 XF = 1.4                         # 场景交叉淡化时长（秒）
+VERT = "--vertical" in sys.argv  # 抖音竖版 1080×1920
+if VERT:
+    sys.argv.remove("--vertical")
+OUT_W, OUT_H = (1080, 1920) if VERT else (W, H)
+V_PIC_H = 760                                    # 竖版里画面区的高度
+V_CROP = (W - 1080 * H / V_PIC_H) / 2            # 横版画面左右各裁掉的宽度（原始像素）
+SEAL_XMAX = V_CROP + (1080 - 170) * H / V_PIC_H if VERT else W - 40  # 景点印章最右位置：竖版避开裁边和抖音右侧按钮
 WORKERS = 4
 TL = json.load(open(os.path.join(HERE, "timeline.json"), encoding="utf-8"))
 SCRIPT = json.load(open(os.path.join(HERE, "script.json"), encoding="utf-8"))
@@ -617,7 +624,7 @@ class Scene:
         self.post(f, tl)
         for img, wx, y, speed, t_on in self.seals:
             a, sc = stamp_anim(tl - t_on)
-            blit_scaled(f, img, wx - (30 + speed * tl), y, a, sc)
+            blit_scaled(f, img, min(wx - (30 + speed * tl), SEAL_XMAX), y, a, sc)
         return f
 
     def pre(self, f, tl): pass
@@ -1319,8 +1326,9 @@ def blit(frame, rgba, cx, cy, alpha):
     if alpha <= 0:
         return
     h, w = rgba.shape[:2]
+    FH, FW = frame.shape[:2]
     x0, y0 = int(cx - w / 2), int(cy - h / 2)
-    xa, xb, ya, yb = max(x0, 0), min(x0 + w, W), max(y0, 0), min(y0 + h, H)
+    xa, xb, ya, yb = max(x0, 0), min(x0 + w, FW), max(y0, 0), min(y0 + h, FH)
     src = rgba[ya - y0:yb - y0, xa - x0:xb - x0]
     a = src[..., 3:] * alpha
     frame[ya:yb, xa:xb] = frame[ya:yb, xa:xb] * (1 - a) + src[..., :3] * a
@@ -1394,12 +1402,86 @@ class Texts:
         f *= k
 
 
+class VerticalTexts:
+    """竖版排版：顶部固定标题 + 朝代印章，中部画面，画面下方大字幕，底部留给抖音的按钮和文案"""
+    PIC_Y = 500
+
+    def __init__(self):
+        big, mid, small = font("NotoSerifCJK-Bold", 120), font("NotoSerifCJK-Regular", 46), font("NotoSansCJK-Regular", 26)
+        self.title = text_img([("青 城", big, (255, 250, 238), 150), ("呼 和 浩 特", mid, (245, 236, 220), 64),
+                               ("HOHHOT · THE BLUE CITY", small, (225, 220, 210), 36)], shadow=10)
+        meta = {c["id"]: c for c in SCRIPT["chapters"]}
+        self.eras = [(c["t0"], c["t1"], era_block(meta[c["id"]]["seal"], meta[c["id"]]["year"], c["era_en"]))
+                     for c in TL["chapters"] if meta[c["id"]].get("seal")]
+        zh, en = font("NotoSansCJK-Bold", 56), font("NotoSansCJK-Regular", 32)
+        self.subs = []
+        for l in TL["lines"]:
+            rows = [(l["zh"], zh, (255, 255, 255), 78)]
+            rows += [(r, en, (220, 226, 234), 44) for r in self.wrap(l["en"], en, 960)]
+            self.subs.append((l["t0"], l["t1"], text_img(rows, shadow=8)))
+        self.end_line = TL["lines"][-1]["t1"]
+
+    @staticmethod
+    def wrap(text, f, width):
+        probe = ImageDraw.Draw(Image.new("L", (1, 1)))
+        out, cur = [], ""
+        for w_ in text.split():
+            t = (cur + " " + w_).strip()
+            if probe.textlength(t, font=f) > width and cur:
+                out.append(cur); cur = w_
+            else:
+                cur = t
+        return out + [cur]
+
+    def frame(self, t):
+        pic = visual(t)
+        pic *= _texts_h.vig                              # 横版的暗角
+        pim = Image.fromarray((np.clip(pic, 0, 1) * 255).astype(np.uint8))
+        # 背景：同一画面的模糊放大版，压暗
+        small = pim.resize((108, 61), Image.BILINEAR).filter(ImageFilter.GaussianBlur(3))
+        bg = np.asarray(small.resize((3413, 1920), Image.BILINEAR), np.float32)[:, 1166:1166 + 1080] / 255
+        canvas = bg * 0.42
+        # 画面：放大到 760 高，居中裁出 1080 宽
+        sw = int(round(W * V_PIC_H / H))
+        main = np.asarray(pim.resize((sw, V_PIC_H), Image.LANCZOS), np.float32) / 255
+        x0 = (sw - 1080) // 2
+        canvas[self.PIC_Y:self.PIC_Y + V_PIC_H] = main[:, x0:x0 + 1080]
+        # 画面上下边缘柔和过渡
+        for k in range(24):
+            a = (k + 1) / 25
+            canvas[self.PIC_Y + k] = canvas[self.PIC_Y + k] * a + canvas[self.PIC_Y - 1] * (1 - a)
+            yb = self.PIC_Y + V_PIC_H - 1 - k
+            canvas[yb] = canvas[yb] * a + canvas[self.PIC_Y + V_PIC_H] * (1 - a)
+        blit(canvas, self.title, 540, 190, 1.0)
+        for t0, t1, im in self.eras:
+            on = t0 + 0.7
+            if on < t < t1 - 0.1:
+                a, sc = stamp_anim(t - on)
+                a *= Texts.fade(t, on - 1, t1 - 0.3, 1, 0.7)
+                blit_scaled(canvas, im, 60 + im.shape[1] / 2, 330 + im.shape[0] / 2, a, sc)
+        for t0, t1, im in self.subs:
+            a = Texts.fade(t, t0 - 0.15, t1 + 0.35, 0.25, 0.3)
+            if a > 0:
+                blit(canvas, im, 540, self.PIC_Y + V_PIC_H + 10 + im.shape[0] / 2, a)
+        canvas *= np.clip(min(t / 1.2, (TOTAL - t) / 2.0), 0, 1)
+        return canvas
+
+
+_vtexts = None
+_texts_h = None
+
+
 _texts = None
 _grain = None
 
 
 def render_frame(t):
-    global _texts, _grain
+    global _texts, _grain, _vtexts, _texts_h
+    if VERT:
+        if _vtexts is None:
+            _texts_h = Texts()
+            _vtexts = VerticalTexts()
+        return (np.clip(_vtexts.frame(t), 0, 1) * 255 + 0.5).astype(np.uint8)
     if _texts is None:
         _texts = Texts()
         rng = np.random.default_rng(99)
@@ -1413,7 +1495,7 @@ def render_frame(t):
 # ====================================================================== 输出
 def encode(frames_t, path, crf=18):
     p = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
-                          "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-", "-c:v", "libx264", "-preset", "medium",
+                          "-s", f"{OUT_W}x{OUT_H}", "-r", str(FPS), "-i", "-", "-c:v", "libx264", "-preset", "medium",
                           "-crf", str(crf), "-tune", "film", "-pix_fmt", "yuv420p", path], stdin=subprocess.PIPE)
     for t in frames_t:
         p.stdin.write(render_frame(t).tobytes())
@@ -1444,10 +1526,16 @@ def main():
         ims = []
         for s in args[1:]:
             im = Image.fromarray(render_frame(float(s)))
-            im.save(os.path.join(HERE, "stills", f"still_{float(s):06.1f}.jpg"), quality=92)
+            im.save(os.path.join(HERE, "stills", f"{'vstill' if VERT else 'still'}_{float(s):06.1f}.jpg"), quality=92)
             ims.append(im)
             print("still", s)
-        if len(ims) > 1:   # 拼一张缩略总览
+        if VERT:           # 竖版总览：一排
+            tw, th = 360, 640
+            sheet = Image.new("RGB", (tw * len(ims), th))
+            for i, im in enumerate(ims):
+                sheet.paste(im.resize((tw, th), Image.LANCZOS), (i * tw, 0))
+            sheet.save(os.path.join(HERE, "stills", "vertical_sheet.jpg"), quality=90)
+        elif len(ims) > 1:   # 拼一张缩略总览
             cols = 3; rows = (len(ims) + cols - 1) // cols
             sheet = Image.new("RGB", (cols * 640, rows * 360))
             for i, im in enumerate(ims):
@@ -1459,7 +1547,7 @@ def main():
         n0, n = int(t0 * FPS), int(dur * FPS)
         tmp = os.path.join(HERE, ".seg_demo.mp4")
         encode([(n0 + i) / FPS for i in range(n)], tmp)
-        mux(tmp, os.path.join(HERE, "hohhot_demo.mp4"), t0, dur)
+        mux(tmp, os.path.join(HERE, "hohhot_vertical_demo.mp4" if VERT else "hohhot_demo.mp4"), t0, dur)
         os.remove(tmp)
         return
     n = int(TOTAL * FPS)
@@ -1470,7 +1558,7 @@ def main():
     open(lst, "w").write("".join(f"file '{s}'\n" for s in segs))
     tmp = os.path.join(HERE, ".seg_all.mp4")
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", lst, "-c", "copy", tmp], check=True)
-    mux(tmp, os.path.join(HERE, "hohhot_full.mp4"))
+    mux(tmp, os.path.join(HERE, "hohhot_vertical.mp4" if VERT else "hohhot_full.mp4"))
     for s in segs + [tmp, lst]:
         os.remove(s)
 

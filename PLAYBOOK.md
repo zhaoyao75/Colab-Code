@@ -16,6 +16,7 @@
 | `video/stellar_echo_full_bw_30mb.mp4` | 压缩版 28.7MB（分享用） |
 | `narrated2/hohhot_full.mp4` | 《青城 · 呼和浩特》128 秒 AI 旁白解说短片（见第 8 节） |
 | `narrated2/hohhot_30mb.mp4` | 压缩版 28.6MB（发抖音、B 站、微信用） |
+| `narrated2/hohhot_vertical.mp4` | 抖音竖版 1080×1920 |
 | `narrated2/tts_samples/` | 10 种中文语音合成试听样本 |
 
 ## 2. 一键复现
@@ -266,6 +267,21 @@ script.json ──tts.py──▶ timeline.json + .cache/narration.wav
 | 静帧总览被覆盖成两张图 | `--still` 只给 2 个时间点也会重写总览图 | 出总览时一次给齐 9 个时间点 |
 | 渲染中途要改需求 | — | `pkill -f render.py`，删掉 `.seg_*` 再改 |
 | 完整版看不出步态是否自然 | Claude 只能看静帧 | 把 16 帧步态拼成一排图检查，最终请用户看视频 |
+
+### 8.10 抖音竖版（1080×1920）
+
+```bash
+cd narrated2 && python3 render.py --vertical --still 6 26.5 38.5 70.5 100 106.5   # 竖版静帧 + stills/vertical_sheet.jpg
+```
+
+```bash
+cd narrated2 && python3 render.py --vertical      # → hohhot_vertical.mp4
+```
+
+- 场景不重画：横版画面放大到 760 高，居中裁出 1080 宽（两侧各裁约 10%）；上下用同一画面的模糊放大版压暗铺满。
+- 文字按竖版重新排：顶部固定标题「青城 · 呼和浩特」，标题下方放朝代印章，字幕放在画面下方并加大（中文 56、英文 32 自动换行）。
+- **避开抖音界面**：右侧点赞、评论按钮大约在屏幕高度 55%~85%，底部约 20% 是文案区。景点印章用 `SEAL_XMAX` 收进安全区，字幕放在 y ≈ 1270~1420。
+- 坑：`blit()` 原来按横版 1920×1080 裁剪边界，竖版 1080 行以下的字幕全被裁掉；改成按画布实际尺寸裁剪。
 
 ### 8.9 下次做同类片子可以这样提需求
 
