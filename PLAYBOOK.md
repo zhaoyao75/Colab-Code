@@ -149,6 +149,10 @@ ffmpeg -y -i stellar_echo_full_bw.mp4 -c:v libx264 -preset slower -b:v 1650k -pa
 
 128 秒、1080p 横屏、中英双语字幕、AI 中文旁白、原创配乐、全程序化画面（无外部素材）。成品 `narrated2/hohhot_full.mp4`（约 63MB）。
 
+![制作流程](narrated2/workflow.png)
+
+流程图由 `narrated2/draw_workflow.py` 生成，流程有变化时改它再重跑。
+
 ### 8.1 开工前先问清楚（一次问完，少返工）
 
 | 问题 | 这次的答案 | 说明 |
