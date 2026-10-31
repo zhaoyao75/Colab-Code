@@ -3,7 +3,7 @@
 风格参考：Hans Zimmer《F1：狂飙飞车》配乐的手法（脉冲合成器低音、十六分音符弦乐 ostinato、
 重型鼓组、失真吉他、引擎呼啸、上升音效、最后一段升调）。主旋律为原创。
 
-150 BPM，4/4 拍，每小节 1.6 秒，80 小节 = 128 秒；D 大调（高潮升到 E 大调）。
+105 BPM，4/4 拍，每小节 2.2857 秒，56 小节 = 128 秒；D 大调（高潮升到 E 大调）。
 运行：python3 redline.py          ->  完整版 redline.wav / .mp3
      python3 redline.py demo     ->  16 秒 demo redline_demo.wav / .mp3（2 小节引入 + 8 小节副歌）
 """
@@ -16,10 +16,10 @@ from scipy.io import wavfile
 SR = 44100
 DEMO = len(sys.argv) > 1 and sys.argv[1] == "demo"
 OUT = "redline_demo" if DEMO else "redline"
-BPM = 150
-BEAT = 60 / BPM          # 0.4 s
-BAR = 4 * BEAT           # 1.6 s
-S16 = BEAT / 4           # 0.1 s
+BPM = 105
+BEAT = 60 / BPM          # 0.571 s
+BAR = 4 * BEAT           # 2.286 s
+S16 = BEAT / 4           # 0.143 s
 rng = np.random.default_rng(11)
 
 NOTE = {"C": 0, "C#": 1, "D": 2, "D#": 3, "E": 4, "F": 5, "F#": 6, "G": 7,
@@ -37,11 +37,10 @@ def hz(midi):
 # ---------------------------------------------------------------- 段落表
 # 每 8 小节一段；demo 只取「引入 2 小节 + 副歌 8 小节」= 10 小节 = 16 秒
 if DEMO:
-    PLAN = [("lead_in", 2), ("chorus", 8)]
+    PLAN = [("lead_in", 1), ("chorus", 6)]
 else:
-    PLAN = [("intro", 8), ("verse", 8), ("verse2", 8), ("build", 8),
-            ("chorus", 8), ("chorus2", 8), ("breakdown", 8), ("build2", 8),
-            ("climax", 8), ("outro", 8)]
+    PLAN = [("intro", 8), ("verse", 8), ("build", 8), ("chorus", 8),
+            ("breakdown", 8), ("climax", 8), ("outro", 8)]
 SECS = []
 for name, n in PLAN:
     SECS += [(name, k) for k in range(n)]
@@ -327,11 +326,11 @@ for b, (sec, k) in enumerate(SECS):
     # ---- 引擎呼啸 / 上升音效 / 冲击
     if (sec == "intro" and k in (0, 6)) or (sec == "lead_in" and k == 0) or (sec == "outro" and k == 5):
         add("engine", t0 - (0.2 if b else 0), engine_pass(2.6, 200 if k == 0 else 240), 0.5)
-    if sec in ("intro", "build", "build2") and k == 6:
+    if sec in ("intro", "build", "breakdown") and k == 6:
         add("fx", t0, riser(2 * BAR), 0.35)
     if sec == "lead_in" and k == 0:
         add("fx", t0, riser(2 * BAR), 0.3)
-    if (k == 0 and sec in ("verse2", "chorus", "chorus2", "climax", "build2")) or (sec == "outro" and k == 0):
+    if (k == 0 and sec in ("verse", "chorus", "climax")) or (sec == "outro" and k == 0):
         add("crash", t0, crash(), 0.3, 0.2)
         add("boom", t0, boom(), 0.55)
         add("braam", t0, braam(low + 12, BAR * 1.8), 0.16)
@@ -395,11 +394,11 @@ for b, (sec, k) in enumerate(SECS):
         if big:
             add("hat", t0 + 3.5 * BEAT, hat(True), 0.1, 0.4)
     # 过门：段落最后一小节 / build 末两小节小军鼓滚奏
-    if (sec in ("build", "build2") and k >= 6) or (sec == "lead_in" and k == 1):
+    if (sec in ("build", "breakdown") and k >= 6) or (sec == "lead_in" and k == 0):
         start = 0 if (sec != "lead_in" and k == 7) or sec == "lead_in" else 2
         for s in range(start * 4, 16):
             add("snare", t0 + s * S16, snare(), 0.12 + 0.3 * s / 16, 0.05)
-    elif last_bar and sec in ("verse", "verse2", "chorus", "chorus2", "climax"):
+    elif last_bar and sec in ("verse", "chorus", "climax"):
         for s, f in zip(range(8, 16, 2), (180, 150, 120, 95)):
             add("tom", t0 + s * S16, tom(f), 0.45, -0.4 + 0.25 * (s - 8) / 2)
 
