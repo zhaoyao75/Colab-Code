@@ -4,7 +4,8 @@
 做法：先对每个像素做一次史瓦西度规下的光线追踪（只做一次），
 记录光线与吸积盘的交点 (r, φ)；之后每帧只需让盘面纹理按开普勒速度旋转。
 
-运行：python3 render_demo.py [秒数] [--still 秒]
+运行：python3 render_demo.py [--bw] [--still 秒]
+     --bw  黑白版（输出 stellar_echo_demo_bw.mp4）
 依赖：numpy、scipy、Pillow、ffmpeg；音频取自 ../music/stellar_echo.mp3
 """
 import os
@@ -23,6 +24,7 @@ DUR = 10.0
 RIN, ROUT = 3.0, 13.0        # 吸积盘内外半径（史瓦西半径 = 1）
 CACHE = os.path.join(HERE, ".trace_cache.npz")
 rng = np.random.default_rng(3)
+BW = "--bw" in sys.argv
 
 
 # ------------------------------------------------------------------ 光线追踪（一次）
@@ -138,8 +140,8 @@ def overlay_layers():
             dr.text((x, y), c, font=font, fill=fill)
             x += w + spacing
 
-    spaced("星际回响", zh, 572, 26, (245, 240, 232, 255))
-    spaced("STELLAR  ECHO", en, 646, 9, (200, 196, 190, 255))
+    spaced("星际回响", zh, 572, 26, (242, 242, 242, 255) if BW else (245, 240, 232, 255))
+    spaced("STELLAR  ECHO", en, 646, 9, (196, 196, 196, 255) if BW else (200, 196, 190, 255))
     title = title.filter(__import__("PIL.ImageFilter", fromlist=["x"]).GaussianBlur(0.3))
 
     logo = Image.new("RGBA", (OW, OH), (0, 0, 0, 0))
@@ -185,7 +187,11 @@ def main():
         x = np.clip((r - RIN) / (ROUT - RIN), 0, 1)
         prof = (RIN / np.maximum(r, RIN)) ** 1.6
         prof *= np.clip((r - RIN * 0.9) / (RIN * 0.25), 0, 1) * np.clip((ROUT * 1.05 - r) / 3.5, 0, 1)
-        col = np.stack([np.ones_like(x), 0.84 - 0.36 * x, 0.6 - 0.48 * x], -1)
+        if BW:   # 黑白版：中性银白，外圈略暗
+            g = 1.0 - 0.25 * x
+            col = np.stack([g, g, g], -1)
+        else:
+            col = np.stack([np.ones_like(x), 0.84 - 0.36 * x, 0.6 - 0.48 * x], -1)
         omega = 0.55 * (RIN / np.maximum(r, RIN)) ** 1.5
         layers.append((idx, ir, hp[k][idx], prof.astype(np.float32), col.astype(np.float32), omega))
 
@@ -216,17 +222,20 @@ def main():
         im = im.resize((OW, OH), Image.LANCZOS, box=(x0, y0, x0 + cw, y0 + ch))
         out = np.asarray(im).astype(np.float32) / 255
         out *= ramp(t, 0.0, 1.8)
+        if BW:   # 画面转灰度；标题和 Claude 标志在之后叠加，标志保留橙色
+            lum = out @ np.array([0.299, 0.587, 0.114], np.float32)
+            out = np.repeat(lum[..., None], 3, axis=2)
         for layer, a in ((title, ramp(t, 3.0, 4.8)), (logo, ramp(t, 4.2, 5.6))):
             al = layer[..., 3:4] * a
             out = out * (1 - al) + layer[..., :3] * al
         return (np.clip(out, 0, 1) * 255).astype(np.uint8)
 
     if still is not None:
-        Image.fromarray(frame(still)).save(os.path.join(HERE, "still.png"))
+        Image.fromarray(frame(still)).save(os.path.join(HERE, "still_bw.png" if BW else "still.png"))
         print("still saved")
         return
 
-    out = os.path.join(HERE, "stellar_echo_demo.mp4")
+    out = os.path.join(HERE, "stellar_echo_demo_bw.mp4" if BW else "stellar_echo_demo.mp4")
     audio = os.path.join(HERE, "..", "music", "stellar_echo.mp3")
     cmd = ["ffmpeg", "-y", "-loglevel", "error",
            "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{OW}x{OH}", "-r", str(FPS), "-i", "-",
