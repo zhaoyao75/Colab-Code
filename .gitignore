@@ -1,2 +1,4 @@
 music/*.wav
 video/.trace_cache.npz
+video/.seg_*
+video/.segs.txt
