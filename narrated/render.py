@@ -262,10 +262,10 @@ def build_river():
     trees = Image.new("L", (BW, BH), 0)
     td = ImageDraw.Draw(trees)
     hz = BH * 0.585
-    td.line((BW * 0.30, hz + 2, BW, hz + 2), fill=40, width=2)
+    td.line((BW * 0.45, hz + 2, BW, hz + 2), fill=40, width=2)
     for yh, n, sz, al in [(0.0, 160, 2.5, 60), (0.012, 110, 3.5, 70), (0.03, 60, 5, 80)]:
         for _ in range(n):
-            x = rng.uniform(BW * 0.32, BW)
+            x = rng.uniform(BW * 0.50, BW)
             if rng.random() < 0.35:
                 continue
             y = hz + BH * yh + rng.normal(0, 2)
@@ -274,7 +274,7 @@ def build_river():
                 xx0 = x + k * sz * 1.6
                 td.ellipse((xx0 - r, y - r * 1.6, xx0 + r, y + r * 0.4), fill=int(al * rng.uniform(0.5, 1.0)))
     ta = np.asarray(trees.filter(ImageFilter.GaussianBlur(0.8)), np.float32) / 255
-    ta *= smooth((xx / BW - 0.30) / 0.12)
+    ta *= smooth((xx / BW - 0.48) / 0.10)
     comp(img, INK, ta)
     comp(img, (0.88, 0.84, 0.74), 0.25 * smooth((yy - BH * 0.63) / 200))
     # 河道：从峡谷口（画面中部）蜿蜒流向镜头，越近越宽
@@ -291,13 +291,19 @@ def build_river():
     bank = np.exp(-(((lim - np.abs(dd)) * wd) / (2 + 0.025 * wd)) ** 2)  # 岸边一道淡墨
     # 沿河"宽度单位"累计的路程：波纹在河面上等距，透视下近大远小
     srow = np.cumsum(1.0 / wd[:, 0]) * (np.arange(BH) > y0)
-    # 近景峡谷：左右两山夹住河口
-    # 邙山：黄河南岸低缓浑圆的黄土丘陵，向东延伸后没入平原
-    gorge = lambda u: 0.95 * np.exp(-((u - 0.03) / 0.11) ** 2) + 0.8 * np.exp(-((u - 0.33) / 0.15) ** 2)
-    tmp = np.ones((BH, BW, 3), np.float32)
-    ink_mountains(tmp, [(0.67, 0.17, 0.62, 0.06, 0.35, gorge, 0.65)], seed=31, col=(0, 0, 0), carve=(0.17, 0.61, 0.55, 0.03))
-    fga = 1 - tmp[..., 0]
-    fga_r = fga * (1 - smooth((yy - y0 - 40) / 70))   # 河口在山后，流出后在山前
+    # 邙山：黄河南岸一道低缓浑圆的黄土长丘，西端紧挨出山口，往东落进平原
+    u1 = xx[:1] / BW
+    bump = smooth((u1 - 0.185) / 0.07) * (1 - smooth((u1 - 0.40) / 0.17))
+    hh = BH * bump * (0.072 * (0.88 + 0.12 * np.sin(u1 * 38 + 1.0))
+                      + 0.010 * (ridge(BW, 33, rough=0.45)[None, :] - 0.5))
+    base_y = hz + BH * 0.012
+    top = base_y - hh
+    below = yy - top
+    fga = (0.62 * np.exp(-np.maximum(below, 0) / (BH * 0.028)) + 0.10) * np.clip(below / 2, 0, 1)
+    fga *= (1 - smooth((yy - base_y) / (BH * 0.03))) * np.clip(bump * 6, 0, 1)
+    fga *= 0.8 + 0.35 * noise2d(BH, BW, 30, 34, 3)
+    fga = np.clip(fga, 0, 1)
+    fga_r = fga * (1 - smooth((yy - y0 - 15) / 40))   # 出山口在丘后，流出后在丘前
     under = img[ry, rx].copy()
     comp(img, INK, fga)
     mist = 0.85 * np.exp(-((yy - y0 + 10) / 40) ** 2) * np.exp(-((xx - BW * 0.20) / (BW * 0.28)) ** 2)
@@ -325,13 +331,13 @@ def scene_river(t, tl):
     frame[rv["ry"], rv["rx"]] = px * (1 - mi) + np.array([0.93, 0.90, 0.83]) * mi
     big = Image.fromarray(to_u8(frame))
     out = kb(big, 1.0 + 0.06 * tl / 14, 0.48, 0.50)
-    paste(out, mang_label(), W * 0.40, H * 0.50, alpha=0.75 * fade(tl, 3.0, 13.0, 1.2, 1.0))
+    paste(out, mang_label(), W * 0.45, H * 0.45, alpha=0.9 * fade(tl, 3.0, 13.0, 1.2, 1.0))
     return out
 
 
 @lru_cache(None)
 def mang_label():
-    return vtext_sprite("邙山", SERIF_BOLD, 40, (50, 44, 40, 255))
+    return seal_sprite("邙山", 44)
 
 
 # ================================================================ 2. 史前：彩陶与粟米
