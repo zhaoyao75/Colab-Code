@@ -52,7 +52,7 @@ SEC = 12.8   # 8 小节
 
 
 def speed_at(t):      # 米/秒
-    keys = [(0, 30), (6, 45), (12.8, 62), (38.4, 72), (51.2, 88), (76.8, 88), (80, 58),
+    keys = [(0, 30), (6, 45), (12.8, 62), (38.4, 72), (50.9, 76), (52.4, 92), (76.8, 88), (80, 58),
             (89.6, 60), (102.4, 95), (115.2, 92), (124, 40), (128, 30)]
     xs, ys = zip(*keys)
     return float(np.interp(t, xs, ys))
@@ -112,52 +112,22 @@ def lamp_light(u, s):
         for k in (-1, 0, 1, 2):
             zl = base + k * POLE + off
             d2 = (u - side * WALL) ** 2 + (s - zl) ** 2 + LAMP_H ** 2
-            L += 2600 / d2 ** 1.6
+            L += 1640 / (d2 * np.sqrt(d2))
     return L
 
 
-def env(t, phase, curv, mask_shift=0.0):
-    dx = (_X - CX) / F
-    dy = -(_Y - CY) / F
-    heading = phase * curv * 40 + mask_shift
-    img = sky(dx, dy, heading).astype(np.float32)
+def C(*v):
+    return np.array(v, np.float32)
 
-    # 地面
+
+def env_geom(curv, heading):
+    """与相位无关的几何：每帧只算一次（运动模糊各次采样共用）"""
+    dx = ((_X - CX) / F).ravel()
+    dy = (-(_Y - CY) / F).ravel()
+    G = {"sky": sky(dx, dy, heading).astype(np.float32)}
     g = dy < -1e-4
-    tg = np.where(g, np.minimum(HC / np.maximum(-dy, 1e-4), 5000), 5000.0)
-    z = tg
-    x = dx * tg
-    u = x - curv * z * z
-    s = z + phase
-    au = np.abs(u)
+    tg = np.where(g, np.minimum(HC / np.maximum(-dy, 1e-4), 5000), 5000.0).astype(np.float32)
 
-    tex = TEX[(np.floor(u * 30).astype(np.int64) % 512), (np.floor(s * 6).astype(np.int64) % 512)]
-    spk = SPECK[(np.floor(u * 60).astype(np.int64) % 512), (np.floor(s * 12).astype(np.int64) % 512)]
-    detail = np.exp(-z / 30)
-    asphalt = 0.085 + 0.012 * tex * detail + 0.05 * spk * detail
-    col = np.repeat(asphalt[..., None], 3, axis=2) * np.array([1.0, 1.0, 1.05])
-    # 路面中间的磨胎痕
-    groove = np.exp(-((au - 0.85) / 0.35) ** 2) * 0.35
-    col *= (1 - groove * 0.5)[..., None]
-    # 路肩红白相间
-    on_kerb = (au > ROAD) & (au < ROAD + KERB)
-    stripe = (np.floor(s / 1.6) % 2)[..., None]
-    kerb_c = stripe * np.array([0.75, 0.75, 0.73]) + (1 - stripe) * np.array([0.7, 0.06, 0.05])
-    kerb_c = kerb_c + (np.array([0.72, 0.4, 0.39]) - kerb_c) * np.clip((z[..., None] - 25) / 60, 0, 1)
-    col = np.where(on_kerb[..., None], kerb_c, col)
-    line = (au > ROAD - 0.28) & (au < ROAD - 0.1)
-    col = np.where(line[..., None], np.array([0.8, 0.8, 0.78]), col)
-    runoff = au >= ROAD + KERB
-    col = np.where(runoff[..., None], col * 0.8 + np.array([0.0, 0.015, 0.03]), col)
-    # 灯光照明 + 掠射反光（湿润感）
-    L = lamp_light(u, s)
-    fres = np.clip(1 - (-dy) * 6, 0, 1) ** 3
-    col = col * (0.22 + 2.6 * L)[..., None] + fres[..., None] * np.array([0.1, 0.12, 0.18]) * 0.45
-    fog = np.exp(-z / 260)[..., None]
-    col = col * fog + np.array([0.05, 0.05, 0.07]) * (1 - fog)
-    img = np.where(g[..., None] & (tg < 4999)[..., None], col, img)
-
-    # 护墙 / 防护网 / 灯柱（两侧竖直曲面）
     a = curv if abs(curv) > 1e-9 else 1e-9
     best_t = np.full(dx.shape, 9000.0, dtype=np.float32)
     best_side = np.zeros(dx.shape, dtype=np.float32)
@@ -176,54 +146,92 @@ def env(t, phase, curv, mask_shift=0.0):
         hit = (tw < best_t) & (yw > 0) & (yw < LAMP_H + 1.0)
         best_t = np.where(hit, tw, best_t)
         best_side = np.where(hit, side, best_side)
-    tw = best_t
-    vis = (tw < 8000) & (tw < tg)
-    yw = HC + dy * tw
+    vis = (best_t < 8000) & (best_t < tg)
+    gr = g & (tg < 4999) & ~vis
+
+    gi = np.nonzero(gr)[0]
+    z = tg[gi]
+    u = dx[gi] * z - curv * z * z
+    G.update(gi=gi, z=z, u=u, au=np.abs(u),
+             fres=(np.clip(1 - (-dy[gi]) * 6, 0, 1) ** 3).astype(np.float32),
+             fog=np.exp(-z / 260)[:, None].astype(np.float32))
+    wi = np.nonzero(vis)[0]
+    tw = best_t[wi]
+    G.update(wi=wi, tw=tw, yw=(HC + dy[wi] * tw).astype(np.float32), side=best_side[wi],
+             fogw=np.exp(-tw / 260)[:, None].astype(np.float32))
+    return G
+
+
+def env_shade(G, phase):
+    img = G["sky"].copy()
+
+    # ---- 地面
+    z, u, au = G["z"], G["u"], G["au"]
+    s = z + phase
+    tex = TEX[(np.floor(u * 30).astype(np.int64) % 512), (np.floor(s * 6).astype(np.int64) % 512)]
+    spk = SPECK[(np.floor(u * 60).astype(np.int64) % 512), (np.floor(s * 12).astype(np.int64) % 512)]
+    detail = np.exp(-z / 30)
+    asphalt = 0.085 + 0.012 * tex * detail + 0.05 * spk * detail
+    col = asphalt[:, None] * C(1.0, 1.0, 1.05)
+    groove = np.exp(-((au - 0.85) / 0.35) ** 2) * 0.35          # 磨胎痕
+    col *= (1 - groove * 0.5)[:, None]
+    on_kerb = (au > ROAD) & (au < ROAD + KERB)                  # 红白路肩
+    stripe = (np.floor(s / 1.6) % 2)[:, None]
+    kerb_c = stripe * C(0.75, 0.75, 0.73) + (1 - stripe) * C(0.7, 0.06, 0.05)
+    kerb_c = kerb_c + (C(0.72, 0.4, 0.39) - kerb_c) * np.clip((z[:, None] - 25) / 60, 0, 1)
+    col = np.where(on_kerb[:, None], kerb_c, col)
+    line = (au > ROAD - 0.28) & (au < ROAD - 0.1)
+    col = np.where(line[:, None], C(0.8, 0.8, 0.78), col)
+    runoff = au >= ROAD + KERB
+    col = np.where(runoff[:, None], col * 0.8 + C(0.0, 0.015, 0.03), col)
+    L = lamp_light(u, s)                                        # 灯光 + 掠射反光
+    col = col * (0.22 + 2.6 * L)[:, None] + G["fres"][:, None] * C(0.1, 0.12, 0.18) * 0.45
+    fog = G["fog"]
+    col = col * fog + C(0.05, 0.05, 0.07) * (1 - fog)
+    img[G["gi"]] = col
+
+    # ---- 护墙 / 防护网 / 灯柱
+    tw, yw, side, fogw = G["tw"], G["yw"], G["side"], G["fogw"]
+    w = img[G["wi"]]
     sw = tw + phase
-    # 灯柱位置（两侧错开半个间距）
-    sp = sw - np.where(best_side > 0, POLE / 2, 0)
+    sp = sw - np.where(side > 0, POLE / 2, 0)                   # 两侧灯柱错开半个间距
     m = sp - np.floor(sp / POLE) * POLE
-    fogw = np.exp(-tw / 260)[..., None]
-
-    # 护墙：广告牌
-    panel = np.floor(sw / 14) % 4
-    pal = np.array([[0.8, 0.36, 0.12], [0.7, 0.7, 0.68], [0.05, 0.05, 0.06], [0.08, 0.3, 0.36]])
-    wall_c = pal[panel.astype(int)]
+    panel = (np.floor(sw / 14) % 4).astype(int)                 # 广告牌
+    pal = np.array([[0.8, 0.36, 0.12], [0.7, 0.7, 0.68], [0.05, 0.05, 0.06], [0.08, 0.3, 0.36]], np.float32)
+    wall_c = pal[panel]
     band = (yw > 0.42) & (yw < 0.6) & (panel != 1)
-    wall_c = np.where(band[..., None], wall_c * 0.4 + 0.55, wall_c)
-    Lw = lamp_light(np.full_like(tw, WALL - 1.5) * best_side, sw)
-    wall_c = wall_c * (0.12 + 0.55 * Lw)[..., None]
-    wall_c = wall_c * fogw + np.array([0.05, 0.05, 0.07]) * (1 - fogw)
-    is_wall = vis & (yw <= WALL_H)
-    img = np.where(is_wall[..., None], wall_c, img)
-    led = vis & (yw > WALL_H - 0.06) & (yw <= WALL_H) & ((sw % 3) < 1.2)
-    img = np.where(led[..., None], np.array([1.6, 0.5, 0.2]) * fogw + 0.4 * (1 - fogw), img)
-
-    # 防护网：半透明网格
-    is_fence = vis & (yw > WALL_H) & (yw < FENCE_H)
+    wall_c = np.where(band[:, None], wall_c * 0.4 + 0.55, wall_c)
+    Lw = lamp_light(np.full_like(tw, WALL - 1.5) * side, sw)
+    wall_c = wall_c * (0.12 + 0.55 * Lw)[:, None]
+    wall_c = wall_c * fogw + C(0.05, 0.05, 0.07) * (1 - fogw)
+    is_wall = yw <= WALL_H
+    w = np.where(is_wall[:, None], wall_c, w)
+    led = (yw > WALL_H - 0.06) & (yw <= WALL_H) & ((sw % 3) < 1.2)
+    w = np.where(led[:, None], C(1.6, 0.5, 0.2) * fogw + 0.4 * (1 - fogw), w)
+    is_fence = (yw > WALL_H) & (yw < FENCE_H)                  # 防护网：半透明网格
     mesh = ((np.abs(((sw * 1.3) % 1) - 0.5) < 0.06) | (np.abs(((yw * 1.3) % 1) - 0.5) < 0.06))
     post = (sw % 4) < 0.12
-    fence_a = np.where(post, 0.9, np.where(mesh, 0.25, 0.06)) * np.exp(-tw / 120)
-    fence_c = np.array([0.3, 0.3, 0.32]) * (0.12 + 0.7 * Lw)[..., None]
-    img = np.where(is_fence[..., None], img * (1 - fence_a[..., None]) + fence_c * fence_a[..., None], img)
-
-    # 灯柱 + 灯头
-    is_pole = vis & (m < 0.35) & (yw > WALL_H) & (yw < LAMP_H)
-    img = np.where(is_pole[..., None], np.array([0.08, 0.08, 0.09]) * fogw + 0.1 * (1 - fogw), img)
-    is_lamp = vis & (m > POLE - 1.8) & (yw > LAMP_H - 0.25) & (yw < LAMP_H + 0.45)
-    img = np.where(is_lamp[..., None], np.array([3.2, 3.0, 2.6]), img)
-    return img.astype(np.float32)
+    fence_a = (np.where(post, 0.9, np.where(mesh, 0.25, 0.06)) * np.exp(-tw / 120))[:, None]
+    fence_c = C(0.3, 0.3, 0.32) * (0.12 + 0.7 * Lw)[:, None]
+    w = np.where(is_fence[:, None], w * (1 - fence_a) + fence_c * fence_a, w)
+    is_pole = (m < 0.35) & (yw > WALL_H) & (yw < LAMP_H)        # 灯柱 + 灯头
+    w = np.where(is_pole[:, None], C(0.08, 0.08, 0.09) * fogw + 0.1 * (1 - fogw), w)
+    is_lamp = (m > POLE - 1.8) & (yw > LAMP_H - 0.25) & (yw < LAMP_H + 0.45)
+    w = np.where(is_lamp[:, None], C(3.2, 3.0, 2.6), w)
+    img[G["wi"]] = w
+    return img
 
 
 def env_blur(t, n=5):
-    """运动模糊：快门时间内多次采样平均"""
+    """运动模糊：快门时间内多次采样平均（几何只算一次）"""
     v = speed_at(t)
     ph0 = phase_at(t)
     curv = curve_at(t)
+    G = env_geom(curv, ph0 * curv * 40)
     acc = 0
     for k in np.linspace(-0.5, 0.5, n):
-        acc = acc + env(t, ph0 + v * k / FPS * 0.9, curv)
-    img = acc / n
+        acc = acc + env_shade(G, ph0 + v * k / FPS * 0.9)
+    img = (acc / n).reshape(RH, RW, 3)
     small = np.stack([zoom(img[..., c], 1 / SS, order=1) for c in range(3)], axis=2)
     return small[:OH, :OW]
 
@@ -466,14 +474,87 @@ def frame(t, layers, total=128.0, pulse=0.0):
     return (np.clip(img, 0, 1) * 255).astype(np.uint8)
 
 
+def audio_pulse(nf):
+    """每帧的音频瞬态强度（0~1）：底鼓/重音一响，尾灯和泛光就闪一下"""
+    from scipy.io import wavfile
+    wav = os.path.join(HERE, "..", "music", "redline.wav")
+    if not os.path.exists(wav):
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", AUDIO, wav], check=True)
+    sr, x = wavfile.read(wav)
+    x = x.astype(np.float32).mean(axis=1) / 32768
+    hop = sr // FPS
+    n = min(nf, len(x) // hop)
+    rms = np.sqrt((x[: n * hop].reshape(n, hop) ** 2).mean(axis=1) + 1e-9)
+    rms = np.pad(rms, (0, nf - n), mode="edge")
+    p = np.clip(rms / gaussian_filter(rms, FPS * 0.5) - 1.0, 0, 1) * 2.5
+    env = np.zeros_like(p)
+    for i in range(nf):   # 快起慢落
+        prev = env[i - 1] if i else 0
+        env[i] = min(1.0, p[i]) if p[i] > prev else prev * 0.8
+    return env
+
+
+TOTAL = 128.0
+LAYERS = PULSE = None
+T0, DUR = 0.0, TOTAL
+
+
+def render_frame(i):
+    t = T0 + i / FPS
+    img = frame(t, LAYERS, TOTAL, float(PULSE[min(int(t * FPS), len(PULSE) - 1)])).astype(np.float32)
+    fade = min(1.0, (i + 1) / (FPS * 0.5), (DUR * FPS - i) / (FPS * (3.0 if DUR == TOTAL else 0.6)))
+    return (img * max(0.0, fade)).astype(np.uint8)
+
+
+def worker(args):
+    k, i0, i1 = args
+    seg = os.path.join(HERE, f".seg_{k}.mp4")
+    p = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
+                          "-s", f"{OW}x{OH}", "-r", str(FPS), "-i", "-", "-c:v", "libx264",
+                          "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", seg], stdin=subprocess.PIPE)
+    for i in range(i0, i1):
+        p.stdin.write(render_frame(i).tobytes())
+        if (i - i0) % 100 == 0:
+            print(f"  worker {k}: {i - i0}/{i1 - i0}", flush=True)
+    p.stdin.close()
+    p.wait()
+    return seg
+
+
 def main():
-    layers = overlay_layers()
+    global LAYERS, PULSE, T0, DUR
+    import multiprocessing as mp
+    import warnings
+    warnings.filterwarnings("ignore")
+    LAYERS = overlay_layers()
     if "--still" in sys.argv:
         ts = [float(x) for x in sys.argv[sys.argv.index("--still") + 1:]]
         for t in ts:
-            Image.fromarray(frame(t, layers)).save(os.path.join(HERE, "race_still_%g.png" % t))
+            Image.fromarray(frame(t, LAYERS)).save(os.path.join(HERE, "race_still_%g.png" % t))
             print("saved race_still_%g.png" % t)
         return
+    out = os.path.join(HERE, "redline.mp4")
+    if "--demo" in sys.argv:            # --demo 起始秒 时长
+        k = sys.argv.index("--demo")
+        T0, DUR = float(sys.argv[k + 1]), float(sys.argv[k + 2])
+        out = os.path.join(HERE, "redline_demo.mp4")
+    PULSE = audio_pulse(int(TOTAL * FPS) + 1)
+    nf = int(round(DUR * FPS))
+    workers = 4
+    bounds = np.linspace(0, nf, workers + 1).astype(int)
+    with mp.get_context("fork").Pool(workers) as pool:
+        segs = pool.map(worker, [(k, bounds[k], bounds[k + 1]) for k in range(workers)])
+    lst = os.path.join(HERE, ".segs.txt")
+    with open(lst, "w") as fh:
+        fh.writelines(f"file '{x}'\n" for x in segs)
+    afade = f"afade=t=in:d=0.3,afade=t=out:st={DUR - 0.6}:d=0.6" if DUR < TOTAL else ""
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", lst,
+                    "-ss", str(T0), "-i", AUDIO, "-map", "0:v", "-map", "1:a", "-c:v", "copy"]
+                   + (["-af", afade] if afade else [])
+                   + ["-c:a", "aac", "-b:a", "192k", "-t", str(DUR), "-movflags", "+faststart", out], check=True)
+    for x in segs + [lst]:
+        os.remove(x)
+    print("saved", out)
 
 
 if __name__ == "__main__":
