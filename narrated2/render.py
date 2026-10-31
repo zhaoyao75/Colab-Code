@@ -479,31 +479,91 @@ SEAL_RED = (178, 38, 32)
 SEAL_INK = (250, 241, 228)
 
 
-def seal_img(text, cell=60, seed=0, rot=-2.0):
-    """白文方印：红底白字，竖排、从右往左读；带印泥的斑驳和不齐的边"""
+def _wobbly(p0, p1, n, amp, rng):
+    """一条手刻的边：两点之间加平滑的随机起伏"""
+    t = np.linspace(0, 1, n)
+    off = np.cumsum(rng.normal(0, 1, n)); off -= np.linspace(off[0], off[-1], n); off *= amp / (np.abs(off).max() + 1e-6)
+    d = np.array(p1, float) - np.array(p0, float); nrm = np.array([-d[1], d[0]]) / np.linalg.norm(d)
+    return [tuple(np.array(p0) + d * ti + nrm * oi) for ti, oi in zip(t, off)]
+
+
+def _rough(mask, rng, blur, amp, sharp=6.0):
+    """把边缘做毛：先模糊，再用噪声扰动阈值"""
+    m = gaussian_filter(mask, blur)
+    nz = gaussian_filter(rng.standard_normal(mask.shape), blur * 0.8); nz /= nz.std() + 1e-6
+    return np.clip((m - 0.5 + amp * nz) * sharp + 0.5, 0, 1)
+
+
+def seal_img(text, cell=60, seed=0, rot=None):
+    """白文印章，模仿手刻手盖：边缘不齐带崩口、内框断续、笔画毛糙、字有错落、印泥浓淡不匀"""
+    rng = np.random.default_rng(seed + 17)
     n = len(text)
     cols, rows = {1: (1, 1), 2: (1, 2), 3: (1, 3), 4: (2, 2)}[n]
-    pad = int(cell * 0.2)
-    w, h = cols * cell + 2 * pad, rows * cell + 2 * pad
     S = 3
-    img = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    d.rounded_rectangle([0, 0, w * S - 1, h * S - 1], radius=int(cell * 0.07 * S), fill=SEAL_RED + (255,))
-    inset, bw = int(cell * 0.08 * S), max(int(cell * 0.035 * S), 2)
-    d.rectangle([inset, inset, w * S - inset, h * S - inset], outline=SEAL_INK + (255,), width=bw)
-    f = ImageFont.truetype(FONT_DIR + "NotoSerifCJK-Bold.ttc", int(cell * 0.78 * S), index=2)
+    c = cell * S
+    pad = int(cell * 0.2) * S
+    w, h = cols * c + 2 * pad, rows * c + 2 * pad
+    w = int(w * rng.uniform(0.97, 1.04))                   # 印面不是正正方方的
+    m = int(cell * 0.3 * S)
+    Wc, Hc = w + 2 * m, h + 2 * m
+    # 1) 印面外形：四条起伏的边 + 不同的圆角
+    corners = [(m, m), (m + w, m), (m + w, m + h), (m, m + h)]
+    pts = []
+    for i in range(4):
+        p0, p1 = corners[i], corners[(i + 1) % 4]
+        L = np.hypot(p1[0] - p0[0], p1[1] - p0[1])
+        r = rng.uniform(0.02, 0.09) * c
+        dx, dy = (p1[0] - p0[0]) / L, (p1[1] - p0[1]) / L
+        pts += _wobbly((p0[0] + dx * r, p0[1] + dy * r), (p1[0] - dx * r, p1[1] - dy * r), 14, c * 0.022, rng)
+    blk = Image.new("L", (Wc, Hc), 0)
+    db = ImageDraw.Draw(blk)
+    db.polygon(pts, fill=255)
+    for _ in range(rng.integers(3, 7)):                    # 崩口
+        side = rng.integers(4); t = rng.uniform(0.1, 0.9); r = rng.uniform(0.03, 0.08) * c
+        x, y = [(m + t * w, m), (m + w, m + t * h), (m + t * w, m + h), (m, m + t * h)][side]
+        db.ellipse([x - r, y - r * 0.7, x + r, y + r * 0.7], fill=0)
+    # 2) 白色部分：内框（有断口、粗细不一）+ 字
+    wht = Image.new("L", (Wc, Hc), 0)
+    dw = ImageDraw.Draw(wht)
+    ins = cell * 0.09 * S
+    ic = [(m + ins, m + ins), (m + w - ins, m + ins), (m + w - ins, m + h - ins), (m + ins, m + h - ins)]
+    for i in range(4):
+        line = _wobbly(ic[i], ic[(i + 1) % 4], 24, c * 0.012, rng)
+        for j in range(len(line) - 1):
+            if rng.random() < 0.1:
+                continue                                    # 断口
+            dw.line([line[j], line[j + 1]], fill=255, width=max(int(cell * rng.uniform(0.03, 0.05) * S), 2))
+    f = ImageFont.truetype(FONT_DIR + "NotoSerifCJK-Bold.ttc", int(cell * 0.8 * S), index=2)
     for i, ch in enumerate(text):
-        c, r = cols - 1 - i // rows, i % rows
-        d.text(((pad + c * cell + cell / 2) * S, (pad + r * cell + cell / 2) * S), ch, font=f,
-               fill=SEAL_INK + (255,), anchor="mm")
-    img = img.rotate(rot, resample=Image.BICUBIC, expand=True)
+        col, row = cols - 1 - i // rows, i % rows
+        sz = int(c * rng.uniform(1.15, 1.3))
+        g = Image.new("L", (sz, sz), 0)
+        ImageDraw.Draw(g).text((sz / 2, sz / 2), ch, font=ImageFont.truetype(FONT_DIR + "NotoSerifCJK-Bold.ttc",
+                               int(c * rng.uniform(0.8, 0.88)), index=2), fill=255, anchor="mm")
+        g = g.rotate(rng.uniform(-4, 4), resample=Image.BICUBIC)
+        cx = m + pad + col * c + c / 2 + rng.normal(0, 0.03) * c + (w - (cols * c + 2 * pad)) / 2
+        cy = m + pad + row * c + c / 2 + rng.normal(0, 0.03) * c
+        wht.paste(255, (int(cx - sz / 2), int(cy - sz / 2)), g)
+    blk_a = np.asarray(blk, np.float32) / 255
+    B = _rough(blk_a, rng, 1.6 * S, 0.1, 12.0) * (gaussian_filter(blk_a, 1.2 * S) > 0.2)   # 毛边，但不往外溅点
+    Wm = _rough(np.asarray(wht, np.float32) / 255, rng, 0.6 * S, 0.1, 5.0)
+    # 3) 印泥：一边重一边轻、斑驳、漏白
+    yy, xx = np.mgrid[0:Hc, 0:Wc].astype(np.float32)
+    ang = rng.uniform(0, 2 * np.pi)
+    ramp = (np.cos(ang) * (xx - Wc / 2) + np.sin(ang) * (yy - Hc / 2)) / max(Wc, Hc)
+    big = gaussian_filter(rng.standard_normal((Hc, Wc)), 6 * S); big /= big.std()
+    fine = gaussian_filter(rng.standard_normal((Hc, Wc)), 0.7 * S); fine /= fine.std()
+    ink = np.clip(0.9 + 0.18 * ramp + 0.05 * big, 0.68, 1.0)
+    ink *= np.where(fine > 2.0, 0.35, 1.0) * np.where(big + 0.6 * fine < -2.3, 0.45, 1.0)
+    red = np.array(SEAL_RED, np.float32) / 255 * (0.95 + 0.07 * big[..., None])
+    paper = np.array(SEAL_INK, np.float32) / 255
+    rgb = red * (1 - Wm[..., None]) + paper * Wm[..., None]
+    alpha = B * ink * (1 - 0.15 * Wm)
+    img = Image.fromarray((np.clip(np.dstack([rgb, alpha]), 0, 1) * 255).astype(np.uint8), "RGBA")
+    img = img.rotate(rng.uniform(-5, 5) if rot is None else rot, resample=Image.BICUBIC, expand=True)
     arr = np.asarray(img.resize((img.width // S, img.height // S), Image.LANCZOS), np.float32) / 255
-    rng = np.random.default_rng(seed)
-    hh, ww = arr.shape[:2]
-    n1 = gaussian_filter(rng.standard_normal((hh, ww)), 1.0); n1 /= n1.std()
-    n2 = gaussian_filter(rng.standard_normal((hh, ww)), 5.0); n2 /= n2.std()
-    arr[..., 3] *= np.clip(0.93 + 0.07 * n2 - 0.6 * np.clip(n1 - 1.5, 0, 1), 0.2, 1)
-    return arr
+    ys, xs = np.where(arr[..., 3] > 0.01)
+    return arr[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
 
 
 def to_pil(rgba):
@@ -711,7 +771,7 @@ class HanTomb(Scene):
         self.layers = [self.cl, far, haze(700, 45, hz, 0.5), mound, haze(800, 30, hz, 0.25), near, self._parade,
                        grass(44, 975, C("#7a4a30"), C("#2a1712"), C("#140b09"), 22, amp=9)]
         self.birds = Flock(45, 9, 1500, 330, -38, -4, C("#2b1520"))
-        self.seals = [(seal_img("昭君墓", 44, seed=3), 1935, 640, 8, local_t("han", "han", 2))]
+        self.seals = [(seal_img("昭君墓", 50, seed=3), 1935, 640, 8, local_t("han", "han", 2))]
 
     def _mound(self, d, k):
         cx, base = 1620, 878
@@ -787,7 +847,7 @@ class MingCity(Scene):
                        grass(64, 1000, C("#8c6a3a"), C("#2e1f12"), C("#140d08"), 20, blade=(30, 110), amp=8)]
         self.k_smoke = kernel(18)
         self.birds = Flock(65, 7, 1900, 280, -30, 3, C("#3a2420"))
-        self.seals = [(seal_img("大召寺", 44, seed=4), 1885, 560, 8, local_t("ming", "ming", 2))]
+        self.seals = [(seal_img("大召寺", 50, seed=4), 1885, 560, 8, local_t("ming", "ming", 2))]
 
     def _smoke(self, f, tl):
         a = np.zeros((H, W), np.float32)
@@ -995,7 +1055,7 @@ class TodayScene(Scene):
         self.t_milk = local_t("today", "modern", 2)
         self.t_cloud = local_t("today", "modern", 3)
         self.seals = [(seal_img("乳都", 52, seed=7), 1230, 800, 10, self.t_milk),
-                      (seal_img("云计算", 44, seed=8), 1545, 262, 0, self.t_cloud)]
+                      (seal_img("云计算", 50, seed=8), 1545, 262, 0, self.t_cloud)]
         self._build_cloud()
 
     def _datacenter(self, d, k):
@@ -1081,6 +1141,114 @@ class TodayScene(Scene):
         add_light(f, b, C("#86dcff"))
 
 
+class Guisui1954(Scene):
+    """1954：归绥更名呼和浩特。低矮平房、四合院、几栋两三层砖楼、老城门、工厂烟囱、电线杆、马车；老照片色调"""
+    def __init__(self):
+        super().__init__()
+        self.sky = sky([(0, "#7f8e99"), (0.45, "#b9b6a6"), (0.68, "#e6d8b8"), (1, "#e6d8b8")])
+        hz = C("#e6d8b8")
+        self.cl = clouds(111, 80, 480, C("#f4ead2"), C("#8d8f8e"), 0.6, 4, thr=0.05, stretch=3)
+        far, _ = ridge(112, 660, 70, mix(C("#7d7f7a"), hz, 0.35), C("#6c6e69"), 2, ridged=True)
+        town = paint(self._town, 6)
+        road, _ = ridge(113, 878, 5, C("#a08e6c"), C("#6b5d45"), 12, octaves=2, f0=0.001, fade=50)
+        poles = paint(self._poles, 12)
+        col = C("#2a241c")
+        self.horse = gait_frames("horse", col, rider=False)
+        self.carts = [sprite(lambda d, k, a=i * np.pi / 16: self._cart(d, k, a), 120, 80, col) for i in range(8)]
+        self.layers = [self.cl, far, haze(700, 40, hz, 0.5), town, self._smoke, haze(845, 25, hz, 0.3), road,
+                       self._wagon, poles,
+                       grass(114, 1000, C("#a39568"), C("#4a4230"), C("#211d14"), 18, blade=(25, 90), amp=7)]
+        self.k_smoke = kernel(24)
+
+    def _town(self, d, k):
+        rng = np.random.default_rng(115)
+        base = 852
+        dark, wall, win = rgb255(C("#4b4337")), rgb255(C("#5d5444")), rgb255(C("#8f816a"))
+        # 老城门（归化城）
+        city_wall(d, k, 772, base, dark, 300, 760, merlon=22)
+        gate_tower(d, k, 530, 772, dark, rgb255(C("#8f816a")), rgb255(C("#2c271f")))
+        x = -30
+        while x < WW:
+            if 260 < x < 800:
+                x = 800
+            r = rng.random()
+            if r < 0.55:                                    # 平房 / 四合院：矮墙 + 小坡顶
+                w = rng.uniform(110, 190); hgt = rng.uniform(30, 44)
+                d.rectangle([x * k, (base - hgt) * k, (x + w) * k, base * k], fill=wall)
+                for j in range(int(w // 70) + 1):
+                    cx = x + 35 + j * 70
+                    if cx < x + w - 20:
+                        roof(d, k, cx, base - hgt + 2, 30, 16, dark)
+            elif r < 0.8:                                   # 两三层砖楼，平顶带女儿墙
+                w = rng.uniform(120, 200); fl = rng.integers(2, 4); hgt = fl * 30 + 8
+                d.rectangle([x * k, (base - hgt) * k, (x + w) * k, base * k], fill=dark)
+                d.rectangle([(x - 4) * k, (base - hgt - 6) * k, (x + w + 4) * k, (base - hgt) * k], fill=dark)
+                for f_ in range(fl):
+                    for wx in np.arange(x + 12, x + w - 16, 26):
+                        y0 = base - hgt + 12 + f_ * 30
+                        d.rectangle([wx * k, y0 * k, (wx + 10) * k, (y0 + 14) * k], fill=win)
+            else:                                           # 白杨树
+                w = rng.uniform(40, 70); th = rng.uniform(70, 120)
+                d.line([(x + w / 2) * k, base * k, (x + w / 2) * k, (base - th * 0.4) * k], fill=dark, width=int(4 * k))
+                d.ellipse([(x + w / 2 - 14) * k, (base - th) * k, (x + w / 2 + 14) * k, (base - th * 0.3) * k], fill=dark)
+            x += w + rng.uniform(4, 30)
+        # 工厂：锯齿形厂房 + 烟囱
+        for i in range(5):
+            x0 = 1380 + i * 60
+            d.polygon([(x0 * k, base * k), (x0 * k, (base - 60) * k), ((x0 + 46) * k, (base - 84) * k),
+                       ((x0 + 46) * k, (base - 60) * k), ((x0 + 60) * k, (base - 60) * k), ((x0 + 60) * k, base * k)], fill=dark)
+        d.rectangle([1370 * k, (base - 50) * k, 1700 * k, base * k], fill=dark)
+        d.polygon([(1695 * k, base * k), (1702 * k, 520 * k), (1720 * k, 520 * k), (1727 * k, base * k)], fill=dark)
+
+    def _poles(self, d, k):
+        col = rgb255(C("#2e281f"))
+        xs = list(range(120, WW, 300))
+        tops = []
+        for x in xs:
+            d.line([x * k, 905 * k, x * k, 690 * k], fill=col, width=int(5 * k))
+            d.line([(x - 26) * k, 700 * k, (x + 26) * k, 700 * k], fill=col, width=int(4 * k))
+            tops.append(x)
+        for a, b in zip(tops[:-1], tops[1:]):
+            for off in (-22, 22):
+                t = np.linspace(0, 1, 30)
+                pts = [((a + off + (b - a) * ti) * k, (700 + 26 * 4 * ti * (1 - ti)) * k) for ti in t]
+                d.line(pts, fill=col, width=int(1.5 * k))
+
+    def _cart(self, d, k, ang):
+        # 车厢、车辕、带辐条的木轮（ang 为车轮转角）
+        d.rectangle([10 * k, 30 * k, 92 * k, 46 * k], fill=255)
+        d.line([88 * k, 40 * k, 120 * k, 44 * k], fill=255, width=int(3 * k))
+        cx, cy, r = 50, 58, 20
+        d.ellipse([(cx - r) * k, (cy - r) * k, (cx + r) * k, (cy + r) * k], outline=255, width=int(3.5 * k))
+        for j in range(6):
+            a = ang + j * np.pi / 6
+            d.line([(cx - r * np.cos(a)) * k, (cy - r * np.sin(a)) * k, (cx + r * np.cos(a)) * k, (cy + r * np.sin(a)) * k],
+                   fill=255, width=int(2 * k))
+        d.polygon([(30 * k, 30 * k), (34 * k, 6 * k), (46 * k, 6 * k), (48 * k, 30 * k)], fill=255)   # 赶车人
+        d.ellipse([34 * k, -6 * k, 46 * k, 8 * k], fill=255)
+
+    def _wagon(self, f, tl):
+        rel = 42 * tl                                     # 相对地面走过的距离
+        x = 520 + 30 * tl
+        walk(f, self.horse, x, 898, rel / STRIDE["horse"], shadow=0.3)
+        put(f, SHADOW, x - 88, 905, 0.3)
+        put(f, self.carts[int(rel / 20 / (np.pi / 16)) % 8], x - 92, 900)
+
+    def _smoke(self, f, tl):
+        a = np.zeros((H, W), np.float32)
+        sx = 1711 - (30 + 6 * tl)
+        for j in range(22):
+            age = (tl * 0.25 + j / 22) % 1.0
+            stamp(a, sx + 220 * age ** 1.3 + 8 * np.sin(j + tl), 515 - 260 * age, self.k_smoke, 0.25 * (1 - age) * min(age * 8, 1))
+        over(f, a * 1.5, C("#6a645a"))
+
+    def post(self, f, tl):
+        # 老照片：去色 + 暖黄 + 轻微闪烁
+        lum = (f @ np.array([0.3, 0.59, 0.11], np.float32))[..., None]
+        sep = np.clip(lum * C("#ffe6bd") * 1.04 + 0.02, 0, 1)
+        f[:] = mix(f, sep, 0.8) * (1 + 0.012 * np.sin(tl * 23))
+
+
 # ====================================================================== 时间轴
 def build_timeline():
     ch = {c["id"]: c for c in TL["chapters"]}
@@ -1092,7 +1260,7 @@ def build_timeline():
     seq = [("open", 0.0, Grassland), ("prehistoric", ch["ancient"]["t0"], Prehistoric),
            ("zhao", split, ZhaoWall), ("han", ch["han"]["t0"], HanTomb), ("liao", ch["liao"]["t0"], LiaoPagoda),
            ("ming", ch["ming"]["t0"], MingCity), ("qing", ch["qing"]["t0"], QingCaravan),
-           ("modern", ch["modern"]["t0"], ModernCity),
+           ("modern", ch["modern"]["t0"], Guisui1954),
            ("today", split2, TodayScene), ("end", ch["end"]["t0"], lambda: Grassland(end=True))]
     return seq
 
