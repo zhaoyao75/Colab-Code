@@ -11,6 +11,7 @@
 | `music/stellar_echo.mp3` | 小调版（第一版，视频配乐用这个） |
 | `music/stellar_echo_major.mp3` | 大调欢快版 |
 | `music/stellar_echo_lyrical.mp3` | 慢速抒情版（60 BPM） |
+| `music/redline.mp3` / `redline_demo.mp3` | 《红线》F1 赛车风格配乐 128 秒 / 16 秒 demo（`music/redline.py`） |
 | `video/stellar_echo_demo.mp4` / `_bw.mp4` | 10 秒 demo（彩色 / 黑白） |
 | `video/stellar_echo_full_bw.mp4` | 完整 128 秒黑白版（81MB，高画质存档） |
 | `video/stellar_echo_full_bw_30mb.mp4` | 压缩版 28.7MB（分享用） |
@@ -77,6 +78,16 @@ ffmpeg -y -i stellar_echo_full_bw.mp4 -c:v libx264 -preset slower -b:v 1650k -pa
 我（Claude）听不到声音，只能用数值检查：每 8 秒的 RMS 响度曲线应呈「安静前奏 → 渐强 → 高潮最响 → 回落」，峰值 < 0.9 不削波，时长精确 128.00 秒。最终听感要人来判断。
 
 ---
+
+## 3b. 赛车配乐《红线》（`music/redline.py`）
+
+- 运行：`python3 redline.py demo`（16 秒，约 12 秒出结果）/ `python3 redline.py`（128 秒，约 1 分钟）。
+- **150 BPM × 4/4 → 每小节 1.6 秒 → 80 小节 = 128 秒**；10 小节 = 16 秒正好做 demo（2 小节引入 + 8 小节副歌）。
+- 段落表 `PLAN` 驱动编排：每个小节查 (段落, 段内序号)，demo 和完整版共用同一套乐器与编排代码，只换段落表。
+- Zimmer《F1》手法：十六分音符脉冲低音（时变低通靠逐泛音加权实现，全向量化）、弦乐 spiccato ostinato、失真吉他闷音、底鼓侧链「泵」感、引擎多普勒呼啸（音高 tanh 下滑 + 声像左→右）、上升音效、高潮升一个全音。
+- 主旋律：两小节切分动机「哒哒-哒 哒-哒哒」，前两句完全重复；乐句末尾开放（落在属和弦），结尾版本落回主音。
+- 坑：底鼓峰值大，增益过高时归一化会把整体（尤其旋律）压小。先按轨道打印 RMS，旋律应仅次于底鼓。
+- 响度曲线（每 2 秒 RMS）：前奏 0.14 → 副歌 0.26~0.30 → 间奏 0.16 → 高潮 0.28 → 尾声回落。
 
 ## 4. 黑洞动画（`video/render_demo.py`、`video/render_full.py`）
 
