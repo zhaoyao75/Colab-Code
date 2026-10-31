@@ -140,3 +140,61 @@ ffmpeg -y -i stellar_echo_full_bw.mp4 -c:v libx264 -preset slower -b:v 1650k -pa
 - 「先出静帧 / 10 秒 demo」——确认风格后再出完整版，省时间。
 - 「彩色 / 黑白 / 标志保留颜色」「标题出现时间」「分享平台的大小限制」——一开始说明，可以少改几轮。
 - 想换旋律或音色：改 `compose.py` 里的 `THEME` 和乐器函数；想换画面：改第 4 节的参数表。
+
+---
+
+## 8. 带 AI 旁白的解说短片（`narrated2/`《青城 · 呼和浩特》）
+
+### 一键复现
+
+```bash
+pip install numpy scipy pillow edge-tts piper-tts     # 中文字体：apt-get install fonts-noto-cjk
+```
+
+```bash
+cd narrated2 && python3 tts.py && python3 compose_bg.py && python3 mix.py
+```
+
+```bash
+cd narrated2 && python3 render.py --still 6 20 26.5 38 52 70 86 102 121   # 静帧 + contact_sheet.jpg
+```
+
+```bash
+cd narrated2 && python3 render.py --demo 26 10     # 10 秒 demo（含声音）
+```
+
+```bash
+cd narrated2 && python3 render.py                  # 完整 128 秒，4 进程约 15 分钟
+```
+
+### 数据流
+`script.json`（文案：每章锚点时间 + 中英句子）→ `tts.py` 逐句合成、去首尾静音、按锚点排进 128 秒 → `timeline.json`（每句起止、每章画面切换点）→ 混音和画面都读它。**改文案只改 `script.json`，然后重跑整条链。**
+
+### 语音合成（TTS）选型
+| 方案 | 中文音质 | 备注 |
+|---|---|---|
+| Edge 神经语音（`edge-tts`） | 最自然 | 免费、无需 key，但要联网；云健 = 沉稳男声，云希 = 年轻男声，晓晓 = 女声 |
+| Piper（本地） | 能听懂，有机器味 | 模型从 huggingface `rhasspy/piper-voices` 下；`chaowen`/`xiao_ya` 还要 `pip install unicode_rbnf sentence_stream` |
+| gTTS | 一般 | 不能调语速 |
+| espeak-ng | 机器人音 | 只作占位 |
+
+- **坑：Edge 在会话代理下报 `CERTIFICATE_VERIFY_FAILED`**。edge-tts 用 certifi 自带证书，设 `SSL_CERT_FILE` 没用；要在代码里替换 `edge_tts.communicate._SSL_CTX = ssl.create_default_context(cafile="/root/.ccr/ca-bundle.crt")`（见 `tts.py`）。
+- 正常语速的云健约每秒 4.5 个汉字；每章 16 秒放 3~4 句、50 字左右刚好。
+
+### 配乐与混音
+- `compose_bg.py`：D 羽调五声音阶，60 BPM × 32 小节 = 128 秒，每 4 小节对应一章；拉弦（滑音 + 延迟揉弦 + 带通共鸣，模仿马头琴）、拨弦（泛音衰减 + 起音下滑，模仿古筝）、手鼓、驼铃、风声。
+- `mix.py`：按 `timeline.json` 的句子时间做闪避（说话时音乐 × 0.38），比实时检测人声更干净。实测人声比音乐高约 12 dB，「淡淡的」。
+
+### 画面（`render.py`）
+- 全部程序化：1D 分形噪声画山脊（`ridged` 更像阴山的尖峰）、2D 噪声画层云、雾带做空气透视、PIL 2 倍超采样画建筑剪影和人物、上千根草叶按行做横向位移模拟风吹。
+- 图层比画面宽 720 px，各层横移速度不同 = 视差；用亚像素插值，慢速平移也不抖。
+- 场景切换 1.4 秒交叉淡化；字幕区底部压暗 + 文字柔和阴影，任何背景都看得清。
+
+### 踩过的坑
+| 问题 | 原因 | 解决 |
+|---|---|---|
+| 云变成竖条 | 噪声拉伸的轴写反了 | 生成窄而高的噪声后横向 `zoom(n, (1, stretch))` |
+| 10 秒 demo 65MB | 每帧随机的胶片颗粒让 H.264 无法帧间压缩 | 改成固定颗粒（同一张噪声），降到 5MB |
+| 太阳看不见 | 画在远山之前、位置低于山脊 | 太阳放在山脊线以上，或让它「从山后升起」 |
+| 车流光带压住字幕 | 道路高度落在字幕区 | 动态元素都避开 y > 900 的字幕区 |
+| `PIL GaussianBlur` 报 `wrong mode` | 对 float 数组 `Image.fromarray` 得到 F 模式 | 用 `scipy.ndimage.gaussian_filter` |

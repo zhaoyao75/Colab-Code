@@ -1,4 +1,4 @@
-"""《青城 · 呼和浩特的前世今生》画面渲染：程序化分层风景 + 剪影 + 双语字幕。
+"""《青城 · 呼和浩特》画面渲染：程序化分层风景 + 剪影 + 双语字幕。
 
 画面全部用 numpy / Pillow 现场绘制，没有外部素材。每个场景由若干图层组成
 （天空、云、远山、近山、建筑、草地……），镜头横移时各层速度不同，形成视差。
@@ -883,8 +883,8 @@ class Texts:
                                                     (c["era_en"].upper(), sz, (225, 215, 195), 30)], shadow=8, pad=30))
                      for c in TL["chapters"] if c["era_zh"]]
         big, mid, small = font("NotoSerifCJK-Bold", 150), font("NotoSerifCJK-Regular", 50), font("NotoSansCJK-Regular", 28)
-        self.title = text_img([("青 城", big, (255, 250, 238), 190), ("呼和浩特的前世今生", mid, (245, 236, 220), 70),
-                               ("HOHHOT · THE BLUE CITY THROUGH THE AGES", small, (230, 225, 215), 40)], shadow=10)
+        self.title = text_img([("青 城", big, (255, 250, 238), 190), ("呼 和 浩 特", mid, (245, 236, 220), 70),
+                               ("HOHHOT · THE BLUE CITY", small, (230, 225, 215), 40)], shadow=10)
         tiny = font("NotoSansCJK-Regular", 22)
         self.credit = text_img([("旁白：AI 语音合成（微软云健）  ·  配乐与画面：代码生成", tiny, (225, 225, 225), 32),
                                 ("Narration: AI voice  ·  Music & visuals generated with code", tiny, (205, 205, 205), 30)], shadow=5)
