@@ -1,10 +1,10 @@
 """
-《郑州：前世今生》—— 旁白文案（中英对照）
+《天地之中 · 郑州》—— 旁白文案（中英对照）
 每个场景是一组字幕行；每行单独合成一段旁白，时间轴由 narrate.py 生成。
 """
 
-TITLE_ZH = "郑州 · 前世今生"
-TITLE_EN = "Zhengzhou: Past and Present"
+TITLE_ZH = "天地之中 · 郑州"
+TITLE_EN = "Zhengzhou: Centre of Heaven and Earth"
 
 # (场景 id, [(中文, English), ...])
 SCENES = [
@@ -73,7 +73,7 @@ SCENES = [
          "From the cooking smoke of Peiligang to the whistle of bullet trains,"),
         ("郑州始终站在中华文明的十字路口。",
          "Zhengzhou has always stood at the crossroads of Chinese civilisation."),
-        ("这，就是郑州的前世今生。",
-         "This is Zhengzhou, past and present."),
+        ("这，就是天地之中的郑州。",
+         "This is Zhengzhou, the centre of heaven and earth."),
     ]),
 ]

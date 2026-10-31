@@ -5,54 +5,54 @@
    "id": "river",
    "voice_start": 3.0,
    "start": 0.0,
-   "end": 13.361
+   "end": 13.36
   },
   {
    "id": "prehistory",
-   "voice_start": 14.733,
-   "start": 13.361,
+   "voice_start": 14.732,
+   "start": 13.36,
    "end": 29.239
   },
   {
    "id": "shang",
-   "voice_start": 30.612,
+   "voice_start": 30.611,
    "start": 29.239,
-   "end": 44.249
+   "end": 44.248
   },
   {
    "id": "names",
-   "voice_start": 45.622,
-   "start": 44.249,
-   "end": 59.537
+   "voice_start": 45.62,
+   "start": 44.248,
+   "end": 59.534
   },
   {
    "id": "culture",
-   "voice_start": 60.909,
-   "start": 59.537,
-   "end": 72.356
+   "voice_start": 60.907,
+   "start": 59.534,
+   "end": 72.352
   },
   {
    "id": "railway",
-   "voice_start": 73.728,
-   "start": 72.356,
-   "end": 88.414
+   "voice_start": 73.725,
+   "start": 72.352,
+   "end": 88.41
   },
   {
    "id": "modern",
-   "voice_start": 89.787,
-   "start": 88.414,
-   "end": 101.765
+   "voice_start": 89.782,
+   "start": 88.41,
+   "end": 101.761
   },
   {
    "id": "today",
-   "voice_start": 103.138,
-   "start": 101.765,
-   "end": 112.869
+   "voice_start": 103.133,
+   "start": 101.761,
+   "end": 112.864
   },
   {
    "id": "ending",
-   "voice_start": 114.242,
-   "start": 112.869,
+   "voice_start": 114.236,
+   "start": 112.864,
    "end": 128.0
   }
  ],
@@ -80,157 +80,157 @@
   },
   {
    "scene": 1,
-   "start": 14.733,
-   "end": 18.809,
+   "start": 14.732,
+   "end": 18.808,
    "zh": "在新郑裴李岗，先民磨制石器、种下粟米；",
    "en": "At Peiligang, early people ground stone tools and planted millet;"
   },
   {
    "scene": 1,
-   "start": 19.309,
-   "end": 23.534,
+   "start": 19.308,
+   "end": 23.533,
    "zh": "大河村彩陶上的太阳纹，记录着五千年前的天空。",
    "en": "sun motifs on Dahecun pottery recorded the sky of five thousand years ago."
   },
   {
    "scene": 1,
-   "start": 24.034,
-   "end": 27.867,
+   "start": 24.033,
+   "end": 27.866,
    "zh": "传说中，人文始祖黄帝也诞生在这片土地。",
    "en": "Legend says the Yellow Emperor was born on this land."
   },
   {
    "scene": 2,
-   "start": 30.612,
-   "end": 34.087,
+   "start": 30.611,
+   "end": 34.086,
    "zh": "约三千六百年前，商朝在这里筑起都城。",
    "en": "About 3,600 years ago, the Shang dynasty built a capital here."
   },
   {
    "scene": 2,
-   "start": 34.587,
-   "end": 38.453,
+   "start": 34.586,
+   "end": 38.451,
    "zh": "近七公里的夯土城墙，至今仍立在城市中心，",
    "en": "Nearly seven kilometres of rammed-earth walls still stand downtown,"
   },
   {
    "scene": 2,
-   "start": 38.953,
-   "end": 42.876,
+   "start": 38.951,
+   "end": 42.875,
    "zh": "出土的青铜方鼎，见证着早期中国的模样。",
    "en": "and bronze cauldrons unearthed here show what early China looked like."
   },
   {
    "scene": 3,
-   "start": 45.622,
-   "end": 49.092,
+   "start": 45.62,
+   "end": 49.09,
    "zh": "周代，这里是管国，郑州至今别称“管城”。",
    "en": "Under the Zhou it was the State of Guan, so Zhengzhou is still called Guancheng."
   },
   {
    "scene": 3,
-   "start": 49.592,
-   "end": 53.489,
+   "start": 49.59,
+   "end": 53.487,
    "zh": "春秋战国，郑国、韩国先后建都新郑。",
    "en": "In the Spring and Autumn and Warring States eras, Zheng and Han made Xinzheng their capital."
   },
   {
    "scene": 3,
-   "start": 53.989,
-   "end": 58.164,
+   "start": 53.987,
+   "end": 58.162,
    "zh": "公元五八三年，隋朝设立郑州，名字沿用至今。",
    "en": "In 583 AD, the Sui dynasty named it Zhengzhou, a name it still bears."
   },
   {
    "scene": 4,
-   "start": 60.909,
-   "end": 65.879,
+   "start": 60.907,
+   "end": 65.876,
    "zh": "这里文脉绵长：诗圣杜甫生于巩义，白居易生于新郑；",
    "en": "Its culture runs deep: the poet Du Fu was born in Gongyi, Bai Juyi in Xinzheng;"
   },
   {
    "scene": 4,
-   "start": 66.379,
-   "end": 70.983,
+   "start": 66.376,
+   "end": 70.98,
    "zh": "嵩山脚下的少林寺，晨钟暮鼓已有一千五百多年。",
    "en": "at the foot of Mount Song, Shaolin Temple's bells have rung for over 1,500 years."
   },
   {
    "scene": 5,
-   "start": 73.728,
-   "end": 78.103,
+   "start": 73.725,
+   "end": 78.1,
    "zh": "二十世纪初，京汉、汴洛两条铁路在这里交汇，",
    "en": "In the early 1900s, the Beijing–Hankou and Kaifeng–Luoyang railways met here,"
   },
   {
    "scene": 5,
-   "start": 78.603,
-   "end": 81.903,
+   "start": 78.6,
+   "end": 81.899,
    "zh": "一座小县城，被火车拉成了交通枢纽。",
    "en": "and trains turned a small county town into a transport hub."
   },
   {
    "scene": 5,
-   "start": 82.403,
-   "end": 87.041,
+   "start": 82.399,
+   "end": 87.038,
    "zh": "一九二三年的二七大罢工，让二七塔成为城市的记忆。",
    "en": "The February 7th strike of 1923 made the Erqi Tower the city's landmark of memory."
   },
   {
    "scene": 6,
-   "start": 89.787,
-   "end": 93.22,
+   "start": 89.782,
+   "end": 93.216,
    "zh": "一九五四年，河南省会从开封迁到郑州，",
    "en": "In 1954, Henan's provincial capital moved from Kaifeng to Zhengzhou,"
   },
   {
    "scene": 6,
-   "start": 93.72,
-   "end": 97.696,
+   "start": 93.716,
+   "end": 97.692,
    "zh": "国棉厂的织机声日夜不停，它有了“纺织城”的名号，",
    "en": "its cotton mills hummed day and night, earning it the name \"Textile City\","
   },
   {
    "scene": 6,
-   "start": 98.196,
-   "end": 100.392,
+   "start": 98.192,
+   "end": 100.388,
    "zh": "这座城市从此一路生长。",
    "en": "and the city has been growing ever since."
   },
   {
    "scene": 7,
-   "start": 103.138,
-   "end": 106.922,
+   "start": 103.133,
+   "end": 106.917,
    "zh": "今天，“米”字形高铁网从这里通向四面八方，",
    "en": "Today, a star-shaped high-speed rail network radiates from here in every direction,"
   },
   {
    "scene": 7,
-   "start": 107.422,
-   "end": 111.496,
+   "start": 107.417,
+   "end": 111.491,
    "zh": "航空港连接世界，常住人口超过一千三百万。",
    "en": "its airport links the world, and more than thirteen million people call it home."
   },
   {
    "scene": 8,
-   "start": 114.242,
-   "end": 117.247,
+   "start": 114.236,
+   "end": 117.241,
    "zh": "从裴李岗的炊烟，到高铁的汽笛，",
    "en": "From the cooking smoke of Peiligang to the whistle of bullet trains,"
   },
   {
    "scene": 8,
-   "start": 117.747,
-   "end": 120.896,
+   "start": 117.741,
+   "end": 120.891,
    "zh": "郑州始终站在中华文明的十字路口。",
    "en": "Zhengzhou has always stood at the crossroads of Chinese civilisation."
   },
   {
    "scene": 8,
-   "start": 121.396,
+   "start": 121.391,
    "end": 124.0,
-   "zh": "这，就是郑州的前世今生。",
-   "en": "This is Zhengzhou, past and present."
+   "zh": "这，就是天地之中的郑州。",
+   "en": "This is Zhengzhou, the centre of heaven and earth."
   }
  ]
 }

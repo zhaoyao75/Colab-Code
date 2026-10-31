@@ -1,5 +1,5 @@
 """
-《郑州：前世今生》画面渲染 —— 9 个场景全部程序生成（numpy + Pillow），1920×1080 @30fps
+《天地之中 · 郑州》画面渲染 —— 9 个场景全部程序生成（numpy + Pillow），1920×1080 @30fps
 
 依赖 narrate.py 生成的 timeline.json（场景与字幕时间）和 mix.py 生成的 mix.wav。
 运行：
@@ -241,56 +241,57 @@ def glow_dot(r, col):
 def build_river():
     BW, BH = int(W * 1.08), int(H * 1.08)
     img = paper(BH, BW, seed=1)
-    # 太阳
     yy, xx = np.mgrid[0:BH, 0:BW].astype(np.float32)
-    d = np.hypot(xx - BW * 0.86, yy - BH * 0.34)
-    comp(img, RED * 1.1, 0.55 * smooth((80 - d) / 3))
-    far = [(0.50, 0.22, 0.22, 0.10, 0.55, None),
-           (0.56, 0.20, 0.35, 0.08, 0.6, None)]
-    ink_mountains(img, far, seed=11)
-    # 河道
-    u = np.arange(BW) / BW
-    yc = BH * (0.585 + 0.30 * smooth(u * 1.05)) + 30 * np.sin(u * 8 + 1)
-    wd = 6 + 260 * np.clip(u - 0.06, 0, 1) ** 1.5
-    dd = (yy - yc[None, :]) / wd[None, :]
-    m = np.clip((1 - np.abs(dd)) * wd[None, :] / 2.5, 0, 1) * smooth((u[None, :] - 0.08) / 0.08)
-    ry, rx = np.nonzero(m > 0)
-    # 近景山（峡谷）——画在河上面
-    fg = np.zeros((BH, BW, 3), np.float32)
-    fga = np.zeros((BH, BW), np.float32)
-    near = [(0.78, 0.42, 0.95, 0.06, 0.6,
-             lambda u: 0.15 + 0.85 * np.exp(-((u - 0.06) / 0.16) ** 2)
-             + 0.6 * np.exp(-((u - 1.0) / 0.12) ** 2))]
+    d = np.hypot(xx - BW * 0.84, yy - BH * 0.30)
+    comp(img, RED * 1.1, 0.5 * smooth((66 - d) / 3))
+    ink_mountains(img, [(0.47, 0.20, 0.20, 0.10, 0.55, None),
+                        (0.54, 0.17, 0.30, 0.08, 0.6, None)], seed=11)
+    # 河道：从峡谷口（画面中部）蜿蜒流向镜头，越近越宽
+    y0 = BH * 0.585
+    p = np.clip((yy[:, :1] - y0) / (BH - y0), 0, 1)
+    xc = BW * (0.47 + 0.05 * p + 0.19 * np.sin(p * 4.6 - 0.7) * p ** 0.7)
+    wd = 3 + BW * 0.24 * p ** 1.35
+    dd = (xx - xc) / wd
+    lim = 1 + 0.28 * (noise2d(BH, BW, 36, 12, 3) - 0.5)          # 不规则的岸线
+    soft = np.maximum(1.5, 0.12 * wd)
+    m = np.clip((lim - np.abs(dd)) * wd / soft, 0, 1) * smooth((yy - y0 - 15) / 80)
+    ry, rx = np.nonzero(m > 0.002)
+    bank = np.exp(-(((lim - np.abs(dd)) * wd) / (2 + 0.025 * wd)) ** 2)  # 岸边一道淡墨
+    # 沿河"宽度单位"累计的路程：波纹在河面上等距，透视下近大远小
+    srow = np.cumsum(1.0 / wd[:, 0]) * (np.arange(BH) > y0)
+    # 近景峡谷：左右两山夹住河口
+    gorge = lambda u: 0.06 + np.exp(-((u - 0.20) / 0.17) ** 2) + 0.85 * np.exp(-((u - 0.78) / 0.15) ** 2)
     tmp = np.ones((BH, BW, 3), np.float32)
-    ink_mountains(tmp, near, seed=31, col=(0, 0, 0))
+    ink_mountains(tmp, [(0.66, 0.33, 0.92, 0.07, 0.6, gorge)], seed=31, col=(0, 0, 0))
     fga = 1 - tmp[..., 0]
+    fga_r = fga * (1 - smooth((yy - y0 - 40) / 70))   # 河口在山后，流出后在山前
     under = img[ry, rx].copy()
     comp(img, INK, fga)
-    tex = noise2d(256, 2048, 24, 5, 4)
-    tex = (tex - tex.mean()) / tex.std()
-    river = dict(ry=ry, rx=rx, m=m[ry, rx], dd=dd[ry, rx], u=u[rx],
-                 under=under, fga=fga[ry, rx], tex=tex)
+    mist = 0.85 * np.exp(-((yy - y0 - 5) / 48) ** 2) * np.exp(-((xx - BW * 0.48) / (BW * 0.32)) ** 2)
+    comp(img, (0.93, 0.90, 0.83), mist)
+    river = dict(ry=ry, rx=rx, m=m[ry, rx], dd=dd[ry, rx], s=srow[ry], under=under,
+                 bank=bank[ry, rx], fga=fga_r[ry, rx], mist=mist[ry, rx],
+                 n0=noise2d(BH, BW, 60, 13, 3)[ry, rx], nm=noise2d(BH, BW, 22, 14, 3)[ry, rx])
     return img, river
 
 
 def scene_river(t, tl):
     img, rv = build_river()
     frame = img.copy()
-    off = tl * 60 * (1 + 3 * rv["u"])
-    ty = ((rv["dd"] * 0.5 + 0.5) * 255).astype(int) % 256
-    tx = ((rv["rx"] * 0.25 - off * 0.5) % 2048).astype(int)
-    n = rv["tex"][ty, tx]
-    base = np.array([0.78, 0.63, 0.40], np.float32)
-    edge = 1 - 0.25 * np.abs(rv["dd"]) ** 3
-    c = base[None] * (edge * (0.93 + 0.07 * n))[:, None]
-    c += np.clip(n - 1.3, 0, 1)[:, None] * 0.25
+    tint = np.array([0.89, 0.79, 0.62], np.float32)
+    c = rv["under"] * tint * (1 - 0.35 * rv["bank"])[:, None]
+    arg = 2 * np.pi * (rv["s"] * 1.5 - tl * 0.6) + 1.6 * np.sin(rv["dd"] * 2.4 + rv["s"] * 0.5) + 2 * rv["n0"]
+    crest = np.clip((np.cos(arg) - 0.90) * 9, 0, 1) * np.clip((rv["nm"] - 0.35) * 3, 0, 1)
+    crest *= 1 - np.abs(rv["dd"]) ** 4
+    c = c * (1 - 0.55 * crest[:, None]) + np.array([0.97, 0.94, 0.86]) * 0.55 * crest[:, None]
     m = rv["m"][:, None]
     px = rv["under"] * (1 - m) + c * m
     fa = rv["fga"][:, None]
-    frame[rv["ry"], rv["rx"]] = px * (1 - fa) + INK * fa
+    px = px * (1 - fa) + INK * fa
+    mi = rv["mist"][:, None]
+    frame[rv["ry"], rv["rx"]] = px * (1 - mi) + np.array([0.93, 0.90, 0.83]) * mi
     big = Image.fromarray(to_u8(frame))
-    out = kb(big, 1.0 + 0.06 * tl / 14, 0.48, 0.52)
-    return out
+    return kb(big, 1.0 + 0.06 * tl / 14, 0.48, 0.50)
 
 
 # ================================================================ 2. 史前：彩陶与粟米
@@ -299,21 +300,21 @@ def build_prehistory():
     img = vgrad(H, W, (0.88, 0.74, 0.52), (0.60, 0.40, 0.24), 1.3)
     img *= (0.94 + 0.08 * noise2d(H, W, 140, 2, 5))[..., None]
     yy, xx = np.mgrid[0:H, 0:W].astype(np.float32)
-    cx, cy = W * 0.5, H * 0.40
+    cx, cy = W * 0.5, H * 0.52
     ang = np.arctan2(yy - cy, xx - cx)
     rad = np.hypot(xx - cx, yy - cy)
-    comp(img, (0.98, 0.86, 0.60), 0.55 * smooth((340 - rad) / 40))
+    comp(img, (0.98, 0.86, 0.60), 0.55 * smooth((250 - rad) / 36))
     # 地面
     comp(img, (0.33, 0.20, 0.11), 0.55 * smooth((yy - H * 0.80) / 60))
     # 陶罐
-    top, hgt, R = 205, 600, 285
+    top, hgt, R = 405, 405, 192
     vv = np.linspace(0, 1, hgt)
     rr = np.interp(vv, [0, .04, .10, .20, .40, .56, .75, .93, 1],
                    [.42, .46, .37, .56, 1, .95, .70, .47, .45])
     rr = gaussian_filter1d(rr, 8, mode="nearest") * R
     drr = np.gradient(rr)
     # 地面阴影
-    sh = np.exp(-(((xx - cx - 40) / 330) ** 2 + ((yy - top - hgt) / 30) ** 2) * 2)
+    sh = np.exp(-(((xx - cx - 30) / 230) ** 2 + ((yy - top - hgt) / 22) ** 2) * 2)
     comp(img, (0.15, 0.08, 0.04), 0.5 * sh)
     X = np.arange(int(cx - R - 3), int(cx + R + 4))
     dx = X[None, :] - cx
@@ -324,16 +325,16 @@ def build_prehistory():
     lam *= np.clip(1 + 0.5 * drr[jy], 0.55, 1.15)
     spec = 0.18 * np.exp(-((th + 0.55) / 0.12) ** 2) * np.clip(1 + drr[jy], 0, 1)
     # 纹样贴图（一圈 1600 像素）
-    TW = 1600
-    tex = Image.new("RGB", (TW, hgt), (182, 98, 56))
+    TW, HT = 1600, 600
+    tex = Image.new("RGB", (TW, HT), (182, 98, 56))
     d = ImageDraw.Draw(tex)
     dark, white = (52, 30, 22), (236, 214, 180)
-    for y in (int(hgt * .19), int(hgt * .235), int(hgt * .455), int(hgt * .49), int(hgt * .64)):
+    for y in (int(HT * .19), int(HT * .235), int(HT * .455), int(HT * .49), int(HT * .64)):
         d.rectangle((0, y, TW, y + 7), fill=dark)
     for k in range(7):
         for wrap in (-TW, 0, TW):
             x = wrap + k * TW / 7 + 60
-            y = hgt * 0.345
+            y = HT * 0.345
             d.ellipse((x - 46, y - 46, x + 46, y + 46), fill=dark)
             d.ellipse((x - 30, y - 30, x + 30, y + 30), fill=(196, 72, 40))
             d.ellipse((x - 12, y - 12, x + 12, y + 12), fill=white)
@@ -342,11 +343,13 @@ def build_prehistory():
                 d.line((x + 54 * math.cos(aa), y + 54 * math.sin(aa),
                         x + 72 * math.cos(aa), y + 72 * math.sin(aa)), fill=dark, width=6)
     for row, amp, col in ((0.55, 16, dark), (0.585, 12, white)):
-        pts = [(x, hgt * row + amp * math.sin(x / TW * 2 * math.pi * 14)) for x in range(0, TW + 1, 4)]
+        pts = [(x, HT * row + amp * math.sin(x / TW * 2 * math.pi * 14)) for x in range(0, TW + 1, 4)]
         d.line(pts, fill=col, width=7)
     for k in range(28):
         x = k * TW / 28
-        d.polygon([(x, hgt * .66), (x + TW / 56, hgt * .72), (x + TW / 28, hgt * .66)], fill=dark)
+        d.polygon([(x, HT * .66), (x + TW / 56, HT * .72), (x + TW / 28, HT * .66)], fill=dark)
+    TW = int(TW * R / 285)
+    tex = tex.resize((TW, hgt), Image.LANCZOS)
     texa = np.asarray(tex, np.float32) / 255
     texa *= (0.9 + 0.12 * noise2d(hgt, TW, 30, 3, 3))[..., None]
     jar = dict(py=top + jy, px=X[jx], jy=jy, th=th, a=a[jy, jx], lam=lam, spec=spec,
@@ -377,7 +380,7 @@ def scene_prehistory(t, tl):
     img, ang, rad, jar = build_prehistory()
     frame = img.copy()
     rays = (0.5 + 0.5 * np.cos(20 * (ang - 0.03 * tl))) ** 6
-    comp(frame, (1.0, 0.93, 0.72), 0.22 * rays * smooth((900 - rad) / 600) * smooth((rad - 300) / 60))
+    comp(frame, (1.0, 0.93, 0.72), 0.22 * rays * smooth((900 - rad) / 600) * smooth((rad - 215) / 50))
     phase = 0.32 * tl
     col = (((jar["th"] + phase) / (2 * math.pi)) * jar["TW"]).astype(int) % jar["TW"]
     c = jar["tex"][jar["jy"], col] * jar["lam"][:, None] + jar["spec"][:, None]
@@ -475,8 +478,10 @@ def build_shang():
     for k in range(-4, 5):
         x, y = cx + k * 34 * S, body_bot - 26 * S
         dd.ellipse((x - 9 * S, y - 9 * S, x + 9 * S, y + 9 * S), fill=255)
-    m = np.asarray(m.resize((bw // S, bh // S), Image.LANCZOS), np.float32) / 255
-    deco = np.asarray(deco.resize((bw // S, bh // S), Image.LANCZOS), np.float32) / 255
+    Z = 1.25
+    sz = (int(bw / S * Z), int(bh / S * Z))
+    m = np.asarray(m.resize(sz, Image.LANCZOS), np.float32) / 255
+    deco = np.asarray(deco.resize(sz, Image.LANCZOS), np.float32) / 255
     deco *= m
     hh, ww = m.shape
     n1 = noise2d(hh, ww, 26, 21, 4)
@@ -487,8 +492,9 @@ def build_shang():
     xs = np.linspace(0, 1, ww)[None, :]
     light = 0.55 + 0.65 * (1 - xs) ** 1.5
     shade = np.ones_like(m)
-    shade[int(body_top / S):int(body_bot / S)] *= np.linspace(1.05, 0.75, int(body_bot / S) - int(body_top / S))[:, None]
-    dsh = np.roll(np.roll(deco, 3, 0), 2, 1)
+    b0, b1 = int(body_top / S * Z), int(body_bot / S * Z)
+    shade[b0:b1] *= np.linspace(1.05, 0.75, b1 - b0)[:, None]
+    dsh = np.roll(np.roll(deco, 4, 0), 3, 1)
     col = base * (light * shade)[..., None]
     col = col * (1 - 0.35 * dsh[..., None] * (1 - deco[..., None])) + 0.10 * deco[..., None]
     ding = Sprite.__new__(Sprite)
@@ -506,8 +512,8 @@ def scene_shang(t, tl):
     frame = img[:, x0:x0 + W].copy()
     frame += beam[..., None] * np.array([0.30, 0.22, 0.12]) * (0.9 + 0.1 * math.sin(tl * 1.3))
     yy, xx = np.mgrid[0:H, 0:W]
-    dx, dy = W * 0.62, H * 0.865
-    sh = np.exp(-(((xx - dx - 30) / 330) ** 2 + ((yy - dy) / 26) ** 2) * 2)
+    dx, dy = W * 0.60, H * 0.855
+    sh = np.exp(-(((xx - dx - 40) / 450) ** 2 + ((yy - dy + 12) / 30) ** 2) * 2)
     comp(frame, (0.05, 0.04, 0.03), 0.6 * sh)
     paste(frame, ding, dx - ding.w / 2, dy - ding.h + 10)
     # 一道光扫过鼎身
