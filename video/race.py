@@ -18,7 +18,7 @@ from scipy.ndimage import gaussian_filter, zoom
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OW, OH = 1280, 720            # 输出分辨率
-SS = 1.5                      # 环境超采样倍数
+SS = 1.0                      # 环境超采样倍数
 RW, RH = int(OW * SS), int(OH * SS)
 FPS = 30
 AUDIO = os.path.join(HERE, "..", "music", "redline.mp3")
@@ -52,8 +52,8 @@ SEC = 12.8   # 8 小节
 
 
 def speed_at(t):      # 米/秒
-    keys = [(0, 30), (6, 45), (12.8, 62), (38.4, 72), (50.9, 76), (52.4, 92), (76.8, 88), (80, 58),
-            (89.6, 60), (102.4, 95), (115.2, 92), (124, 40), (128, 30)]
+    keys = [(0, 42), (6, 62), (12.8, 85), (38.4, 100), (50.9, 106), (52.4, 128), (76.8, 122),
+            (80, 78), (89.6, 84), (101.5, 100), (102.4, 150), (115.2, 148), (124, 60), (128, 42)]
     xs, ys = zip(*keys)
     return float(np.interp(t, xs, ys))
 
@@ -374,7 +374,10 @@ def sparks(t, geo):
     d = ImageDraw.Draw(img)
     r = np.random.default_rng(int(t * FPS) + 99)
     burst = max(0.0, np.sin(t * 2.7) * np.sin(t * 1.3 + 1))
-    for _ in range(int(60 * burst)):
+    n_sp = int(60 * burst)
+    if 102.4 <= t < 115.2:                       # 高潮：火花持续喷射
+        n_sp = int(110 + 50 * burst)
+    for _ in range(n_sp):
         age = r.random() * 0.12
         vx, vz, vy = r.normal(0, 2.5), -r.uniform(20, 45), r.uniform(0.3, 2.5)
         x = r.uniform(-0.25, 0.25) + vx * age
@@ -511,7 +514,7 @@ def worker(args):
     seg = os.path.join(HERE, f".seg_{k}.mp4")
     p = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
                           "-s", f"{OW}x{OH}", "-r", str(FPS), "-i", "-", "-c:v", "libx264",
-                          "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", seg], stdin=subprocess.PIPE)
+                          "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p", seg], stdin=subprocess.PIPE)
     for i in range(i0, i1):
         p.stdin.write(render_frame(i).tobytes())
         if (i - i0) % 100 == 0:
