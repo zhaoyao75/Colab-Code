@@ -1,0 +1,31 @@
+{
+  "title_zh": "黄永玉 · 永远长不大的老头",
+  "title_en": "Huang Yongyu · The Old Man Who Never Grew Up",
+  "scenes": [
+    {"key": "fenghuang", "lines": [
+      ["1924年，黄永玉出生在湖南。", "In 1924, Huang Yongyu was born in Hunan."],
+      ["他在湘西凤凰长大——沱江水，吊脚楼，青石板路，是他心里最早的画。", "He grew up in Fenghuang — the Tuo River, stilt houses and stone lanes were the first pictures in his heart."]]},
+    {"key": "woodcut", "lines": [
+      ["十二岁那年，他离开家乡，一路漂泊。", "At twelve, he left home and drifted from place to place."],
+      ["没进过美术学院，他就凭一把刻刀，自学木刻，刻出了自己的天地。", "With no art school, he taught himself woodcut, carving out a world of his own with a single knife."]]},
+    {"key": "beijing", "lines": [
+      ["他的表叔，是写《边城》的作家沈从文。", "His uncle was Shen Congwen, the writer of Border Town."],
+      ["1953年，他来到北京，在中央美术学院教版画。", "In 1953, he moved to Beijing to teach printmaking at the Central Academy of Fine Arts."]]},
+    {"key": "owl", "lines": [
+      ["七十年代，他画了一只睁一只眼、闭一只眼的猫头鹰。", "In the 1970s, he painted an owl with one eye open and one eye shut."],
+      ["这只猫头鹰给他惹来了大麻烦，可他还是笑眯眯的，接着画。", "That owl got him into big trouble — but he just smiled, and kept on painting."]]},
+    {"key": "monkey", "lines": [
+      ["1980年，他设计的猴年邮票发行了。", "In 1980, his Year of the Monkey stamp was issued."],
+      ["红底上一只小金猴，成了新中国第一枚生肖邮票，也成了几代人的集邮记忆。", "A little golden monkey on red — China's first zodiac stamp, and a treasured memory for generations."]]},
+    {"key": "lotus", "lines": [
+      ["他爱画荷花，大红大绿，热热闹闹。", "He loved painting lotuses — bold reds and greens, full of life."],
+      ["他还写散文、写小说，八十多岁开始写长篇，一写就是好多年。", "He wrote essays and novels too; in his eighties he began a long novel, and kept at it for years."]]},
+    {"key": "rascal", "lines": [
+      ["他抽烟斗，养狗，九十岁还开跑车，大家都叫他“老顽童”。", "He smoked a pipe, kept dogs, and drove a sports car at ninety — people called him the Old Rascal."],
+      ["九十八岁那年，他还为兔年邮票画了一只蓝色的兔子。", "At ninety-eight, he drew a blue rabbit for the Year of the Rabbit stamp."]]},
+    {"key": "ending", "lines": [
+      ["2023年夏天，黄永玉走了，享年九十九岁。", "In the summer of 2023, Huang Yongyu passed away, aged ninety-nine."],
+      ["可那只猴子、那只猫头鹰、那池荷花，还在对我们眨眼睛。", "Yet his monkey, his owl and his lotus pond are still winking at us."],
+      ["一个永远长不大的老头。", "An old man who never grew up."]]}
+  ]
+}

@@ -1,0 +1,5 @@
+.tts_cache/
+*.wav
+.seg_*
+.segs.txt
+.mix_raw.wav
