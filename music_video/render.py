@@ -28,6 +28,7 @@ FPS = 30
 DUR = 128.0
 NF = int(DUR * FPS)
 WORKERS = 4
+CRF = "25"          # 雨丝每帧都在动，码率很高；25 画质仍好，128 秒约 80MB（GitHub 单文件上限 100MB）
 AUDIO = os.path.join(HERE, "neon_rain.mp3")
 PORTRAIT = "--portrait" in sys.argv
 TAG = "9x16" if PORTRAIT else "16x9"
@@ -506,8 +507,8 @@ def frame(i):
     img += 0.55 * np.repeat(np.repeat(bl, 4, 0), 4, 1)[:H, :W]
     img *= sc["vig"]
     img = np.where(img > 0.75, 0.75 + 0.25 * np.tanh((img - 0.75) / 0.25), img)
-    g = sc["grain"][i % len(sc["grain"])]
-    img += 0.018 * np.repeat(np.repeat(g, 2, 0), 2, 1)[..., None]
+    g = sc["grain"][(i // 2) % len(sc["grain"])]     # 颗粒每两帧换一次、幅度小：好看且不撑大文件
+    img += 0.009 * np.repeat(np.repeat(g, 2, 0), 2, 1)[..., None]
     img *= ramp(t, 0, 2.5)
 
     title_a = ramp(t, 0.6, 1.6) * (1 - ramp(t, 4.6, 6.0)) + ramp(t, 117.5, 119.5)
@@ -535,7 +536,7 @@ def worker(args):
     k, i0, i1, out = args
     p = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24",
                           "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-", "-c:v", "libx264",
-                          "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", out],
+                          "-preset", "slow", "-crf", CRF, "-pix_fmt", "yuv420p", out],
                          stdin=subprocess.PIPE)
     for i in range(i0, i1):
         p.stdin.write(frame(i).tobytes())
