@@ -115,14 +115,51 @@ def disk_texture():
 
 
 def star_background(esc, edir):
-    """星空：画面空间里的点状恒星，只出现在没被黑洞吞掉的方向上"""
-    sky = np.zeros((RH, RW), np.float32)
-    k = 320
-    sx, sy = rng.integers(0, RW, k), rng.integers(0, RH, k)
-    sky[sy, sx] = rng.random(k) ** 5 * 6 + 0.25
-    sky = gaussian_filter(sky, 1.0) * 3.5
-    bg = sky * esc.reshape(RH, RW)
-    return np.stack([bg * 0.85, bg * 0.9, bg], -1)
+    """逼真星空。恒星在“原始天空”上是点光源；用点质量引力透镜方程
+    β = θ (1 - θE² / |θ|²) 把画面像素映射回原始天空，所以远处的星是清晰圆点，
+    靠近黑洞的星会被拉成弧线。亮度服从幂律（大量暗星、少量亮星），
+    带轻微色温差异、亮星光晕和一条淡银河。"""
+    from scipy.spatial import cKDTree
+    pix = np.radians(50) / RW                      # 每像素对应的弧度
+    xs = (np.arange(RW) - RW / 2 + 0.5) * pix
+    ys = (np.arange(RH) - RH / 2 + 0.5) * pix
+    X, Y = np.meshgrid(xs, ys)
+    th2 = np.maximum(X ** 2 + Y ** 2, 1e-8)
+    thE2 = 0.1 ** 2                                # 爱因斯坦环角半径：让透镜变形集中在黑洞附近
+    BX, BY = X * (1 - thE2 / th2), Y * (1 - thE2 / th2)
+    src = np.stack([BX.ravel(), BY.ravel()], -1)
+
+    srng = np.random.default_rng(21)
+    k = 9000
+    span = 1.4
+    sp = srng.uniform(-span, span, (k, 2))
+    lum = np.clip(0.08 * srng.random(k) ** -1.2, 0, 12.0)
+    temp = srng.random(k)
+    tint = np.stack([0.8 + 0.3 * temp, 0.88 + 0.1 * np.sin(np.pi * temp), 1.08 - 0.36 * temp], -1)
+    tint /= tint.mean(axis=1, keepdims=True)
+
+    dist, j = cKDTree(sp).query(src, k=2)
+    out = np.zeros((src.shape[0], 3))
+    for q in range(2):
+        dq, jq = dist[:, q] / pix, j[:, q]
+        core = np.exp(-(dq / 0.8) ** 2)
+        halo = 0.015 * np.exp(-dq / 3.0) * (lum[jq] > 2.0)
+        out += (lum[jq] * (core + halo))[:, None] * tint[jq]
+
+    # 淡银河：一条斜穿画面的宽带，带细碎明暗
+    ang = np.radians(-28)
+    u = src @ np.array([np.cos(ang), np.sin(ang)])
+    v = src @ np.array([-np.sin(ang), np.cos(ang)]) - 0.12
+    band = np.exp(-(v / 0.17) ** 2)
+    tex = np.zeros(src.shape[0])
+    for _ in range(9):
+        f = srng.uniform(6, 40, 2) * srng.choice([-1, 1], 2)
+        tex += np.sin(u * f[0] + v * f[1] + srng.uniform(0, 6.3))
+    band *= np.clip(0.55 + 0.17 * tex, 0, None)
+    out += (0.03 * band)[:, None] * np.array([0.95, 0.93, 1.0])
+
+    out *= esc[:, None]
+    return out.reshape(RH, RW, 3).astype(np.float32)
 
 
 # ------------------------------------------------------------------ 文字与标志
