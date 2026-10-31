@@ -249,7 +249,7 @@ def build_river():
     # 河道：从峡谷口（画面中部）蜿蜒流向镜头，越近越宽
     y0 = BH * 0.585
     p = np.clip((yy[:, :1] - y0) / (BH - y0), 0, 1)
-    xc = BW * (0.47 + 0.05 * p + 0.19 * np.sin(p * 4.6 - 0.7) * p ** 0.7)
+    xc = BW * (0.17 + 0.32 * p + 0.17 * (0.5 + 0.5 * p) * np.sin(p * 2 * np.pi * 1.1))
     wd = 3 + BW * 0.24 * p ** 1.35
     dd = (xx - xc) / wd
     lim = 1 + 0.28 * (noise2d(BH, BW, 36, 12, 3) - 0.5)          # 不规则的岸线
@@ -260,14 +260,14 @@ def build_river():
     # 沿河"宽度单位"累计的路程：波纹在河面上等距，透视下近大远小
     srow = np.cumsum(1.0 / wd[:, 0]) * (np.arange(BH) > y0)
     # 近景峡谷：左右两山夹住河口
-    gorge = lambda u: 0.06 + np.exp(-((u - 0.20) / 0.17) ** 2) + 0.85 * np.exp(-((u - 0.78) / 0.15) ** 2)
+    gorge = lambda u: 0.06 + 0.9 * np.exp(-((u + 0.01) / 0.10) ** 2) + 0.8 * np.exp(-((u - 0.50) / 0.22) ** 2)
     tmp = np.ones((BH, BW, 3), np.float32)
     ink_mountains(tmp, [(0.66, 0.33, 0.92, 0.07, 0.6, gorge)], seed=31, col=(0, 0, 0))
     fga = 1 - tmp[..., 0]
     fga_r = fga * (1 - smooth((yy - y0 - 40) / 70))   # 河口在山后，流出后在山前
     under = img[ry, rx].copy()
     comp(img, INK, fga)
-    mist = 0.85 * np.exp(-((yy - y0 - 5) / 48) ** 2) * np.exp(-((xx - BW * 0.48) / (BW * 0.32)) ** 2)
+    mist = 0.85 * np.exp(-((yy - y0 - 5) / 48) ** 2) * np.exp(-((xx - BW * 0.20) / (BW * 0.28)) ** 2)
     comp(img, (0.93, 0.90, 0.83), mist)
     river = dict(ry=ry, rx=rx, m=m[ry, rx], dd=dd[ry, rx], s=srow[ry], under=under,
                  bank=bank[ry, rx], fga=fga_r[ry, rx], mist=mist[ry, rx],
