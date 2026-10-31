@@ -1,6 +1,6 @@
 # 《红线 REDLINE》抖音发布材料
 
-成片：`video/redline_douyin.mp4`（1080×1920，9:16，128 秒）。渲染完成后会提交到仓库。
+成片：`video/redline_douyin.mp4`（1080×1920，9:16，128 秒，52MB，已在仓库里）。
 封面：`publish/cover_douyin_9x16.png`（1080×1920）。
 
 ---
