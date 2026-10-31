@@ -335,7 +335,7 @@ def overlay_layers():
     logo = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     dl = ImageDraw.Draw(logo)
     if PORTRAIT:
-        cx, cy = int(70 * S), int(H * 0.085)
+        cx, cy = int(70 * S), int(H * 0.12)   # 避开抖音左上角菜单 / 直播图标
     else:
         cx, cy = W - int(140 * S), H - int(46 * S)
     R = 14 * S
