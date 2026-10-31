@@ -140,3 +140,65 @@ ffmpeg -y -i stellar_echo_full_bw.mp4 -c:v libx264 -preset slower -b:v 1650k -pa
 - 「先出静帧 / 10 秒 demo」——确认风格后再出完整版，省时间。
 - 「彩色 / 黑白 / 标志保留颜色」「标题出现时间」「分享平台的大小限制」——一开始说明，可以少改几轮。
 - 想换旋律或音色：改 `compose.py` 里的 `THEME` 和乐器函数；想换画面：改第 4 节的参数表。
+
+---
+
+## 8. 第二部作品：《天地之中 · 郑州》AI 旁白短视频（`narrated/`）
+
+128 秒横屏 16:9，云健旁白 + 古风配乐 + 中英双语字幕，9 个场景全部程序生成。
+
+### 一键复现
+
+```bash
+pip install numpy scipy pillow edge-tts && apt-get install -y fonts-noto-cjk fonts-noto-cjk-extra
+```
+
+```bash
+cd narrated && python3 narrate.py && python3 compose_history.py && python3 mix.py
+```
+
+```bash
+cd narrated && python3 render.py --sheet          # 每个场景一帧，拼成 preview_sheet.png
+```
+
+```bash
+cd narrated && python3 render.py --still 7 37     # 指定时刻静帧 → stills/
+```
+
+```bash
+cd narrated && python3 render.py --demo 0 45      # 小样（含声音）
+```
+
+```bash
+cd narrated && python3 render.py                  # 完整版，4 进程约 6~7 分钟
+```
+
+### 流水线
+`script.py`（中英文案，唯一数据源）→ `narrate.py`（逐句 TTS，量时长，排出 `timeline.json`）→ `compose_history.py`（配乐，编钟对齐场景切换点）→ `mix.py`（旁白 + 配乐闪避）→ `render.py`（画面 + 字幕，读 timeline）。改文案只需重跑整条流水线，字幕和画面切换自动对齐。
+
+### 语音合成（TTS）
+- 可用方案实测：微软 Edge 神经语音（edge-tts，免费、无需 key，中文最自然）> gTTS > Piper 离线 > espeak-ng。
+- **沙箱坑**：edge-tts 只信任 certifi 证书，走代理会 SSL 报错 → 把 `edge_tts.communicate._SSL_CTX` 换成 `/root/.ccr/ca-bundle.crt` 的上下文（见 `narrate.py` 开头）。
+- **缓存坑**：缓存文件名必须用「声音 + 语速 + 文本」的哈希，按句序号命名的话，插入新句后会复用旧音频。
+- 云健正常语速约 4 字/秒；128 秒留 3 秒片头、4 秒片尾，约 480 字。富余时间平均分给场景间停顿。
+
+### 配乐与混音
+- 古风：D 羽调五声音阶（D F G A C），60 BPM × 32 小节 = 128 秒；古琴 / 古筝用 Karplus-Strong（`scipy.signal.lfilter` 实现梳状反馈，很快），箫 = 正弦 + 气声 + 颤音，编钟 = 非谐泛音（1, 2.76, 5.4, 8.93）。
+- 先查各轨 RMS 再调音量：低音铺底很容易盖过旋律。
+- 闪避：配乐整体 −14 dB，有人声时再 −7 dB（人声包络保持 0.4 秒再平滑）→ 人声段配乐比人声低约 13 dB，「淡淡的」。
+
+### 画面经验（水墨风）
+- 水墨山 = 一维分形山脊 + 山脚指数淡出（雾）+ 噪声纹理；`ink_mountains()` 支持包络、最低高度、V 形切谷。
+- **整层淡出**：用包络压低山时，山体在包络为 0 处仍会留下一条平直墨带 → 透明度也要乘以包络。
+- **地理要合理**（用户多轮反馈）：黄河在郑州是出山口（西边邙山 / 远山）→ 东边一马平川；邙山是低缓浑圆的黄土丘陵，不是尖峰。山谷要由**前景**的山夹出来，不能切远山；河从谷底出来时就要有宽度，出谷后先顺谷底流一段再拐弯。
+- 河流透视：河宽随深度增长，水纹按「宽度单位」累计路程排布，近大远小、近快远慢。
+- 旋转陶罐：圆柱映射 `θ = arcsin(x/r(y))` 查纹样贴图，每帧只改相位。
+- 地名标注用朱红小印，比灰色竖排小字好看。
+- 双语字幕：中文 46px 粗体 + 英文 28px，白字黑描边 + 底部渐变压暗；英文过长自动缩小字号。
+
+### 本次踩坑
+| 问题 | 解决 |
+|---|---|
+| 深色章节标签在暗场景看不清 | 按场景（甚至场景内的时间）切换深 / 浅色 |
+| 「1300万+」压住地图标签 | 每个场景都要看静帧检查重叠 |
+| 物体比例（陶罐太大、鼎太小） | 先出 9 宫格预览让用户挑，参数集中在各 `build_*()` 开头 |
