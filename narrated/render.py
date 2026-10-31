@@ -299,7 +299,7 @@ def build_river():
     base_y = hz + BH * 0.012
     top = base_y - hh
     below = yy - top
-    fga = (0.62 * np.exp(-np.maximum(below, 0) / (BH * 0.028)) + 0.10) * np.clip(below / 2, 0, 1)
+    fga = (0.40 * np.exp(-np.maximum(below, 0) / (BH * 0.028)) + 0.06) * np.clip(below / 2, 0, 1)
     fga *= (1 - smooth((yy - base_y) / (BH * 0.03))) * np.clip(bump * 6, 0, 1)
     fga *= 0.8 + 0.35 * noise2d(BH, BW, 30, 34, 3)
     fga = np.clip(fga, 0, 1)
@@ -331,7 +331,7 @@ def scene_river(t, tl):
     frame[rv["ry"], rv["rx"]] = px * (1 - mi) + np.array([0.93, 0.90, 0.83]) * mi
     big = Image.fromarray(to_u8(frame))
     out = kb(big, 1.0 + 0.06 * tl / 14, 0.48, 0.50)
-    paste(out, mang_label(), W * 0.45, H * 0.45, alpha=0.9 * fade(tl, 3.0, 13.0, 1.2, 1.0))
+    paste(out, mang_label(), W * 0.055, H * 0.47, alpha=0.9 * fade(tl, 3.0, 13.0, 1.2, 1.0))
     return out
 
 
