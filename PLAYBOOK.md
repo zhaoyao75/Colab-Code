@@ -154,6 +154,7 @@ ffmpeg -y -i stellar_echo_full_bw.mp4 -c:v libx264 -preset slower -b:v 1650k -pa
 |---|---|
 | `narrated/zhengzhou_full.mp4` | 完整版 1920×1080，约 35MB（CRF 18） |
 | `narrated/zhengzhou_30mb.mp4` | 压缩版约 27MB，微信 / 抖音 / B 站直接发 |
+| `narrated/zhengzhou_douyin.mp4` | 抖音竖版 1080×1920，约 25MB（横转竖：上标题 + 中画面 + 下大字幕） |
 | `narrated/preview_sheet.png` | 9 个场景各一帧的预览图 |
 | `narrated/script.py` | **中英文案，唯一数据源**（标题、每个场景的字幕行） |
 | `narrated/narrate.py` | 逐句 TTS → `narration.wav` + `timeline.json`（字幕与场景时间） |
@@ -186,6 +187,14 @@ cd narrated && python3 render.py --demo 0 45      # 带声音的小样 demo.mp4�
 ```bash
 cd narrated && python3 render.py                  # 完整版，4 进程约 6~7 分钟，放后台跑
 ```
+
+抖音竖版（先 `--vstill` 出静帧确认，再渲染，约 7~8 分钟）：
+
+```bash
+cd narrated && python3 render.py --vstill 7 37 96.5 && python3 render.py --vertical
+```
+
+竖版排版要点：横屏画面按 16:9 设计，直接裁成竖屏会切掉大半 → 用「横转竖」：中间放完整横屏画面（1080×608），上方常驻标题 + 章节标签，下方放大的双语字幕（中文 58px、英文 34px，自动折行，宽度 ≤ 900px 避开抖音右侧按钮），背景用当前画面放大、虚化、压暗铺满；结尾场景自带标题时顶部标题让位。`scene_mix()` 返回不含字幕的场景画面，横版 `frame_at()` 和竖版 `frame_vertical()` 共用。
 
 压缩版（两遍编码，**先写临时文件再改名**，中途打断不会写坏旧文件）：
 
