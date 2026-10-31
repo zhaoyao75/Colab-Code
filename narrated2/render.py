@@ -256,53 +256,116 @@ def sprite(draw_fn, w, h, col, S=4):
 
 
 def put(frame, spr, x, y, alpha=1.0, flip=False):
-    """把精灵贴到画面上；(x, y) 为精灵底边中点"""
+    """把精灵贴到画面上；(x, y) 为精灵底边中点。col 可以是单色，也可以是 (h, w, 3) 的彩色图"""
     a, col = spr
     if flip:
         a = a[:, ::-1]
+        if np.ndim(col) == 3:
+            col = col[:, ::-1]
     h, w = a.shape
     x0, y0 = int(round(x - w / 2)), int(round(y - h))
     xa, xb, ya, yb = max(x0, 0), min(x0 + w, W), max(y0, 0), min(y0 + h, H)
     if xa >= xb or ya >= yb:
         return
     aa = a[ya - y0:yb - y0, xa - x0:xb - x0, None] * alpha
-    frame[ya:yb, xa:xb] = frame[ya:yb, xa:xb] * (1 - aa) + col * aa
+    c = col[ya - y0:yb - y0, xa - x0:xb - x0] if np.ndim(col) == 3 else col
+    frame[ya:yb, xa:xb] = frame[ya:yb, xa:xb] * (1 - aa) + c * aa
 
 
 def P(k, pts, ox=0, oy=0):
     return [((x + ox) * k, (y + oy) * k) for x, y in pts]
 
 
-def draw_horse(d, k, oy=40, rider=True, banner=False):
-    d.ellipse([22 * k, (40 + oy) * k, 78 * k, (62 + oy) * k], fill=255)
-    d.polygon(P(k, [(66, 48), (74, 30), (80, 18), (90, 16), (97, 24), (93, 29), (84, 29), (78, 54)], 0, oy), fill=255)
-    d.polygon(P(k, [(81, 19), (83, 11), (86, 18)], 0, oy), fill=255)
-    for a, b in [((70, 56), (73, 100)), ((64, 56), (60, 99)), ((30, 56), (25, 99)), ((37, 56), (39, 100))]:
-        d.line(P(k, [a, b], 0, oy), fill=255, width=int(5 * k))
-    d.polygon(P(k, [(24, 44), (12, 62), (15, 72), (24, 55)], 0, oy), fill=255)
+def leg(d, k, hip, L1, L2, ph, A, B, w1, w2, oy):
+    """两节腿：ph 为该腿的步态相位（0~1）。向前摆时抬膝、蹄子向后收；着地时伸直"""
+    s, c = np.sin(2 * np.pi * ph), np.cos(2 * np.pi * ph)
+    th = A * s
+    bend = B * max(0.0, c) ** 1.5
+    hx, hy = hip[0], hip[1] + oy
+    kx, ky = hx + L1 * np.sin(th), hy + L1 * np.cos(th)
+    th2 = th - bend
+    fx, fy = kx + L2 * np.sin(th2), ky + L2 * np.cos(th2)
+    d.line([(hx * k, hy * k), (kx * k, ky * k)], fill=255, width=int(w1 * k))
+    d.line([(kx * k, ky * k), (fx * k, fy * k)], fill=255, width=int(w2 * k))
+    d.ellipse([(kx - w1 / 2) * k, (ky - w1 / 2) * k, (kx + w1 / 2) * k, (ky + w1 / 2) * k], fill=255)
+    d.ellipse([(fx - w2 * 0.7) * k, (fy - w2 * 0.6) * k, (fx + w2 * 0.7) * k, (fy + w2 * 0.6) * k], fill=255)
+
+
+# 四拍走步：后左→前左→后右→前右，各差 1/4 周期
+HORSE_GAIT = {"hind_far": 0.0, "fore_far": 0.25, "hind_near": 0.5, "fore_near": 0.75}
+# 骆驼是顺拐（同侧两腿同时迈）
+CAMEL_GAIT = {"hind_far": 0.0, "fore_far": 0.0, "hind_near": 0.5, "fore_near": 0.5}
+
+
+def draw_horse(d, k, oy=40, rider=True, banner=False, phase=0.0):
+    bob = 1.3 * np.sin(4 * np.pi * phase)
+    nod = 2.2 * np.sin(4 * np.pi * phase + 1.2)
+    o = oy + bob
+    G = HORSE_GAIT
+    for name, hip in [("hind_far", (34, 54)), ("fore_far", (66, 55))]:
+        leg(d, k, hip, 23, 23, phase + G[name], 0.32, 0.65 if "fore" in name else 0.42, 6, 4, o)
+    d.ellipse(P(k, [(22, 40), (78, 62)], 0, o), fill=255)
+    d.polygon(P(k, [(66, 48), (74, 30 + nod * 0.4), (80, 18 + nod), (90, 16 + nod), (97, 24 + nod), (93, 29 + nod),
+                    (84, 29 + nod * 0.8), (78, 54)], 0, o), fill=255)
+    d.polygon(P(k, [(81, 19 + nod), (83, 11 + nod), (86, 18 + nod)], 0, o), fill=255)
+    sw = 3 * np.sin(2 * np.pi * phase)
+    d.polygon(P(k, [(24, 44), (13 + sw, 62), (16 + sw, 73), (25, 55)], 0, o), fill=255)
+    for name, hip in [("hind_near", (30, 54)), ("fore_near", (70, 55))]:
+        leg(d, k, hip, 23, 23, phase + G[name], 0.32, 0.65 if "fore" in name else 0.42, 6, 4, o)
     if rider:
-        d.polygon(P(k, [(43, 42), (46, 16), (58, 15), (61, 42)], 0, oy), fill=255)
-        d.ellipse(P(k, [(47, 2), (58, 14)], 0, oy), fill=255)
-        d.line(P(k, [(53, 40), (58, 60)], 0, oy), fill=255, width=int(6 * k))
-        d.line(P(k, [(56, 22), (70, 34)], 0, oy), fill=255, width=int(4 * k))
+        rb = o + 0.8 * np.sin(4 * np.pi * phase - 0.6)
+        d.polygon(P(k, [(43, 42), (46, 16), (58, 15), (61, 42)], 0, rb), fill=255)
+        d.ellipse(P(k, [(47, 2), (58, 14)], 0, rb), fill=255)
+        d.line(P(k, [(53, 40), (58, 60)], 0, rb), fill=255, width=int(6 * k))
+        d.line(P(k, [(56, 22), (70, 34)], 0, rb), fill=255, width=int(4 * k))
         if banner:
-            d.line(P(k, [(46, 30), (42, -38)], 0, oy), fill=255, width=int(2.5 * k))
-            d.polygon(P(k, [(42, -38), (20, -32), (24, -24), (21, -16), (43, -20)], 0, oy), fill=255)
+            fl = 3 * np.sin(2 * np.pi * phase * 2)
+            d.line(P(k, [(46, 30), (42, -38)], 0, rb), fill=255, width=int(2.5 * k))
+            d.polygon(P(k, [(42, -38), (20, -32 + fl), (24, -24 + fl), (21, -16 + fl), (43, -20)], 0, rb), fill=255)
 
 
-def draw_camel(d, k, oy=40, rider=True):
-    d.ellipse(P(k, [(22, 48), (82, 72)], 0, oy), fill=255)
-    d.ellipse(P(k, [(30, 30), (50, 58)], 0, oy), fill=255)
-    d.ellipse(P(k, [(54, 32), (73, 58)], 0, oy), fill=255)
-    d.polygon(P(k, [(76, 52), (90, 60), (97, 40), (103, 30), (113, 30), (116, 37), (107, 39), (101, 58), (92, 72), (78, 68)], 0, oy), fill=255)
-    for a, b in [((30, 66), (28, 100)), ((38, 66), (41, 100)), ((70, 66), (67, 100)), ((76, 66), (81, 100))]:
-        d.line(P(k, [a, b], 0, oy), fill=255, width=int(5 * k))
-    d.line(P(k, [(23, 56), (16, 72)], 0, oy), fill=255, width=int(3 * k))
+def draw_camel(d, k, oy=40, rider=True, phase=0.0):
+    bob = 1.6 * np.sin(4 * np.pi * phase)
+    nod = 2.5 * np.sin(4 * np.pi * phase + 0.8)
+    o = oy + bob
+    G = CAMEL_GAIT
+    for name, hip in [("hind_far", (36, 64)), ("fore_far", (72, 64))]:
+        leg(d, k, hip, 18, 18, phase + G[name], 0.28, 0.55 if "fore" in name else 0.38, 5.5, 4, o)
+    d.ellipse(P(k, [(22, 48), (82, 72)], 0, o), fill=255)
+    d.ellipse(P(k, [(30, 30), (50, 58)], 0, o), fill=255)
+    d.ellipse(P(k, [(54, 32), (73, 58)], 0, o), fill=255)
+    d.polygon(P(k, [(76, 52), (90, 60), (97, 40 + nod * 0.5), (103, 30 + nod), (113, 30 + nod), (116, 37 + nod),
+                    (107, 39 + nod), (101, 58), (92, 72), (78, 68)], 0, o), fill=255)
+    d.line(P(k, [(23, 56), (16 + 2 * np.sin(2 * np.pi * phase), 72)], 0, o), fill=255, width=int(3 * k))
+    for name, hip in [("hind_near", (30, 64)), ("fore_near", (76, 64))]:
+        leg(d, k, hip, 18, 18, phase + G[name], 0.28, 0.55 if "fore" in name else 0.38, 5.5, 4, o)
     if rider:
-        d.polygon(P(k, [(46, 38), (49, 12), (59, 11), (61, 38)], 0, oy), fill=255)
-        d.ellipse(P(k, [(49, 0), (59, 11)], 0, oy), fill=255)
+        rb = o + np.sin(4 * np.pi * phase - 0.5)
+        d.polygon(P(k, [(46, 38), (49, 12), (59, 11), (61, 38)], 0, rb), fill=255)
+        d.ellipse(P(k, [(49, 0), (59, 11)], 0, rb), fill=255)
     else:
-        d.rectangle(P(k, [(40, 26), (64, 46)], 0, oy), fill=255)   # 货物
+        d.rectangle(P(k, [(40, 26), (64, 46)], 0, o), fill=255)   # 货物
+
+
+NFR = 16   # 每个步态周期的帧数
+
+
+def gait_frames(kind, col, **kw):
+    if kind == "horse":
+        return [sprite(lambda d, k, p=i / NFR: draw_horse(d, k, phase=p, **kw), 100, 140, col) for i in range(NFR)]
+    return [sprite(lambda d, k, p=i / NFR: draw_camel(d, k, phase=p, **kw), 120, 140, col) for i in range(NFR)]
+
+
+SHADOW = sprite(lambda d, k: d.ellipse([10 * k, 4 * k, 90 * k, 12 * k], fill=255), 100, 16, np.zeros(3, np.float32))
+SHADOW = (gaussian_filter(SHADOW[0], 2.5), SHADOW[1])
+STRIDE = {"horse": 58.0, "camel": 40.0}   # 一个步态周期身体前进的像素（4·腿长·sin 摆角）
+
+
+def walk(f, frames, x, y, phase, flip=False, shadow=0.35):
+    """画一只在走路的动物：相位决定用哪一帧，脚下加一块柔和阴影"""
+    if shadow:
+        put(f, SHADOW, x, y + 7, shadow)
+    put(f, frames[int(phase * NFR) % NFR], x, y, flip=flip)
 
 
 def draw_sitter(d, k, cx, lean=0):
@@ -411,11 +474,77 @@ def temple_hall(d, k, cx, base, col, rim, dark, s=1.0):
     d.ellipse([(cx - 14 * s) * k, (base - 372 * s) * k, (cx + 14 * s) * k, (base - 344 * s) * k], fill=col)  # 宝顶
 
 
+# ====================================================================== 印章
+SEAL_RED = (178, 38, 32)
+SEAL_INK = (250, 241, 228)
+
+
+def seal_img(text, cell=60, seed=0, rot=-2.0):
+    """白文方印：红底白字，竖排、从右往左读；带印泥的斑驳和不齐的边"""
+    n = len(text)
+    cols, rows = {1: (1, 1), 2: (1, 2), 3: (1, 3), 4: (2, 2)}[n]
+    pad = int(cell * 0.2)
+    w, h = cols * cell + 2 * pad, rows * cell + 2 * pad
+    S = 3
+    img = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    d.rounded_rectangle([0, 0, w * S - 1, h * S - 1], radius=int(cell * 0.07 * S), fill=SEAL_RED + (255,))
+    inset, bw = int(cell * 0.08 * S), max(int(cell * 0.035 * S), 2)
+    d.rectangle([inset, inset, w * S - inset, h * S - inset], outline=SEAL_INK + (255,), width=bw)
+    f = ImageFont.truetype(FONT_DIR + "NotoSerifCJK-Bold.ttc", int(cell * 0.78 * S), index=2)
+    for i, ch in enumerate(text):
+        c, r = cols - 1 - i // rows, i % rows
+        d.text(((pad + c * cell + cell / 2) * S, (pad + r * cell + cell / 2) * S), ch, font=f,
+               fill=SEAL_INK + (255,), anchor="mm")
+    img = img.rotate(rot, resample=Image.BICUBIC, expand=True)
+    arr = np.asarray(img.resize((img.width // S, img.height // S), Image.LANCZOS), np.float32) / 255
+    rng = np.random.default_rng(seed)
+    hh, ww = arr.shape[:2]
+    n1 = gaussian_filter(rng.standard_normal((hh, ww)), 1.0); n1 /= n1.std()
+    n2 = gaussian_filter(rng.standard_normal((hh, ww)), 5.0); n2 /= n2.std()
+    arr[..., 3] *= np.clip(0.93 + 0.07 * n2 - 0.6 * np.clip(n1 - 1.5, 0, 1), 0.2, 1)
+    return arr
+
+
+def to_pil(rgba):
+    return Image.fromarray((np.clip(rgba, 0, 1) * 255).astype(np.uint8), "RGBA")
+
+
+def blit_scaled(frame, rgba, cx, cy, alpha, scale=1.0):
+    """盖章动画：先放大、再「落」到原尺寸"""
+    if alpha <= 0:
+        return
+    if abs(scale - 1) > 0.005:
+        im = to_pil(rgba)
+        im = im.resize((max(int(im.width * scale), 1), max(int(im.height * scale), 1)), Image.BICUBIC)
+        rgba = np.asarray(im, np.float32) / 255
+    blit(frame, rgba, cx, cy, alpha)
+
+
+def stamp_anim(dt, dur=0.35):
+    """dt = 出现后经过的秒数 → (透明度, 缩放)"""
+    if dt <= 0:
+        return 0.0, 1.3
+    e = min(dt / dur, 1.0)
+    return e, 1 + 0.3 * (1 - e) ** 2
+
+
+def line_t(ch_id, idx):
+    ci = [c["id"] for c in TL["chapters"]].index(ch_id)
+    return [l for l in TL["lines"] if l["ch"] == ci][idx]["t0"]
+
+
+def local_t(scene_name, ch_id, idx):
+    """某句旁白开始时，对应场景的局部时间"""
+    return line_t(ch_id, idx) - dict((n, t) for n, t, _ in SEQ)[scene_name] + XF
+
+
 # ====================================================================== 场景
 class Scene:
     def __init__(self):
-        self.layers = []     # [(z, Layer)]，z 小的先画
+        self.layers = []     # 图层或回调函数，按顺序画
         self.sky = None
+        self.seals = []      # (印章图, 世界坐标 x, y, 所在图层速度, 出现的局部时间)
 
     def frame(self, tl):
         f = self.sky.copy()
@@ -426,6 +555,9 @@ class Scene:
             else:
                 L(f, tl)
         self.post(f, tl)
+        for img, wx, y, speed, t_on in self.seals:
+            a, sc = stamp_anim(tl - t_on)
+            blit_scaled(f, img, wx - (30 + speed * tl), y, a, sc)
         return f
 
     def pre(self, f, tl): pass
@@ -522,8 +654,8 @@ class ZhaoWall(Scene):
         mid, self.h_mid = ridge(33, 700, 85, C("#4a4136"), C("#3a3229"), 7, f0=0.0022, ridged=True)
         wall = paint(self._wall, 7)
         near, _ = ridge(34, 860, 25, C("#5b4b35"), C("#3e3325"), 14, octaves=4, f0=0.0015)
-        self.riders = [sprite(lambda d, k, b=(i == 0): draw_horse(d, k, banner=b), 100, 140, C("#1f1912"), S=4)
-                       for i in range(5)]
+        col = C("#1f1912")
+        self.riders = [gait_frames("horse", col, banner=True), gait_frames("horse", col)]
         self.layers = [self.cl, far, haze(650, 40, hz, 0.4), mid, wall, haze(760, 50, hz, 0.35), near,
                        self._riders,
                        grass(35, 960, C("#9a8455"), C("#3d3221"), C("#1e1910"), 24, amp=10, gust=0.6)]
@@ -546,9 +678,10 @@ class ZhaoWall(Scene):
                    ((bx + 34) * k, (y + 4) * k)], fill=col)
 
     def _riders(self, f, tl):
-        for i, spr in enumerate(self.riders):
-            x = 1500 + i * 115 - 42 * tl + (i % 2) * 20
-            put(f, spr, x, 905 + (i % 2) * 14 + 2 * np.sin(tl * 7 + i), flip=True)
+        # 骑兵向左走：屏幕速度 54，地面向左移 14，相对地面 40 像素/秒，步频按步幅算，腿和地面不打滑
+        for i, dx, dy, off in [(0, 0, 0, 0.0), (1, 135, 14, 0.55), (1, 270, -6, 0.3), (1, 400, 10, 0.8), (1, 530, -2, 0.1)]:
+            x = 1450 + dx - 54 * tl
+            walk(f, self.riders[i], x, 905 + dy, 40 * tl / STRIDE["horse"] + off, flip=True)
 
     def post(self, f, tl):
         ox = 30 + 7 * tl
@@ -571,14 +704,14 @@ class HanTomb(Scene):
         far, _ = ridge(42, 680, 70, mix(C("#8a4a4a"), hz, 0.3), C("#6e3a3a"), 3, ridged=True)
         mound = paint(self._mound, 8)
         near, self.h_near = ridge(43, 880, 22, C("#3e2424"), C("#2a1818"), 14, octaves=3, f0=0.0015)
-        self.parade = [sprite(lambda d, k: draw_horse(d, k, banner=True), 100, 140, C("#1d1012")),
-                       sprite(lambda d, k: draw_camel(d, k, rider=False), 120, 140, C("#1d1012")),
-                       sprite(lambda d, k: draw_horse(d, k), 100, 140, C("#1d1012")),
-                       sprite(lambda d, k: draw_camel(d, k, rider=True), 120, 140, C("#1d1012")),
-                       sprite(lambda d, k: draw_horse(d, k), 100, 140, C("#1d1012"))]
+        col = C("#1d1012")
+        hb, h0 = gait_frames("horse", col, banner=True), gait_frames("horse", col)
+        cc, cr = gait_frames("camel", col, rider=False), gait_frames("camel", col, rider=True)
+        self.parade = [(hb, "horse"), (cc, "camel"), (h0, "horse"), (cr, "camel"), (h0, "horse")]
         self.layers = [self.cl, far, haze(700, 45, hz, 0.5), mound, haze(800, 30, hz, 0.25), near, self._parade,
                        grass(44, 975, C("#7a4a30"), C("#2a1712"), C("#140b09"), 22, amp=9)]
         self.birds = Flock(45, 9, 1500, 330, -38, -4, C("#2b1520"))
+        self.seals = [(seal_img("昭君墓", 44, seed=3), 1935, 640, 8, local_t("han", "han", 2))]
 
     def _mound(self, d, k):
         cx, base = 1620, 878
@@ -591,9 +724,9 @@ class HanTomb(Scene):
             d.ellipse([(tx - 36 * s) * k, (base - 130 * s) * k, (tx + 36 * s) * k, (base - 52 * s) * k], fill=col)
 
     def _parade(self, f, tl):
-        for i, spr in enumerate(self.parade):
-            x = 1180 + i * 125 - 26 * tl
-            put(f, spr, x, 912 + 2 * np.sin(tl * 5 + i * 1.3), flip=True)
+        for i, (fr, kind) in enumerate(self.parade):
+            x = 1260 + i * 125 - 40 * tl
+            walk(f, fr, x, 912, 26 * tl / STRIDE[kind] + i * 0.37, flip=True, shadow=0.3)
 
     def pre(self, f, tl):
         glow(f, 560, 590 + tl * 2.5, C("#ffa25c"), 58, 150, 1.0)
@@ -654,6 +787,7 @@ class MingCity(Scene):
                        grass(64, 1000, C("#8c6a3a"), C("#2e1f12"), C("#140d08"), 20, blade=(30, 110), amp=8)]
         self.k_smoke = kernel(18)
         self.birds = Flock(65, 7, 1900, 280, -30, 3, C("#3a2420"))
+        self.seals = [(seal_img("大召寺", 44, seed=4), 1885, 560, 8, local_t("ming", "ming", 2))]
 
     def _smoke(self, f, tl):
         a = np.zeros((H, W), np.float32)
@@ -682,8 +816,9 @@ class QingCaravan(Scene):
         d1, _ = ridge(72, 660, 40, mix(C("#a65a4a"), hz, 0.3), C("#7a4040"), 4, octaves=3, f0=0.0016, fade=90)
         d2, self.h2 = ridge(73, 790, 55, C("#c0704e"), C("#6a3438"), 9, octaves=3, f0=0.0013, fade=120)
         d3, _ = ridge(74, 940, 45, C("#8a4636"), C("#3a1d22"), 18, octaves=3, f0=0.0011, fade=140)
-        self.camels = [sprite(lambda d, k, r=(i % 3 == 0): draw_camel(d, k, rider=r), 120, 140, C("#24121a"))
-                       for i in range(8)]
+        col = C("#24121a")
+        cr, cc = gait_frames("camel", col, rider=True), gait_frames("camel", col, rider=False)
+        self.camels = [cr if i % 3 == 0 else cc for i in range(8)]
         self.layers = [towns, d1, haze(690, 30, hz, 0.35), d2, self._caravan, d3]
         self.moon = sprite(lambda d, k: [d.ellipse([0, 0, 60 * k, 60 * k], fill=255),
                                          d.ellipse([14 * k, -6 * k, 74 * k, 54 * k], fill=0)], 64, 64, C("#fff1d0"))
@@ -696,10 +831,10 @@ class QingCaravan(Scene):
 
     def _caravan(self, f, tl):
         ox = 30 + 9 * tl
-        for i, spr in enumerate(self.camels):
-            x = 520 + i * 96 + 24 * tl
+        for i, fr in enumerate(self.camels):
+            x = 520 + i * 100 + 24 * tl
             sx = int(np.clip(x + ox, 0, WW - 1))
-            put(f, spr, x, self.h2[sx] + 6 + 2 * np.sin(tl * 4 + i))
+            walk(f, fr, x, self.h2[sx] + 6, 33 * tl / STRIDE["camel"] + i * 0.29, shadow=0.25)
 
     def pre(self, f, tl):
         tw = 0.5 + 0.5 * np.sin(tl * 0.7)
@@ -734,7 +869,7 @@ class ModernCity(Scene):
                        self._road, ground,
                        grass(86, 1010, C("#1b2a30"), C("#0a1014"), C("#05080a"), 22, blade=(25, 80), amp=6)]
 
-    def _skyline(self, seed, base, hmin, hmax, col, wcol, speed, tower=False):
+    def _skyline(self, seed, base, hmin, hmax, col, wcol, speed, tower=False, tower_h=420):
         rng = np.random.default_rng(seed)
         S = 2
         img = Image.new("L", (WW * S, H * S), 0); win = [Image.new("L", (WW * S, H * S), 0) for _ in range(2)]
@@ -754,10 +889,11 @@ class ModernCity(Scene):
             x += w + rng.uniform(-10, 60)
         if tower:   # 电视塔
             tx = 980
-            d.polygon([((tx - 24) * S, base * S), ((tx - 5) * S, (base - 420) * S), ((tx + 5) * S, (base - 420) * S),
-                       ((tx + 24) * S, base * S)], fill=255)
-            d.ellipse([(tx - 34) * S, (base - 400) * S, (tx + 34) * S, (base - 352) * S], fill=255)
-            d.line([(tx * S, (base - 420) * S), (tx * S, (base - 520) * S)], fill=255, width=6)
+            th, q = tower_h, tower_h / 420
+            d.polygon([((tx - 24 * q) * S, base * S), ((tx - 5 * q) * S, (base - th) * S), ((tx + 5 * q) * S, (base - th) * S),
+                       ((tx + 24 * q) * S, base * S)], fill=255)
+            d.ellipse([(tx - 34 * q) * S, (base - 400 * q) * S, (tx + 34 * q) * S, (base - 352 * q) * S], fill=255)
+            d.line([(tx * S, (base - th) * S), (tx * S, (base - th - 100 * q) * S)], fill=255, width=6)
         a = np.asarray(img.resize((WW, H), Image.LANCZOS), np.float32) / 255
         wins = [np.asarray(w.resize((WW, H), Image.LANCZOS), np.float32) / 255 * a for w in win]
         rgb = np.broadcast_to(col, (H, WW, 3)).copy()
@@ -799,16 +935,165 @@ class ModernCity(Scene):
         add_light(f, b, C("#7fd6ff"))
 
 
+def cow_frames(seed, n=8, sc=1.4):
+    """荷斯坦奶牛：黑白花，低头吃草的动作分 n 帧（0 = 抬头，1 = 低头）"""
+    out = []
+    w0, h0, S = 110, 74, 4
+    w, h = int(w0 * sc), int(h0 * sc)
+    rng = np.random.default_rng(seed)
+    spots = [(rng.uniform(26, 76), rng.uniform(18, 42), rng.uniform(6, 13), rng.uniform(5, 10)) for _ in range(4)]
+    white, black = C("#efe3d2"), C("#1c1a1a")
+    for g in np.linspace(0, 1, n):
+        body, patch = Image.new("L", (int(w0 * S * sc), int(h0 * S * sc)), 0), Image.new("L", (int(w0 * S * sc), int(h0 * S * sc)), 0)
+        d, dp = ImageDraw.Draw(body), ImageDraw.Draw(patch)
+        k = S * sc
+        base = np.array([79.0, 25.0])
+        hc = np.array([96.0 - 2 * g, 18.0 + 36 * g])          # 头的中心：抬头 → 低头吃草
+        u = (hc - base) / np.linalg.norm(hc - base); v = np.array([-u[1], u[0]])
+        Q = lambda pts: [(x * k, y * k) for x, y in pts]
+        d.polygon(Q([base + v * 12, base - v * 12, hc - v * 6, hc + v * 6]), fill=255)            # 脖子
+        head = [hc - u * 9 + v * 9, hc - u * 9 - v * 9, hc + u * 14 - v * 6, hc + u * 14 + v * 6]
+        for dd in (d, dp):
+            dd.polygon(Q(head), fill=255)
+            for sgn in (1, -1):                                                              # 耳朵
+                e0 = hc - u * 6 + v * 8 * sgn
+                dd.polygon(Q([e0, e0 + v * 7 * sgn - u * 2, e0 + u * 3]), fill=255)
+        mz = hc + u * 14
+        d.ellipse([(mz[0] - 5) * k, (mz[1] - 5) * k, (mz[0] + 5) * k, (mz[1] + 5) * k], fill=255)   # 白色口鼻
+        dp.polygon(Q([hc - u * 4 + v * 1.6, hc - u * 4 - v * 1.6, hc + u * 9 - v * 2.2, hc + u * 9 + v * 2.2]), fill=0)  # 白额
+        d.rounded_rectangle([16 * k, 14 * k, 82 * k, 46 * k], radius=13 * k, fill=255)
+        for x in (21, 31, 67, 76):
+            d.rectangle([x * k, 40 * k, (x + 6) * k, 72 * k], fill=255)
+            dp.rectangle([x * k, 67 * k, (x + 6) * k, 72 * k], fill=255)
+        d.line(P(k, [(17, 20), (12, 48)]), fill=255, width=int(2 * k))
+        for ex, ey, rx, ry in spots:
+            dp.ellipse([(ex - rx) * k, (ey - ry) * k, (ex + rx) * k, (ey + ry) * k], fill=255)
+        a = np.asarray(body.resize((w, h), Image.LANCZOS), np.float32) / 255
+        pm = np.asarray(patch.resize((w, h), Image.LANCZOS), np.float32)[..., None] / 255
+        shade = np.linspace(1.05, 0.72, h, dtype=np.float32)[:, None, None]       # 上亮下暗，夕照
+        col = np.clip(mix(white, black, pm) * shade, 0, 1)
+        out.append((a, col))
+    return out
+
+
+class TodayScene(Scene):
+    """今天：草场上的奶牛（乳都）+ 城市与数据中心，数据汇成天上的一朵「云」（云计算）"""
+    def __init__(self):
+        super().__init__()
+        self.sky = sky([(0, "#0a1634"), (0.38, "#27497d"), (0.58, "#a9849e"), (0.69, "#f0b07c"), (1, "#f0b07c")])
+        hz = C("#f0b07c")
+        self.stars = starfield(91, 500, 300)
+        far, _ = ridge(92, 712, 45, mix(C("#5a5f80"), hz, 0.35), C("#4a4f70"), 2, ridged=True)
+        city = ModernCity._skyline(self, 93, 800, 28, 105, C("#2a3358"), C("#ffd79a"), 4, tower=True, tower_h=250)
+        dc = paint(self._datacenter, 4)
+        pasture, self.h_p = ridge(94, 850, 20, C("#7b9452"), C("#2f4226"), 10, octaves=3, f0=0.0012, fade=110)
+        self.layers = [far, haze(740, 30, hz, 0.45), city[0], ModernCity._win(self, city), dc,
+                       haze(812, 22, hz, 0.25), pasture, self._cows,
+                       grass(95, 1005, C("#86a056"), C("#28361f"), C("#121a0e"), 16, blade=(30, 100), amp=8)]
+        self.herd = [(cow_frames(100 + i), wx, fl, ph) for i, (wx, fl, ph) in
+                     enumerate([(230, False, 0.1), (420, True, 0.5), (640, False, 0.8), (850, False, 0.3), (1040, True, 0.65)])]
+        self.t_milk = local_t("today", "modern", 2)
+        self.t_cloud = local_t("today", "modern", 3)
+        self.seals = [(seal_img("乳都", 52, seed=7), 1230, 800, 10, self.t_milk),
+                      (seal_img("云计算", 44, seed=8), 1545, 262, 0, self.t_cloud)]
+        self._build_cloud()
+
+    def _datacenter(self, d, k):
+        body, led = rgb255(C("#161d33")), rgb255(C("#6fd6ff"))
+        for x0, x1, h in [(1470, 1700, 62), (1715, 1930, 74), (1945, 2160, 58)]:
+            d.rectangle([x0 * k, (815 - h) * k, x1 * k, 830 * k], fill=body)
+            for j in range(3):
+                y = 815 - h + 14 + j * 16
+                if y < 812:
+                    d.line([((x0 + 10) * k, y * k), ((x1 - 10) * k, y * k)], fill=led, width=int(2 * k))
+            for xx in range(int(x0) + 30, int(x1) - 20, 60):   # 屋顶散热机组
+                d.rectangle([xx * k, (815 - h - 8) * k, (xx + 26) * k, (815 - h) * k], fill=body)
+
+    def _build_cloud(self):
+        rng = np.random.default_rng(96)
+        cx, cy = 1250, 268
+        circ = [(-125, 18, 62), (-55, -20, 82), (42, -42, 92), (132, 8, 70), (0, 22, 72)]
+        pts = []
+        for dx, dy, r in circ:
+            for a in np.linspace(0, 2 * np.pi, 22, endpoint=False):
+                x, y = dx + r * np.cos(a), dy + r * np.sin(a)
+                if y < 58 and all(np.hypot(x - ex, y - ey) > er - 3 for ex, ey, er in circ if (ex, ey, er) != (dx, dy, r)):
+                    pts.append((x, y))
+        for x in np.linspace(-175, 190, 14):
+            pts.append((x, 60))
+        for _ in range(30):
+            while True:
+                x, y = rng.uniform(-180, 200), rng.uniform(-130, 58)
+                if any(np.hypot(x - ex, y - ey) < er - 12 for ex, ey, er in circ):
+                    pts.append((x, y)); break
+        P_ = np.array(pts) + [cx, cy]
+        dist = np.linalg.norm(P_[:, None] - P_[None], axis=-1)
+        edges = set()
+        for i in range(len(P_)):
+            for j in np.argsort(dist[i])[1:4]:
+                edges.add((min(i, j), max(i, j)))
+        img = Image.new("L", (W * 2, H * 2), 0)
+        dd = ImageDraw.Draw(img)
+        for i, j in edges:
+            dd.line([tuple(P_[i] * 2), tuple(P_[j] * 2)], fill=110, width=2)
+        for x, y in P_:
+            dd.ellipse([x * 2 - 4, y * 2 - 4, x * 2 + 4, y * 2 + 4], fill=255)
+        net = np.asarray(img.resize((W, H), Image.LANCZOS), np.float32) / 255
+        self.net = net + gaussian_filter(net, 9) * 2.5
+        self.cnodes, self.cedges = P_, list(edges)
+        self.k_p = kernel(4)
+        self.streams = [(rng.uniform(1490, 2140), rng.integers(0, len(P_)), rng.random(), rng.uniform(0.25, 0.4))
+                        for _ in range(60)]
+
+    def _cows(self, f, tl):
+        ox = 30 + 10 * tl
+        for frames, wx, flip, ph in self.herd:
+            g = float(np.clip(0.55 + 0.9 * np.sin(2 * np.pi * (tl / 6.5 + ph)), 0, 1))
+            sx = int(np.clip(wx, 0, WW - 1))
+            put(f, SHADOW, wx - ox, self.h_p[sx] + 30, 0.3)
+            put(f, frames[int(round(g * (len(frames) - 1)))], wx - ox, self.h_p[sx] + 26, flip=flip)
+
+    def pre(self, f, tl):
+        add_light(f, self.stars[0] * 0.6, C("#e8eeff"))
+        glow(f, 960, 760, C("#ffb37a"), 0, 300, 0.35, disc=False)
+        lit = 0.35 + 0.65 * float(np.clip((tl - self.t_cloud + 0.3) / 1.2, 0, 1))
+        b = self.net * 0.32 * lit
+        for i, j in self.cedges[::3]:
+            s = (tl * 0.5 + (i * 7 + j) % 10 / 10) % 1.0
+            p = self.cnodes[i] * (1 - s) + self.cnodes[j] * s
+            stamp(b, p[0], p[1], self.k_p, 0.8 * lit)
+        # 数据流：从数据中心屋顶升起，汇入云
+        ox = 30 + 4 * tl
+        for wx, ni, ph, sp in self.streams:
+            s = (tl * sp + ph) % 1.0
+            x0, y0 = wx - ox, 760
+            x1, y1 = self.cnodes[ni]
+            cx_, cy_ = x0, (y0 + y1) / 2
+            x = (1 - s) ** 2 * x0 + 2 * s * (1 - s) * cx_ + s * s * x1
+            y = (1 - s) ** 2 * y0 + 2 * s * (1 - s) * cy_ + s * s * y1
+            for j in range(6):                                  # 拖尾
+                ss = s - j * 0.014
+                if ss <= 0:
+                    break
+                x = (1 - ss) ** 2 * x0 + 2 * ss * (1 - ss) * cx_ + ss * ss * x1
+                y = (1 - ss) ** 2 * y0 + 2 * ss * (1 - ss) * cy_ + ss * ss * y1
+                stamp(b, x, y, self.k_p, np.sin(np.pi * ss) * (0.3 + 0.7 * lit) * (1 - j / 6) * 0.8)
+        add_light(f, b, C("#86dcff"))
+
+
 # ====================================================================== 时间轴
 def build_timeline():
     ch = {c["id"]: c for c in TL["chapters"]}
     ln = TL["lines"]
     anc = [l for l in ln if l["ch"] == 1]
     split = (anc[1]["t1"] + anc[2]["t0"]) / 2           # 远古篝火 → 战国长城
+    mod = [l for l in ln if l["ch"] == 6]
+    split2 = (mod[1]["t1"] + mod[2]["t0"]) / 2          # 1954 城市 → 今天：乳都 + 云计算
     seq = [("open", 0.0, Grassland), ("prehistoric", ch["ancient"]["t0"], Prehistoric),
            ("zhao", split, ZhaoWall), ("han", ch["han"]["t0"], HanTomb), ("liao", ch["liao"]["t0"], LiaoPagoda),
            ("ming", ch["ming"]["t0"], MingCity), ("qing", ch["qing"]["t0"], QingCaravan),
-           ("modern", ch["modern"]["t0"], ModernCity), ("end", ch["end"]["t0"], lambda: Grassland(end=True))]
+           ("modern", ch["modern"]["t0"], ModernCity),
+           ("today", split2, TodayScene), ("end", ch["end"]["t0"], lambda: Grassland(end=True))]
     return seq
 
 
@@ -873,21 +1158,41 @@ def blit(frame, rgba, cx, cy, alpha):
     frame[ya:yb, xa:xb] = frame[ya:yb, xa:xb] * (1 - a) + src[..., :3] * a
 
 
+def era_block(seal_text, year, en):
+    """左上角的朝代标签：白文印章 + 年份 + 英文"""
+    sl = to_pil(seal_img(seal_text, 54 if len(seal_text) > 1 else 74, seed=sum(map(ord, seal_text))))
+    fy, fe = font("NotoSerifCJK-Bold", 56), font("NotoSansCJK-Regular", 22)
+    probe = ImageDraw.Draw(Image.new("L", (1, 1)))
+    yw = probe.textbbox((0, 0), year, font=fy)[2] if year else 0
+    ew = probe.textbbox((0, 0), en.upper(), font=fe)[2]
+    pad = 20
+    w = max(pad + sl.width + (18 + yw if year else 0), pad + ew) + pad
+    h = pad + sl.height + 44 + pad
+    txt, sh = Image.new("RGBA", (w, h), (0, 0, 0, 0)), Image.new("L", (w, h), 0)
+    d, ds = ImageDraw.Draw(txt), ImageDraw.Draw(sh)
+    for dd, fill in ((ds, 255), (d, (255, 244, 225, 255))):
+        if year:
+            dd.text((pad + sl.width + 18, pad + sl.height / 2), year, font=fy, fill=fill, anchor="lm")
+    for dd, fill in ((ds, 255), (d, (232, 222, 204, 255))):
+        dd.text((pad, pad + sl.height + 14), en.upper(), font=fe, fill=fill)
+    base = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    base.putalpha(sh.filter(ImageFilter.GaussianBlur(6)).point(lambda v: int(v * 0.8)))
+    out = Image.alpha_composite(base, txt)
+    out.alpha_composite(sl, (pad, pad))
+    return np.asarray(out, np.float32) / 255
+
+
 class Texts:
     def __init__(self):
         zh, en = font("NotoSansCJK-Regular", 46), font("NotoSansCJK-Regular", 27)
         self.subs = [(l["t0"], l["t1"], text_img([(l["zh"], zh, (255, 255, 255), 62), (l["en"], en, (215, 222, 230), 36)]))
                      for l in TL["lines"]]
-        se, sz = font("NotoSerifCJK-Bold", 64), font("NotoSansCJK-Regular", 24)
-        self.eras = [(c["t0"], c["t1"], text_img([(c["era_zh"], se, (255, 244, 225), 84),
-                                                    (c["era_en"].upper(), sz, (225, 215, 195), 30)], shadow=8, pad=30))
-                     for c in TL["chapters"] if c["era_zh"]]
+        meta = {c["id"]: c for c in SCRIPT["chapters"]}
+        self.eras = [(c["t0"], c["t1"], era_block(meta[c["id"]]["seal"], meta[c["id"]]["year"], c["era_en"]))
+                     for c in TL["chapters"] if meta[c["id"]].get("seal")]
         big, mid, small = font("NotoSerifCJK-Bold", 150), font("NotoSerifCJK-Regular", 50), font("NotoSansCJK-Regular", 28)
         self.title = text_img([("青 城", big, (255, 250, 238), 190), ("呼 和 浩 特", mid, (245, 236, 220), 70),
                                ("HOHHOT · THE BLUE CITY", small, (230, 225, 215), 40)], shadow=10)
-        tiny = font("NotoSansCJK-Regular", 22)
-        self.credit = text_img([("旁白：AI 语音合成（微软云健）  ·  配乐与画面：代码生成", tiny, (225, 225, 225), 32),
-                                ("Narration: AI voice  ·  Music & visuals generated with code", tiny, (205, 205, 205), 30)], shadow=5)
         self.end_line = TL["lines"][-1]["t1"]
         y = np.arange(H, dtype=np.float32)[:, None, None]
         self.shade = 1 - 0.42 * np.clip((y - 800) / 280, 0, 1) ** 1.5             # 字幕区压暗
@@ -906,16 +1211,17 @@ class Texts:
             if a > 0:
                 blit(f, im, W / 2, 955, a)
         for t0, t1, im in self.eras:
-            a = self.fade(t, t0 + 0.6, t1 - 0.3, 0.8, 0.7)
-            if a > 0:
-                blit(f, im, 90 + im.shape[1] / 2 + 12 * (1 - a), 70 + im.shape[0] / 2, a)
+            on = t0 + 0.7
+            if on < t < t1 - 0.1:
+                a, sc = stamp_anim(t - on)
+                a *= self.fade(t, on - 1, t1 - 0.3, 1, 0.7)
+                blit_scaled(f, im, 80 + im.shape[1] / 2, 60 + im.shape[0] / 2, a, sc)
         a = self.fade(t, 0.6, 11.0, 1.6, 1.5)
         a2 = self.fade(t, self.end_line + 1.0, TOTAL + 5, 2.0, 1)
         if a > 0:
             blit(f, self.title, W / 2, 360, a)
         if a2 > 0:
             blit(f, self.title, W / 2, 430, a2)
-            blit(f, self.credit, W / 2, 760, a2 * 0.9)
         k = np.clip(min(t / 1.2, (TOTAL - t) / 2.0), 0, 1)       # 片头片尾黑场
         f *= k
 
