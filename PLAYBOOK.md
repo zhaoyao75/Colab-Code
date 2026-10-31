@@ -145,6 +145,8 @@ ffmpeg -y -i stellar_echo_full_bw.mp4 -c:v libx264 -preset slower -b:v 1650k -pa
 
 ## 8. 带 AI 旁白的短视频（`narrated3/`《黄永玉 · 永远长不大的老头》）
 
+成品：`narrated3/huang_yongyu_full.mp4`（完整版 48MB，crf 18）、`narrated3/huang_yongyu_30mb.mp4`（压缩版 26MB，两遍 1620k）、`subtitles_*.srt`（中 / 英 / 双语外挂字幕）。
+
 ### 流程与命令
 ```bash
 cd narrated3 && python3 tts.py && python3 music.py && python3 mix.py   # 旁白 → 配乐 → 混音（约 1 分钟）
