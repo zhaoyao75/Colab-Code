@@ -111,7 +111,7 @@ def paper(h, w, seed=0, tone=(0.93, 0.89, 0.80), vig=0.35):
     return img.astype(np.float32)
 
 
-def ink_mountains(img, layers, seed, col=INK):
+def ink_mountains(img, layers, seed, col=INK, carve=None):
     """layers: (基线, 振幅, 浓度, 雾化长度, 粗糙度, 包络函数或 None)"""
     h, w, _ = img.shape
     Y = np.arange(h, dtype=np.float32)[:, None]
@@ -121,6 +121,10 @@ def ink_mountains(img, layers, seed, col=INK):
         if env is not None:
             r = r * env(u)
         top = (base - amp * r)[None, :] * h
+        if carve is not None:   # 切出 V 形山谷：(谷底横坐标, 谷底高度, 谷壁斜率)
+            us, yb, slope = carve
+            jag = (ridge(w, seed + 70 + i, rough=0.6) - 0.5) * 0.07 * h * np.clip(np.abs(u - us) * 12, 0, 1)
+            top = np.maximum(top, (yb * h - slope * np.abs(u - us) * w + jag)[None, :])
         below = Y - top
         a = np.exp(-np.maximum(below, 0) / (fl * h)) * np.clip(below / 2.5, 0, 1)
         a *= dark * (0.7 + 0.6 * noise2d(h, w, 50, seed + 20 + i, 3))
@@ -245,16 +249,17 @@ def build_river():
     d = np.hypot(xx - BW * 0.84, yy - BH * 0.30)
     comp(img, RED * 1.1, 0.5 * smooth((66 - d) / 3))
     ink_mountains(img, [(0.47, 0.20, 0.20, 0.10, 0.55, None),
-                        (0.54, 0.17, 0.30, 0.08, 0.6, None)], seed=11)
+                        (0.54, 0.17, 0.30, 0.08, 0.6, None)], seed=11, carve=(0.17, 0.60, 0.75))
     # 河道：从峡谷口（画面中部）蜿蜒流向镜头，越近越宽
     y0 = BH * 0.585
     p = np.clip((yy[:, :1] - y0) / (BH - y0), 0, 1)
-    xc = BW * (0.17 + 0.32 * p + 0.17 * (0.5 + 0.5 * p) * np.sin(p * 2 * np.pi * 1.1))
+    q = p ** 1.5   # 源头附近先顺着谷底往下流，再开始拐弯
+    xc = BW * (0.17 + 0.32 * q + 0.17 * (0.5 + 0.5 * q) * np.sin(q * 2 * np.pi * 1.1))
     wd = 3 + BW * 0.24 * p ** 1.35
     dd = (xx - xc) / wd
     lim = 1 + 0.28 * (noise2d(BH, BW, 36, 12, 3) - 0.5)          # 不规则的岸线
     soft = np.maximum(1.5, 0.12 * wd)
-    m = np.clip((lim - np.abs(dd)) * wd / soft, 0, 1) * smooth((yy - y0 - 15) / 80)
+    m = np.clip((lim - np.abs(dd)) * wd / soft, 0, 1) * smooth((yy - y0 + 5) / 40)
     ry, rx = np.nonzero(m > 0.002)
     bank = np.exp(-(((lim - np.abs(dd)) * wd) / (2 + 0.025 * wd)) ** 2)  # 岸边一道淡墨
     # 沿河"宽度单位"累计的路程：波纹在河面上等距，透视下近大远小
@@ -262,12 +267,12 @@ def build_river():
     # 近景峡谷：左右两山夹住河口
     gorge = lambda u: 0.06 + 0.9 * np.exp(-((u + 0.01) / 0.10) ** 2) + 0.8 * np.exp(-((u - 0.50) / 0.22) ** 2)
     tmp = np.ones((BH, BW, 3), np.float32)
-    ink_mountains(tmp, [(0.66, 0.33, 0.92, 0.07, 0.6, gorge)], seed=31, col=(0, 0, 0))
+    ink_mountains(tmp, [(0.66, 0.33, 0.92, 0.07, 0.6, gorge)], seed=31, col=(0, 0, 0), carve=(0.17, 0.63, 1.0))
     fga = 1 - tmp[..., 0]
     fga_r = fga * (1 - smooth((yy - y0 - 40) / 70))   # 河口在山后，流出后在山前
     under = img[ry, rx].copy()
     comp(img, INK, fga)
-    mist = 0.85 * np.exp(-((yy - y0 - 5) / 48) ** 2) * np.exp(-((xx - BW * 0.20) / (BW * 0.28)) ** 2)
+    mist = 0.85 * np.exp(-((yy - y0 + 10) / 40) ** 2) * np.exp(-((xx - BW * 0.20) / (BW * 0.28)) ** 2)
     comp(img, (0.93, 0.90, 0.83), mist)
     river = dict(ry=ry, rx=rx, m=m[ry, rx], dd=dd[ry, rx], s=srow[ry], under=under,
                  bank=bank[ry, rx], fga=fga_r[ry, rx], mist=mist[ry, rx],
