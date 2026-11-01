@@ -847,6 +847,82 @@ def hk_person():
     return dict(alpha=alpha.astype(np.float32), color=color.astype(np.float32))
 
 
+def hk_person_blit(img, t, pulse):
+    """路面上缓步行走的撑伞人：每帧现画（腿、大衣、伞都在动），带霓虹边缘光、身后柔光、脚下光斑和模糊倒影"""
+    u = 300 * S / 178
+    fh = 178 * u
+    SS = 2
+    CW, CH = int(380 * S), int(540 * S)
+    cx0, base = CW // 2, CH - int(90 * S)
+    ph = 2 * np.pi * t / (2 * 60 / 90)                    # 两拍一个完整步伐，和音乐同步
+    bob = -abs(np.sin(ph)) * 3.5 * u                       # 走路时身体上下起伏
+    a = 0.2 * np.sin(ph)                                   # 腿的摆角
+    hem = 2.5 * u * np.sin(ph + .8)                        # 大衣下摆摆动
+    tilt = .035 * np.sin(2 * np.pi * t / 2.6) + .01 * np.sin(2 * ph)    # 伞轻轻晃
+    P = lambda x, y: (x * SS, y * SS)
+
+    def new():
+        im = Image.new("L", (CW * SS, CH * SS))
+        return im, ImageDraw.Draw(im)
+    body, bd = new()
+    can, cd = new()
+    rib, rd = new()
+    hipy, L = base - fh * .40 + bob, fh * .40
+    for sg in (1, -1):                                      # 双腿
+        fx_, fy_ = cx0 + sg * 4 * u + np.sin(a * sg) * L, hipy + np.cos(a * sg) * L
+        bd.line([P(cx0 + sg * 4 * u, hipy), P(fx_, fy_)], fill=255, width=int(11 * u * SS))
+        r_ = 5.5 * u * SS
+        bd.ellipse([fx_ * SS - r_, fy_ * SS - r_, fx_ * SS + r_, fy_ * SS + r_], fill=255)
+    shy, hemy = base - fh * .80 + bob, base - fh * .34 + bob   # 大衣
+    bd.polygon([P(cx0 - 18 * u, shy), P(cx0 + 18 * u, shy), P(cx0 + 31 * u + hem, hemy), P(cx0 - 31 * u + hem, hemy)], fill=255)
+    hy = base - fh * .89 + bob                              # 头
+    bd.ellipse([*P(cx0 - 10 * u, hy - 11 * u), *P(cx0 + 10 * u, hy + 11 * u)], fill=255)
+    hand = (cx0 + 11 * u, base - fh * .93 + bob)            # 手握伞柄
+    bd.line([P(cx0 + 16 * u, shy + 4 * u), P(*hand)], fill=255, width=int(8 * u * SS))
+    cb = (cx0 + 6 * u, base - fh * 1.06 + bob)
+    ur, hr = 64 * u, 64 * u * .72
+    ct, st = np.cos(tilt), np.sin(tilt)
+    rot = lambda p: (hand[0] + (p[0] - hand[0]) * ct - (p[1] - hand[1]) * st, hand[1] + (p[0] - hand[0]) * st + (p[1] - hand[1]) * ct)
+    bd.line([P(*hand), P(*rot((cb[0], cb[1] + 2 * u)))], fill=255, width=int(3 * u * SS))
+    dome = [rot((cb[0] + ur * np.cos(f), cb[1] + hr * np.sin(f))) for f in np.linspace(np.pi, 2 * np.pi, 40)]
+    cd.polygon([P(*p) for p in dome], fill=255)
+    for k in range(1, 8):                                   # 伞骨
+        rd.line([P(*rot((cb[0], cb[1] - hr))), P(*rot((cb[0] - ur + 2 * ur * k / 8, cb[1])))], fill=255, width=max(1, int(1.6 * u * SS)))
+    ds = lambda im: np.asarray(im.resize((CW, CH), Image.LANCZOS)).astype(np.float32) / 255
+    A_b, A_c, A_r = ds(body), ds(can), ds(rib)
+    A = np.maximum(A_b, A_c)
+    xn = np.clip((np.arange(CW, dtype=np.float32)[None, :] - (cx0 - 70 * u)) / (140 * u), 0, 1)[..., None]
+    can_col = np.array([.72, .09, .17], np.float32) * (1.15 - .6 * xn) + np.array([.35, .08, .14], np.float32) * (1 - xn)
+    can_col = can_col * (1 - .45 * A_r[..., None])          # 左边被粉色霓虹照亮，伞骨处发暗
+    col_ = (np.array([.13, .11, .22], np.float32) * (1.25 - .5 * (np.arange(CH, dtype=np.float32) / CH)[:, None, None])) * (1 - A_c[..., None]) + can_col * A_c[..., None]
+    sh = max(2, int(3 * S))
+    eL = np.clip(A - np.roll(A, sh, axis=1), 0, 1)
+    eR = np.clip(A - np.roll(A, -sh, axis=1), 0, 1)
+    eT = np.clip(A - np.roll(A, sh, axis=0), 0, 1)
+    rim = (eL[..., None] * np.array([1.0, .35, .65]) + eR[..., None] * np.array([.25, .85, 1.0])
+           + eT[..., None] * np.array([1.0, .6, .8]) * .7) * (.9 + .3 * pulse)       # 左粉右青的霓虹边缘光
+    halo = gaussian_filter(A, 12 * S)[..., None] * (np.array([1.0, .45, .75]) * .5 + np.array([.3, .8, 1.0]) * .5) * (.22 + .2 * pulse)
+    yy, xx = np.mgrid[0:CH, 0:CW].astype(np.float32)
+    pool = np.exp(-(((xx - cx0) / (140 * S)) ** 2 + ((yy - base) / (24 * S)) ** 2))[..., None] * np.array([1.0, .55, .4]) * .3
+    rr = CH - base                                          # 倒影：翻转 + 模糊
+    ra = np.zeros_like(A)
+    rc = np.zeros_like(col_)
+    ra[base:] = A[base - 1::-1][:rr]
+    rc[base:] = (col_ + rim)[base - 1::-1][:rr]
+    ra = gaussian_filter(ra, (4 * S, 2 * S)) * .4
+    rc = gaussian_filter(rc, (4 * S, 2 * S, 0)) * .6
+    oa = np.maximum(A, ra)[..., None]
+    oc = np.where(A[..., None] > .01, col_, rc / np.maximum(ra[..., None], 1e-3).clip(.05))
+    px = int(W * .42 + 18 * S * np.sin(2 * np.pi * t / 40))   # 缓缓左右漂移
+    x0, y0 = px - cx0, int(YH + 0.80 * GH) - base
+    xa, ya, xb, yb = max(0, x0), max(0, y0), min(W, x0 + CW), min(H, y0 + CH)
+    if xb <= xa or yb <= ya:
+        return
+    sl = (slice(ya - y0, yb - y0), slice(xa - x0, xb - x0))
+    reg = img[ya:yb, xa:xb]
+    reg[:] = reg * (1 - oa[sl]) + oc[sl] * oa[sl] + rim[sl] * A[sl][..., None] + halo[sl] + pool[sl]
+
+
 def hk_setup():
     rng = np.random.default_rng(1101)
     vpx, vpy = W / 2, YH - 0.015 * H            # 灭点：街道尽头，贴着地平线
@@ -980,7 +1056,7 @@ def hk_setup():
     return dict(signs=signs, sky=sky, band=band.astype(np.float32), body_a=body_a, body_rgb=body_rgb,
                 win_thr=win_thr, win_rgb=win_rgb, ground=ground, rmask=rmask, xx=xx, yy=yy, yyi=yy.astype(np.int32),
                 frost_x=(frost * 2 - 1).astype(np.float32), frost_y=(frost2 * 2 - 1).astype(np.float32), persp=(yy + 8 * S) / GH, rows=np.clip(YH - 1 - (np.arange(GH) * 3.5).astype(np.int32), 0, YH - 1),
-                trails=trails, drops=drops, ripples=ripples, person=hk_person(), title=title, logo=logo,
+                trails=trails, drops=drops, ripples=ripples, title=title, logo=logo,
                 vig=(1 - 0.38 * (((vx - W / 2) / (W * .75)) ** 2 + ((vy - H / 2) / (H * .75)) ** 2))[..., None],
                 grain=[rng.standard_normal((H // 2, W // 2)).astype(np.float32) for _ in range(6)],
                 pulse=audio_pulse(), vp=(vpx, vpy))
@@ -1028,8 +1104,7 @@ def hk_frame(i):
     refl = gaussian_filter(refl[yi, xi], (4 * S, 3 * S, 0))
     ground = sc["ground"] + refl * sc["rmask"]
     img = np.concatenate([up, ground], axis=0)
-    pr = sc["person"]
-    img = img * (1 - pr["alpha"][..., None]) + pr["color"] * pr["alpha"][..., None]
+    hk_person_blit(img, t, pulse)
 
     # 雨丝 + 涟漪
     rain = Image.new("L", (W, H))
