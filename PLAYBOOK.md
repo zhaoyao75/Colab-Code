@@ -165,4 +165,4 @@ ffmpeg -y -i stellar_echo_full_bw.mp4 -c:v libx264 -preset slower -b:v 1650k -pa
 - **星星头角色**：2D 星星多边形 + `line(width, joint="curve")` 加顶点圆即可做出圆润星角；侧边厚度用「同一星形沿屏幕水平方向偏移多层」叠出，正面再画一层带描边的星形，斜侧面就有潮玩立体感。头大手短时，抬臂动作会与头重叠，抬臂角度别超过约 140°。
 - **用角色参考图做设计**：取配色（靛蓝/奶油/薰衣草紫/奶油黄）、发型（双丸子+星星发夹）、服装细节（护腕、条纹袜、厚底鞋、四角星标志）和场景道具，画成原创卡通；不复刻 3D 渲染质感与具体相貌，服装按通用受众收得更完整。
 - **画圆头肢体的坑**：`cap()`（圆头线段）画「裤脚包边/袜口条纹」会变成圆盘。要做包边，先画更长的包边色肢段，再画略短的主色肢段，露出一圈月牙；头顶/抬手高度别越过进度条（安全区）。
-- **小燃 16 秒成片复现**（`fitness_coach/`）：`python3 make_audio.py`（需联网合成 Edge 旁白，默认晓伊，`TTS_VOICE=zh-CN-XiaoxiaoNeural` 换声）→ `python3 render.py --still 1 3.5 8 11.25 15` 先看静帧 → `python3 render.py` 渲染成片（4 进程，约 1~2 分钟，输出约 3.6MB）→ `python3 make_cover.py` 出封面。成片后务必用 `ffmpeg -ss t` 从 mp4 里逐秒抽帧再看一遍，别只看静帧。`render_buns_alt.py` 是备选的双丸子头角色版本。
+- **小燃 16 秒成片复现**（`fitness_coach/`）：`python3 make_audio.py`（需联网合成 Edge 旁白，默认晓伊，`TTS_VOICE=zh-CN-XiaoxiaoNeural` 换声）→ `python3 render.py --still 1 3.5 8 11.25 15` 先看静帧 → `python3 render.py` 渲染成片（4 进程，约 1~2 分钟，输出约 3.9MB）→ `python3 make_cover.py` 出封面。成片后务必用 `ffmpeg -ss t` 从 mp4 里逐秒抽帧再看一遍，别只看静帧。`render_buns_alt.py` 是备选的双丸子头角色版本。
