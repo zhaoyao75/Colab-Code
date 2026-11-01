@@ -17,14 +17,15 @@ W, H, FPS, DUR = 1080, 1920, 30, 16.0
 NF = int(FPS * DUR)
 ZH = "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"
 GROUND, CX = 1250, 520
-K = 1.35                          # 角色整体放大（以脚底为轴）
+K = 1.55                          # 角色整体放大（以脚底为轴）
 SS = 2
 LAY = (0, 430, W, 900)
 YAW = math.radians(38)             # 机位：角色朝向画面右前方 38°
 CY_, SY_ = math.cos(YAW), math.sin(YAW)
 
 # ---------- 配色（Q 版：平涂 + 深棕描边）----------
-SKIN, SKIN_D = (255, 222, 196), (240, 190, 160)
+SKIN, SKIN_D = (255, 230, 134), (238, 188, 70)               # 手脚：与星星头同色系的奶黄
+HEADC, HEADC_D = (255, 214, 72), (226, 164, 40)             # 星星头正面 / 侧边厚度
 HAIR, HAIR_L = (112, 68, 52), (160, 108, 84)
 TOP, TOP_D = (255, 133, 133), (226, 100, 108)         # 珊瑚粉运动上衣
 PANTS, PANTS_D = (74, 96, 178), (54, 72, 146)         # 靛蓝运动短裤/紧身裤
@@ -36,8 +37,8 @@ STAR = (255, 222, 72)
 OW = 3.4                                              # 描边宽度（未放大）
 
 # ---------- 身体尺寸（Q 版：大头、短手脚）----------
-HEAD_R, TORSO, SH, HIPW = 80, 118, 36, 22
-UARM, FARM, THIGH, SHIN = 78, 74, 104, 100
+HEAD_R, TORSO, SH, HIPW = 84, 86, 30, 20
+UARM, FARM, THIGH, SHIN = 54, 50, 78, 74
 LEG = THIGH + SHIN; ANK = 14
 
 def V(*a): return np.array(a, float)
@@ -66,7 +67,7 @@ def seg_of(t):
 def body(py, pz=0.0, lean=0.0):
     P = V(0, py, pz); l = math.radians(lean); u = V(0, math.cos(l), math.sin(l))
     C = P + u * TORSO; hd = V(0, math.cos(l * 0.4), math.sin(l * 0.4))
-    return dict(P=P, C=C, sh={s: C + V(s * SH, 0, 0) for s in (-1, 1)}, head=C + hd * (HEAD_R + 4), u=u)
+    return dict(P=P, C=C, sh={s: C + V(s * SH, 0, 0) for s in (-1, 1)}, head=C + hd * (HEAD_R + 2), u=u)
 
 def pose(t):
     name, lt = seg_of(t)
@@ -74,14 +75,14 @@ def pose(t):
     if name == "hook":
         b = body(ANK + LEG - 5 + 3 * math.sin(t * 4 * math.pi), 0, 2)
         for s in (-1, 1):
-            legs[s] = ik(b["P"] + V(s * HIPW, 0, 0), V(s * 32, ANK, 0), THIGH, SHIN, V(s * .3, 0, 1)) + (V(s * 32, ANK, 0),)
+            legs[s] = ik(b["P"] + V(s * HIPW, 0, 0), V(s * 26, ANK, 0), THIGH, SHIN, V(s * .3, 0, 1)) + (V(s * 26, ANK, 0),)
         w = math.sin(t * 2 * math.pi * 3.2); sh_n, sh_f = b["sh"][-1], b["sh"][1]
-        e, h = ik(sh_n, sh_n + V(-50 + 34 * w, 124, 26), UARM, FARM, V(-1, -.5, -.2)); arms[-1] = (sh_n, e, h)
-        e, h = ik(sh_f, b["P"] + V(HIPW + 24, 16, 10), UARM, FARM, V(1, -.1, -.9)); arms[1] = (sh_f, e, h)
+        e, h = ik(sh_n, sh_n + V(-66 + 22 * w, 68, 16), UARM, FARM, V(-1, -.5, -.2)); arms[-1] = (sh_n, e, h)
+        e, h = ik(sh_f, b["P"] + V(HIPW + 16, 12, 8), UARM, FARM, V(1, -.1, -.9)); arms[1] = (sh_f, e, h)
         mood = "grin"
     elif name == "jack":
-        p = lt % 1.0; u = ease(0.5 - 0.5 * math.cos(2 * math.pi * p)); lift = 20 * abs(math.sin(2 * math.pi * p))
-        la = math.radians(lerp(2, 24, u)); b = body(ANK + lift + LEG * math.cos(la) * .995, 0, 0); aa = lerp(12, 162, u)
+        p = lt % 1.0; u = ease(0.5 - 0.5 * math.cos(2 * math.pi * p)); lift = 16 * abs(math.sin(2 * math.pi * p))
+        la = math.radians(lerp(2, 24, u)); b = body(ANK + lift + LEG * math.cos(la) * .995, 0, 0); aa = lerp(12, 142, u)
         for s in (-1, 1):
             sh = b["sh"][s]; e, h = ik(sh, sh + limb(s, aa, 0) * (UARM + FARM) * .985, UARM, FARM, V(0, 0, -1)); arms[s] = (sh, e, h)
             ank = V(s * (HIPW + LEG * math.sin(la)), ANK + lift, 0)
@@ -89,11 +90,11 @@ def pose(t):
         mood = "grin" if u > .5 else "smile"
     elif name == "squat":
         p = (lt % 2.0) / 2.0; d = ease(0.5 - 0.5 * math.cos(2 * math.pi * p))
-        b = body(lerp(ANK + LEG - 4, 150, d), lerp(0, -60, d), lerp(2, 32, d))
+        b = body(lerp(ANK + LEG - 4, 110, d), lerp(0, -44, d), lerp(2, 32, d))
         for s in (-1, 1):
-            ank = V(s * lerp(36, 46, d), ANK, 0)
+            ank = V(s * lerp(28, 36, d), ANK, 0)
             legs[s] = ik(b["P"] + V(s * HIPW, 0, 0), ank, THIGH, SHIN, V(s * .25 * d, 0, 1)) + (ank,)
-            sh = b["sh"][s]; e, h = ik(sh, sh + V(-s * 10, -6 + 6 * d, 128), UARM, FARM, V(s * .5, -1, 0)); arms[s] = (sh, e, h)
+            sh = b["sh"][s]; e, h = ik(sh, sh + V(-s * 8, -4 + 4 * d, 96), UARM, FARM, V(s * .5, -1, 0)); arms[s] = (sh, e, h)
         mood = "effort" if d > .5 else "smile"
     elif name == "knees":
         q = lt * 2.0; side = -1 if int(q) % 2 == 0 else 1; lf = ease(math.sin(math.pi * (q % 1.0)))
@@ -112,7 +113,7 @@ def pose(t):
     else:
         b = body(ANK + LEG - 4 + 3 * abs(math.sin(lt * 4 * math.pi)), 0, 2)
         for s in (-1, 1):
-            legs[s] = ik(b["P"] + V(s * HIPW, 0, 0), V(s * 32, ANK, 0), THIGH, SHIN, V(s * .3, 0, 1)) + (V(s * 32, ANK, 0),)
+            legs[s] = ik(b["P"] + V(s * HIPW, 0, 0), V(s * 26, ANK, 0), THIGH, SHIN, V(s * .3, 0, 1)) + (V(s * 26, ANK, 0),)
         sh = b["sh"][-1]; el = sh + limb(-1, 34, 20) * UARM; arms[-1] = (sh, el, el + limb(-1, 6, 172) * FARM)
         sh = b["sh"][1]; el = sh + limb(1, 12, 8) * UARM; arms[1] = (sh, el, el + limb(1, 8, 28) * FARM)
         mood, thumb = "grin", True
@@ -169,89 +170,74 @@ def draw_coach(P, t, voice):
 
     for s in (-1, 1):
         hp = b["P"] + V(s * HIPW, 0, 0); kn_pt, an_pt = P["legs"][s][0], P["legs"][s][1]; f = far(dp(hp))
-        add(dp(hp + an_pt) / 2 - 1, lambda hp=hp, kn_pt=kn_pt, an_pt=an_pt, f=f: group([(hp, kn_pt, 36), (kn_pt, an_pt, 31)], shade(PANTS, f)))
-        heel = an_pt + V(0, -6, -10); toe = an_pt + V(s * 5, -6, 30)
+        add(dp(hp + an_pt) / 2 - 1, lambda hp=hp, kn_pt=kn_pt, an_pt=an_pt, f=f: (group([(kn_pt, an_pt, 24)], shade(SKIN, f)), group([(hp, kn_pt, 31)], shade(PANTS, f))))
+        heel = an_pt + V(0, -4, -8); toe = an_pt + V(s * 4, -4, 24)
         def shoe(heel=heel, toe=toe, f=f):
-            group([(heel, toe, 25)], shade(SHOE, f)); disc(toe, 8, shade(SHOE_A, f), (0, 1), outline=False)
+            group([(heel, toe, 21)], shade(SHOE, f)); disc(toe, 7, shade(SHOE_A, f), (0, 1), outline=False)
         add(dp(an_pt) + 1, shoe)
 
     def torso():
         C, Pp = b["C"], b["P"]; mid = Pp + b["u"] * TORSO * 0.5
-        pts = [C + V(sx * (SH + 4), 6, sz * 20) for sx in (-1, 1) for sz in (-1, 1)]
-        pts += [mid + V(sx * SH * .7, 0, sz * 18) for sx in (-1, 1) for sz in (-1, 1)]
-        pts += [Pp + V(sx * (HIPW + 12), 4, sz * 19) for sx in (-1, 1) for sz in (-1, 1)]
-        poly(pts, TOP, 14)
-        poly([Pp + V(sx * (HIPW + 12), dy, sz * 20) for sx in (-1, 1) for sz in (-1, 1) for dy in (-18, 6)], PANTS, 20)
-        cx_, cy_ = X(pr(Pp + b["u"] * TORSO * .56 + V(0, 0, 18)))                     # 胸前星星「AI」徽章
-        draw_star(d, cx_, cy_, rr(26), rr(12), wi(3))
-        d.text((cx_, cy_ + rr(2)), "AI", font=ImageFont.truetype(ZH, int(16 * S2)), fill=INK, anchor="mm")
+        pts = [C + V(sx * (SH + 4), 6, sz * 17) for sx in (-1, 1) for sz in (-1, 1)]
+        pts += [mid + V(sx * SH * .7, 0, sz * 15) for sx in (-1, 1) for sz in (-1, 1)]
+        pts += [Pp + V(sx * (HIPW + 10), 4, sz * 16) for sx in (-1, 1) for sz in (-1, 1)]
+        poly(pts, TOP, 12)
+        poly([Pp + V(sx * (HIPW + 10), dy, sz * 17) for sx in (-1, 1) for sz in (-1, 1) for dy in (-14, 5)], PANTS, 16)
+        cx_, cy_ = X(pr(Pp + b["u"] * TORSO * .56 + V(0, 0, 15)))                     # 胸前星星「AI」徽章
+        draw_star(d, cx_, cy_, rr(21), rr(9.5), wi(2.6))
+        d.text((cx_, cy_ + rr(2)), "AI", font=ImageFont.truetype(ZH, int(12 * S2)), fill=INK, anchor="mm")
     add(0, torso)
 
     for s in (-1, 1):
         sh, el, hd = P["arms"][s]; f = far(dp(sh))
-        add(dp(sh + hd) / 2, lambda sh=sh, el=el, hd=hd, f=f: group([(sh, el, 30), (el, hd, 27)], shade(SKIN, f)))
+        add(dp(sh + hd) / 2, lambda sh=sh, el=el, hd=hd, f=f: group([(sh, el, 24), (el, hd, 22)], shade(SKIN, f)))
         def hand(hd=hd, f=f, s=s):
             if P["thumb"] and s == -1:
-                c = X(pr(hd)); cap(hd + V(0, 4, 0), hd + V(0, 26, 0), 13 + 2 * OW, OUT); cap(hd + V(0, 4, 0), hd + V(0, 26, 0), 13, SKIN)
-            disc(hd, 14, shade(SKIN, f))
+                c = X(pr(hd)); cap(hd + V(0, 3, 0), hd + V(0, 21, 0), 11 + 2 * OW, OUT); cap(hd + V(0, 3, 0), hd + V(0, 21, 0), 11, SKIN)
+            disc(hd, 12, shade(SKIN, f))
         add(dp(hd) + .5, hand)
-        add(dp(sh) + .6, lambda sh=sh, el=el, f=f: (group([(sh, sh + (el - sh) * .4, 36)], shade(TOP, f))))
+        add(dp(sh) + .6, lambda sh=sh, el=el, f=f: (group([(sh, sh + (el - sh) * .42, 29)], shade(TOP, f))))
 
     def head():
-        hc = pr(b["head"]); R = HEAD_R; cx, cy = X(hc); rr_ = rr
-        def blob(draw_fn, col):                       # 带描边的形状：先外扩一圈描边色，再画本体
-            draw_fn(OW * S2, OUT); draw_fn(0, col)
-        def rrect(x0, y0, x1, y1, rad):
-            return lambda e, c: d.rounded_rectangle([x0 - e, y0 - e, x1 + e, y1 + e], radius=rad + e, fill=c)
-        def ell(x0, y0, x1, y1):
-            return lambda e, c: d.ellipse([x0 - e, y0 - e, x1 + e, y1 + e], fill=c)
-        blob(rrect(cx - rr_(1.1 * R), cy - rr_(1.04 * R), cx + rr_(0.95 * R), cy + rr_(0.62 * R), rr_(0.6 * R)), HAIR)      # 后发（波波头）
-        fx, fy = cx + rr_(0.13 * R), cy + rr_(0.06 * R)
-        blob(ell(fx - rr_(0.93 * R), fy - rr_(0.95 * R), fx + rr_(0.93 * R), fy + rr_(0.96 * R)), SKIN)                       # 脸
-        def face(ex, ey, rad=0.95):
-            ez = math.sqrt(max(rad * rad - ex * ex - ey * ey, 0.01))
-            return cx + rr_((ex * CY_ + ez * SY_) * R), cy - rr_(ey * R), max((-ex * SY_ + ez * CY_), 0.2)
-        # 齐刘海
-        top = [(cx + rr_(1.05 * R * math.cos(math.radians(a))), cy - rr_(0.1 * R) - rr_(1.0 * R * math.sin(math.radians(a)))) for a in range(0, 181, 9)]
-        bot = [(cx - rr_(1.04 * R) + rr_(2.09 * R) * k / 12, cy - rr_(0.30 * R) + rr_(0.06 * R) * math.sin(k * 1.4)) for k in range(0, 13)]
-        fr = top + bot[::-1]
-        d.polygon(fr, fill=OUT); d.line(fr + [fr[0]], fill=OUT, width=wi(2 * OW), joint="curve"); d.polygon(fr, fill=HAIR)
-        for k in range(3): d.line([(cx - rr_(0.5 * R) + rr_(0.3 * R) * k, cy - rr_(0.92 * R) + rr_(0.08 * R) * k), (cx - rr_(0.3 * R) + rr_(0.3 * R) * k, cy - rr_(0.5 * R))], fill=HAIR_L, width=wi(3))
-        # 近侧发帘
-        blob(ell(cx - rr_(1.0 * R), cy - rr_(0.52 * R), cx - rr_(0.3 * R), cy + rr_(0.66 * R)), HAIR)
-        # 耳机（AI 标识）
-        ex_, ey_ = cx - rr_(0.66 * R), cy + rr_(0.14 * R)
-        d.ellipse([ex_ - rr_(15), ey_ - rr_(15), ex_ + rr_(15), ey_ + rr_(15)], fill=OUT); d.ellipse([ex_ - rr_(11), ey_ - rr_(11), ex_ + rr_(11), ey_ + rr_(11)], fill=(70, 72, 100))
-        d.ellipse([ex_ - rr_(6), ey_ - rr_(6), ex_ + rr_(6), ey_ + rr_(6)], fill=AICOL)
-        mx, my, md = face(0, -0.5)
-        d.line([(ex_, ey_ + rr_(10)), (cx - rr_(0.3 * R), cy + rr_(0.86 * R)), (mx - rr_(0.28 * R), my + rr_(0.12 * R))], fill=(70, 72, 100), width=wi(3.5), joint="curve")
-        d.ellipse([mx - rr_(0.28 * R) - rr_(5), my + rr_(0.12 * R) - rr_(5), mx - rr_(0.28 * R) + rr_(5), my + rr_(0.12 * R) + rr_(5)], fill=(70, 72, 100))
-        # 星星发夹（大小各一）
-        draw_star(d, cx - rr_(0.62 * R), cy - rr_(0.62 * R), rr_(16), rr_(7), wi(2.6), rot=-80)
-        draw_star(d, cx - rr_(0.30 * R), cy - rr_(0.84 * R), rr_(9), rr_(4), wi(2), rot=-100)
-        # 五官：圆点眼 + 小嘴 + 腮红
+        hc = pr(b["head"]); cx, cy = X(hc); R = HEAD_R; ro = R * 1.22; ri = ro * .56; rnd = 30
+        rot = -90 + 5 * math.sin(2 * math.pi * t); T = 50 * SY_
+        def star_at(off, col, extra):
+            c0 = cx - rr(off)
+            pts = [(c0 + (x - c0) * CY_, y) for x, y in star_pts(c0, cy, rr(ro - rnd / 2), rr(ri - rnd * .3), rot)]
+            w = wi(rnd + extra); d.polygon(pts, fill=col); d.line(pts + [pts[0]], fill=col, width=w, joint="curve")
+            for p in pts: d.ellipse([p[0] - w / 2, p[1] - w / 2, p[0] + w / 2, p[1] + w / 2], fill=col)
+        offs = [T * k / 6 for k in range(6, -1, -1)]
+        for o in offs: star_at(o, OUT, 2 * OW)
+        for o in offs: star_at(o, HEADC_D, 0)
+        star_at(0, OUT, 2 * OW * .6); star_at(0, HEADC, 0)
+        # 高光（潮玩质感）
+        d.ellipse([cx - rr(.62 * R), cy - rr(.52 * R), cx - rr(.22 * R), cy - rr(.30 * R)], fill=(255, 244, 190, 210)); d.ellipse([cx - rr(.74 * R), cy - rr(.28 * R), cx - rr(.66 * R), cy - rr(.20 * R)], fill=(255, 244, 190, 210))
+        fx, fy = cx + rr(.07 * R), cy + rr(.12 * R); k = CY_
+        # 耳机（左侧星角）+ 麦克风
+        tipx = cx + (-ro * .84 * math.cos(math.radians(18))) * S2 * k; tipy = cy - ro * .84 * math.sin(math.radians(18)) * S2
+        tx, ty = tipx - rr(T * .6), tipy + rr(8)
+        d.ellipse([tx - rr(16), ty - rr(16), tx + rr(16), ty + rr(16)], fill=OUT); d.ellipse([tx - rr(12), ty - rr(12), tx + rr(12), ty + rr(12)], fill=(70, 72, 100)); d.ellipse([tx - rr(6.5), ty - rr(6.5), tx + rr(6.5), ty + rr(6.5)], fill=AICOL)
+        mx, my = fx - rr(.14 * R), fy + rr(.36 * R)
+        d.line([(tx, ty + rr(12)), (tx + rr(8), my + rr(10)), (mx - rr(.10 * R), my + rr(4))], fill=(70, 72, 100), width=wi(3.4), joint="curve")
+        d.ellipse([mx - rr(.10 * R) - rr(5), my + rr(4) - rr(5), mx - rr(.10 * R) + rr(5), my + rr(4) + rr(5)], fill=(70, 72, 100))
         blink = (t % 3.2) < 0.12
-        for s, ex in ((-1, -0.40), (1, 0.40)):
-            x, y, dep = face(ex, -0.10); w = rr_(8.5 * dep); hg = rr_(11.5)
-            if P["mood"] == "effort" or blink:
-                d.arc([x - w * 1.2, y - rr_(5), x + w * 1.2, y + rr_(9)], 200, 340, fill=INK, width=wi(3.6))
+        for sgn in (-1, 1):
+            ex = fx + sgn * rr(.30 * R * k * 1.15); ey = fy
+            if P["mood"] == "effort" or blink: d.arc([ex - rr(10), ey - rr(5), ex + rr(10), ey + rr(9)], 200, 340, fill=INK, width=wi(3.6))
             else:
-                d.ellipse([x - w, y - hg, x + w, y + hg], fill=INK); d.ellipse([x - w * .1, y - hg * .65, x + w * .55, y - hg * .05], fill=(255, 255, 255))
-            bx, by, bd = face(ex, 0.12); lift = -rr_(3) if P["mood"] == "effort" else 0
-            d.line([(bx - rr_(9 * bd), by + rr_(2) + lift * (-s)), (bx + rr_(9 * bd), by - rr_(2) + lift * s)], fill=INK, width=wi(3))
-            kx, ky, kd = face(ex * 1.6, -0.34); d.ellipse([kx - rr_(15 * kd), ky - rr_(9), kx + rr_(15 * kd), ky + rr_(9)], fill=(255, 140, 150, 170))
-        nx, ny, nd = face(0, -0.24, 1.02); d.ellipse([nx - rr_(3.5), ny - rr_(3), nx + rr_(3.5), ny + rr_(3)], fill=SKIN_D)
-        mx, my, md = face(0, -0.5); mw = rr_(15 * md)
+                d.ellipse([ex - rr(8 * k), ey - rr(12), ex + rr(8 * k), ey + rr(12)], fill=INK); d.ellipse([ex - rr(1.5), ey - rr(9), ex + rr(4.5), ey - rr(2)], fill=(255, 255, 255))
+            lift = -rr(3) if P["mood"] == "effort" else 0
+            d.line([(ex - rr(9 * k), ey - rr(21) + rr(2) + lift * (-sgn)), (ex + rr(9 * k), ey - rr(23) + lift * sgn)], fill=INK, width=wi(3))
+            kx = fx + sgn * rr(.58 * R * k); d.ellipse([kx - rr(13), fy + rr(.12 * R), kx + rr(13), fy + rr(.12 * R) + rr(17)], fill=(255, 130, 140, 190))
+        mxx, myy, mw = fx, fy + rr(.30 * R), rr(13)
         if voice > 0.05:
-            o = rr_(7 + min(voice * 22, 8)); d.ellipse([mx - mw * .75, my - rr_(3), mx + mw * .75, my - rr_(3) + o], fill=(190, 62, 80), outline=INK, width=wi(2.4))
-        elif P["mood"] == "effort":
-            d.rounded_rectangle([mx - mw * .8, my, mx + mw * .8, my + rr_(10)], radius=rr_(5), fill=(190, 62, 80), outline=INK, width=wi(2.4))
-        else:
-            d.arc([mx - mw, my - rr_(11), mx + mw, my + rr_(7)], 20, 160, fill=INK, width=wi(3.2))
+            o = rr(7 + min(voice * 22, 9)); d.ellipse([mxx - mw * .8, myy - rr(2), mxx + mw * .8, myy - rr(2) + o], fill=(190, 62, 80), outline=INK, width=wi(2.4))
+        elif P["mood"] == "effort": d.rounded_rectangle([mxx - mw * .8, myy, mxx + mw * .8, myy + rr(10)], radius=rr(5), fill=(190, 62, 80), outline=INK, width=wi(2.4))
+        else: d.arc([mxx - mw, myy - rr(10), mxx + mw, myy + rr(7)], 20, 160, fill=INK, width=wi(3.2))
     add(8, head)
 
     sx_, sy_ = pr(V(0, 0, b["P"][2] * 0.6))
-    d.ellipse([*X((sx_ - 130, GROUND - 10)), *X((sx_ + 130, GROUND + 24))], fill=(30, 90, 40, 80))
+    d.ellipse([*X((sx_ - 100, GROUND - 8)), *X((sx_ + 100, GROUND + 20))], fill=(30, 90, 40, 80))
     for dep, _, fn in sorted(prims, key=lambda z: (z[0], z[1])): fn()
     return img.resize((lw, lh), Image.LANCZOS)
 
@@ -383,7 +369,7 @@ def bg_sunset():     # D 黄昏暖光：晚霞渐变 + 落日 + 剪影山坡
     mat(ImageDraw.Draw(im), (255, 232, 200, 255)); return im
 
 BG_STYLES = {"flat": None, "fresh": bg_fresh, "toy": bg_toy, "home": bg_home, "sunset": bg_sunset}
-BG_STYLE = os.environ.get("BG", "fresh")
+BG_STYLE = os.environ.get("BG", "home")
 _bgc = {}
 def background():
     st = BG_STYLE
@@ -441,7 +427,7 @@ def frame(t, timings):
         p = os.path.join(TMP, "voice_env.npy"); _voice_env = np.load(p) if os.path.exists(p) else np.zeros(1)
     v = float(_voice_env[min(int(t * 44100), len(_voice_env) - 1)]); P = pose(t); name, lt = seg_of(t)
     im = background().convert("RGBA"); sun_pulse(t, im)
-    im.alpha_composite(draw_coach(P, t, v), (LAY[0], LAY[1])); star_buddy(im, t, v, P["mood"]); im.alpha_composite(overlay(t, name, lt, timings))
+    im.alpha_composite(draw_coach(P, t, v), (LAY[0], LAY[1])); im.alpha_composite(overlay(t, name, lt, timings))
     return im.convert("RGB")
 
 def load_timings():
