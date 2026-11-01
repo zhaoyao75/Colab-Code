@@ -760,7 +760,7 @@ def hk_make_sign(seed, kind, w, h, c1, c2, word, icon):
     if kind in ("vblade", "hboard"):
         dp.rounded_rectangle(box, rad, fill=255)
         if lightbox:
-            d.rounded_rectangle(box, rad, fill=dim(C1, .36))
+            d.rounded_rectangle(box, rad, fill=dim(C1, .42))
             d.rounded_rectangle(box, rad, outline=C2, width=lw)
             tcol = (255, 255, 255)
         else:
@@ -780,7 +780,7 @@ def hk_make_sign(seed, kind, w, h, c1, c2, word, icon):
     elif kind == "round":
         dp.ellipse(box, fill=255)
         if lightbox:
-            d.ellipse(box, fill=dim(C1, .36))
+            d.ellipse(box, fill=dim(C1, .42))
         d.ellipse(box, outline=C2 if lightbox else C1, width=lw)
         ins = lw * 3
         d.ellipse([pad + ins, pad + ins, pad + w - ins, pad + h - ins], outline=C2, width=max(1, lw - 1))
@@ -807,7 +807,7 @@ def hk_make_sign(seed, kind, w, h, c1, c2, word, icon):
     g1 = blur_big(E, max(1.5, lw * 1.3))
     g2 = blur_big(E, max(4.0, lw * 4.5))
     white = np.clip(E.max(axis=2, keepdims=True) - .55, 0, 1) * .6
-    return A, (E + .5 * g1 + .35 * g2 + .8 * white).astype(np.float32), pad
+    return A, (E + .6 * g1 + .45 * g2 + .8 * white).astype(np.float32), pad
 
 
 def hk_person():
@@ -878,13 +878,21 @@ def hk_person_blit(img, t, pulse):
         bd.ellipse([*P(foot[0] - 4.5 * u, foot[1] - 2.5 * u), *P(foot[0] + 8 * u, foot[1] + 3 * u)], fill=255)
     shy, hemy = base - fh * .80 + bob, base - fh * .34 + bob
     mid = (shy + hemy) / 2
+    wind = 2.2 * u * np.sin(2 * np.pi * t / 1.7 + 1.0)       # 下摆被风吹得一飘一飘
+    wave = [P(cx0 - 30 * u + 60 * u * k / 8 + hem + wind * k / 8, hemy + 1.8 * u * np.sin(k * 1.2 + ph * 1.5 + t * 1.3)) for k in range(9)]
     bd.polygon([P(cx0 - 7 * u, shy - 4 * u), P(cx0 - 16 * u, shy + 1.5 * u), P(cx0 - 18.5 * u, shy + 14 * u),
-                P(cx0 - 24 * u + hem * .5, mid), P(cx0 - 30 * u + hem, hemy), P(cx0 + 30 * u + hem, hemy),
-                P(cx0 + 24 * u + hem * .5, mid), P(cx0 + 18.5 * u, shy + 14 * u), P(cx0 + 16 * u, shy + 1.5 * u),
+                P(cx0 - 24 * u + hem * .5, mid)] + wave +
+               [P(cx0 + 24 * u + hem * .5 + wind * .5, mid), P(cx0 + 18.5 * u, shy + 14 * u), P(cx0 + 16 * u, shy + 1.5 * u),
                 P(cx0 + 7 * u, shy - 4 * u)], fill=255)
+    fold, fd = new()                                        # 衣褶：几条随步伐微微摆动的线
+    for k, fx0 in enumerate((-9, 2, 11)):
+        fd.line([P(cx0 + fx0 * u, shy + 16 * u), P(cx0 + (fx0 * 1.8) * u + hem * (.4 + .2 * k), hemy - 3 * u)], fill=255, width=max(1, int(1.2 * u * SS)))
     hy = base - fh * .89 + bob                              # 头颈
     bd.rectangle([*P(cx0 - 3.5 * u, hy + 6 * u), *P(cx0 + 3.5 * u, shy - 2 * u)], fill=255)
     bd.ellipse([*P(cx0 - 9 * u, hy - 11 * u), *P(cx0 + 9 * u, hy + 10 * u)], fill=255)
+    tail = (cx0 - 15 * u - 5 * u * np.sin(ph + .5), hy + 12 * u + 2 * u * abs(np.sin(ph)))    # 马尾随步伐摆动
+    bd.line([P(cx0 - 8 * u, hy - 3 * u), P(cx0 - 12 * u - 2 * u * np.sin(ph + .5), hy + 4 * u), P(*tail)], fill=255, width=int(4.5 * u * SS), joint="curve")
+    bd.ellipse([*P(tail[0] - 2.8 * u, tail[1] - 2.8 * u), *P(tail[0] + 2.8 * u, tail[1] + 2.8 * u)], fill=255)
     swing = np.sin(ph)                                      # 自由的那只手随步伐前后摆
     sh_l, sh_r = (cx0 - 17 * u, shy + 3 * u), (cx0 + 17 * u, shy + 3 * u)
     free = (cx0 - 22 * u - 5 * u * swing, shy + 38 * u)
@@ -906,12 +914,13 @@ def hk_person_blit(img, t, pulse):
     for k in range(1, 8):                                   # 伞骨
         rd.line([P(*rot((cb[0], cb[1] - hr))), P(*rot((cb[0] - ur + 2 * ur * k / 8, cb[1])))], fill=255, width=max(1, int(1.4 * u * SS)))
     ds = lambda im: np.asarray(im.resize((CW, CH), Image.LANCZOS)).astype(np.float32) / 255
-    A_b, A_c, A_r = ds(body), ds(can), ds(rib)
+    A_b, A_c, A_r, A_f = ds(body), ds(can), ds(rib), ds(fold)
     A = np.maximum(A_b, A_c)
     xn = np.clip((np.arange(CW, dtype=np.float32)[None, :] - (cx0 - 70 * u)) / (140 * u), 0, 1)[..., None]
     can_col = np.array([.34, .045, .085], np.float32) * (1.1 - .5 * xn) * (1 - .4 * A_r[..., None])   # 深酒红，左侧略亮
     yv = (np.arange(CH, dtype=np.float32) / CH)[:, None, None]
     body_col = np.array([.04, .038, .07], np.float32) * (1.0 + .8 * yv)       # 近乎黑，越靠近地面越被路面的光染亮一点
+    body_col = body_col + .03 * A_f[..., None] * np.array([1.0, .9, 1.3], np.float32)       # 衣褶处略亮
     col_ = body_col * (1 - A_c[..., None]) + can_col * A_c[..., None]
     sh = max(2, int(3 * S))
     eL = np.clip(A - np.roll(A, sh, axis=1), 0, 1)
@@ -927,10 +936,20 @@ def hk_person_blit(img, t, pulse):
     rc = np.zeros_like(col_)
     ra[base:] = A[base - 1::-1][:rr]
     rc[base:] = (col_ + rim)[base - 1::-1][:rr]
-    ra = gaussian_filter(ra, (4 * S, 2 * S)) * .35
+    ra = gaussian_filter(ra, (4 * S, 2 * S)) * .5
     rc = gaussian_filter(rc, (4 * S, 2 * S, 0)) * .6
     oa = np.maximum(A, ra)[..., None]
     oc = np.where(A[..., None] > .01, col_, rc / np.maximum(ra[..., None], 1e-3).clip(.05))
+    rp = Image.new("L", (CW, CH))                            # 每一步落脚荡开一圈水纹
+    rdw = ImageDraw.Draw(rp)
+    n_ev = int(t / (60 / 90))
+    for ev in range(n_ev - 2, n_ev + 1):
+        age = (t - ev * 60 / 90) / 1.3
+        if 0 <= age < 1:
+            fxp = cx0 + (9 if ev % 2 == 0 else -9) * u + 2 * u * np.sin(ev)
+            r_ = (7 + 52 * age) * S
+            rdw.ellipse([fxp - r_, base + 3 * S - r_ * .28, fxp + r_, base + 3 * S + r_ * .28], outline=int(150 * (1 - age) ** 1.5), width=max(1, int(1.6 * S)))
+    ripple = np.asarray(rp.filter(ImageFilter.GaussianBlur(.7 * S))).astype(np.float32)[..., None] / 255 * np.array([.75, .85, 1.0]) * .55
     px = int(W * .42 + 18 * S * np.sin(2 * np.pi * t / 40))   # 缓缓左右漂移
     x0, y0 = px - cx0, int(YH + 0.80 * GH) - base
     xa, ya, xb, yb = max(0, x0), max(0, y0), min(W, x0 + CW), min(H, y0 + CH)
@@ -938,7 +957,7 @@ def hk_person_blit(img, t, pulse):
         return
     sl = (slice(ya - y0, yb - y0), slice(xa - x0, xb - x0))
     reg = img[ya:yb, xa:xb]
-    reg[:] = reg * (1 - oa[sl]) + oc[sl] * oa[sl] + rim[sl] * A[sl][..., None] + halo[sl] + pool[sl]
+    reg[:] = reg * (1 - oa[sl]) + oc[sl] * oa[sl] + rim[sl] * A[sl][..., None] + halo[sl] + pool[sl] + ripple[sl]
 
 
 def hk_setup():
@@ -1016,11 +1035,12 @@ def hk_setup():
         win_rgb[y0:, x0:x1] = 0
         mx = int(rng.uniform(.2, .5) * gx)
         for yy0 in range(y0 + gy // 2, YH - gy, gy):
+            row_on, row_t = rng.random() < .72, rng.random()            # 有些楼层整层不亮；同一层的灯大致同时点亮
             for xx0 in range(x0 + mx, x1 - ww - 1, gx):
-                if rng.random() < .6:
+                if row_on and rng.random() < .7:
                     c = np.array([1, .82, .55] if rng.random() < .72 else [.7, .85, 1.0] if rng.random() < .6 else [1, .6, .8],
                                  np.float32) * br * rng.uniform(.6, 1.0)
-                    win_thr[yy0:yy0 + wh, xx0:xx0 + ww] = rng.random()
+                    win_thr[yy0:yy0 + wh, xx0:xx0 + ww] = min(1.0, row_t * .7 + rng.random() * .3)
                     win_rgb[yy0:yy0 + wh, xx0:xx0 + ww] = c
         if y0 > 0 and rng.random() < .5:            # 楼顶天线 + 红色航空灯
             ax, ah = (x0 + x1) // 2, int(rng.uniform(.03, .07) * H)
