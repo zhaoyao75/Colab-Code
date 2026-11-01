@@ -848,17 +848,17 @@ def hk_person():
 
 
 def hk_person_blit(img, t, pulse):
-    """路面上缓步行走的撑伞人：每帧现画（腿、大衣、伞都在动），带霓虹边缘光、身后柔光、脚下光斑和模糊倒影"""
+    """路面上缓步行走的撑伞人：每帧现画，近乎黑色的剪影，只在边缘留一圈很淡的霓虹光；伞是深酒红色"""
     u = 300 * S / 178
     fh = 178 * u
-    SS = 2
+    SS = 3
     CW, CH = int(380 * S), int(540 * S)
     cx0, base = CW // 2, CH - int(90 * S)
     ph = 2 * np.pi * t / (2 * 60 / 90)                    # 两拍一个完整步伐，和音乐同步
-    bob = -abs(np.sin(ph)) * 3.5 * u                       # 走路时身体上下起伏
-    a = 0.2 * np.sin(ph)                                   # 腿的摆角
-    hem = 2.5 * u * np.sin(ph + .8)                        # 大衣下摆摆动
-    tilt = .035 * np.sin(2 * np.pi * t / 2.6) + .01 * np.sin(2 * ph)    # 伞轻轻晃
+    bob = -abs(np.sin(ph)) * 2.5 * u                       # 身体随步伐轻轻起伏
+    a = 0.14 * np.sin(ph)                                  # 腿的摆角
+    hem = 2.0 * u * np.sin(ph + .8)                        # 大衣下摆摆动
+    tilt = .03 * np.sin(2 * np.pi * t / 2.6) + .008 * np.sin(2 * ph)    # 伞轻轻晃
     P = lambda x, y: (x * SS, y * SS)
 
     def new():
@@ -868,48 +868,66 @@ def hk_person_blit(img, t, pulse):
     can, cd = new()
     rib, rd = new()
     hipy, L = base - fh * .40 + bob, fh * .40
-    for sg in (1, -1):                                      # 双腿
-        fx_, fy_ = cx0 + sg * 4 * u + np.sin(a * sg) * L, hipy + np.cos(a * sg) * L
-        bd.line([P(cx0 + sg * 4 * u, hipy), P(fx_, fy_)], fill=255, width=int(11 * u * SS))
-        r_ = 5.5 * u * SS
-        bd.ellipse([fx_ * SS - r_, fy_ * SS - r_, fx_ * SS + r_, fy_ * SS + r_], fill=255)
-    shy, hemy = base - fh * .80 + bob, base - fh * .34 + bob   # 大衣
-    bd.polygon([P(cx0 - 18 * u, shy), P(cx0 + 18 * u, shy), P(cx0 + 31 * u + hem, hemy), P(cx0 - 31 * u + hem, hemy)], fill=255)
-    hy = base - fh * .89 + bob                              # 头
-    bd.ellipse([*P(cx0 - 10 * u, hy - 11 * u), *P(cx0 + 10 * u, hy + 11 * u)], fill=255)
-    hand = (cx0 + 11 * u, base - fh * .93 + bob)            # 手握伞柄
-    bd.line([P(cx0 + 16 * u, shy + 4 * u), P(*hand)], fill=255, width=int(8 * u * SS))
-    cb = (cx0 + 6 * u, base - fh * 1.06 + bob)
+    for sg in (1, -1):                                      # 腿：上粗下细 + 鞋
+        ang = a * sg
+        hip = (cx0 + sg * 3.5 * u, hipy)
+        foot = (hip[0] + np.sin(ang) * L, hip[1] + np.cos(ang) * L)
+        n = (np.cos(ang), -np.sin(ang))
+        bd.polygon([P(hip[0] - n[0] * 6.5 * u, hip[1] - n[1] * 6.5 * u), P(hip[0] + n[0] * 6.5 * u, hip[1] + n[1] * 6.5 * u),
+                    P(foot[0] + n[0] * 3.6 * u, foot[1] + n[1] * 3.6 * u), P(foot[0] - n[0] * 3.6 * u, foot[1] - n[1] * 3.6 * u)], fill=255)
+        bd.ellipse([*P(foot[0] - 4.5 * u, foot[1] - 2.5 * u), *P(foot[0] + 8 * u, foot[1] + 3 * u)], fill=255)
+    shy, hemy = base - fh * .80 + bob, base - fh * .34 + bob
+    mid = (shy + hemy) / 2
+    bd.polygon([P(cx0 - 7 * u, shy - 4 * u), P(cx0 - 16 * u, shy + 1.5 * u), P(cx0 - 18.5 * u, shy + 14 * u),
+                P(cx0 - 24 * u + hem * .5, mid), P(cx0 - 30 * u + hem, hemy), P(cx0 + 30 * u + hem, hemy),
+                P(cx0 + 24 * u + hem * .5, mid), P(cx0 + 18.5 * u, shy + 14 * u), P(cx0 + 16 * u, shy + 1.5 * u),
+                P(cx0 + 7 * u, shy - 4 * u)], fill=255)
+    hy = base - fh * .89 + bob                              # 头颈
+    bd.rectangle([*P(cx0 - 3.5 * u, hy + 6 * u), *P(cx0 + 3.5 * u, shy - 2 * u)], fill=255)
+    bd.ellipse([*P(cx0 - 9 * u, hy - 11 * u), *P(cx0 + 9 * u, hy + 10 * u)], fill=255)
+    swing = np.sin(ph)                                      # 自由的那只手随步伐前后摆
+    sh_l, sh_r = (cx0 - 17 * u, shy + 3 * u), (cx0 + 17 * u, shy + 3 * u)
+    free = (cx0 - 22 * u - 5 * u * swing, shy + 38 * u)
+    bd.line([P(*sh_l), P(*free)], fill=255, width=int(6.5 * u * SS))
+    elbow = (cx0 + 25 * u, shy + 15 * u)                    # 撑伞的手臂：肩 → 肘 → 手
+    hand = (cx0 + 12 * u, base - fh * .905 + bob)
+    bd.line([P(*sh_r), P(*elbow), P(*hand)], fill=255, width=int(6 * u * SS), joint="curve")
+    cb = (cx0 + 5 * u, base - fh * 1.06 + bob)
     ur, hr = 64 * u, 64 * u * .72
     ct, st = np.cos(tilt), np.sin(tilt)
     rot = lambda p: (hand[0] + (p[0] - hand[0]) * ct - (p[1] - hand[1]) * st, hand[1] + (p[0] - hand[0]) * st + (p[1] - hand[1]) * ct)
-    bd.line([P(*hand), P(*rot((cb[0], cb[1] + 2 * u)))], fill=255, width=int(3 * u * SS))
-    dome = [rot((cb[0] + ur * np.cos(f), cb[1] + hr * np.sin(f))) for f in np.linspace(np.pi, 2 * np.pi, 40)]
-    cd.polygon([P(*p) for p in dome], fill=255)
+    bd.line([P(*hand), P(*rot((cb[0], cb[1] + 2 * u)))], fill=255, width=int(2.6 * u * SS))
+    dome = [rot((cb[0] + ur * np.cos(f), cb[1] + hr * np.sin(f))) for f in np.linspace(np.pi, 2 * np.pi, 48)]
+    edge = []                                               # 伞沿：8 段向下的小弧（扇贝形）
+    for k in range(8 * 6, -1, -1):
+        fr = k / 48
+        edge.append(rot((cb[0] - ur + 2 * ur * fr, cb[1] + 4 * u * abs(np.sin(np.pi * (fr * 8 % 1))))))
+    cd.polygon([P(*p) for p in dome + edge], fill=255)
     for k in range(1, 8):                                   # 伞骨
-        rd.line([P(*rot((cb[0], cb[1] - hr))), P(*rot((cb[0] - ur + 2 * ur * k / 8, cb[1])))], fill=255, width=max(1, int(1.6 * u * SS)))
+        rd.line([P(*rot((cb[0], cb[1] - hr))), P(*rot((cb[0] - ur + 2 * ur * k / 8, cb[1])))], fill=255, width=max(1, int(1.4 * u * SS)))
     ds = lambda im: np.asarray(im.resize((CW, CH), Image.LANCZOS)).astype(np.float32) / 255
     A_b, A_c, A_r = ds(body), ds(can), ds(rib)
     A = np.maximum(A_b, A_c)
     xn = np.clip((np.arange(CW, dtype=np.float32)[None, :] - (cx0 - 70 * u)) / (140 * u), 0, 1)[..., None]
-    can_col = np.array([.72, .09, .17], np.float32) * (1.15 - .6 * xn) + np.array([.35, .08, .14], np.float32) * (1 - xn)
-    can_col = can_col * (1 - .45 * A_r[..., None])          # 左边被粉色霓虹照亮，伞骨处发暗
-    col_ = (np.array([.13, .11, .22], np.float32) * (1.25 - .5 * (np.arange(CH, dtype=np.float32) / CH)[:, None, None])) * (1 - A_c[..., None]) + can_col * A_c[..., None]
+    can_col = np.array([.34, .045, .085], np.float32) * (1.1 - .5 * xn) * (1 - .4 * A_r[..., None])   # 深酒红，左侧略亮
+    yv = (np.arange(CH, dtype=np.float32) / CH)[:, None, None]
+    body_col = np.array([.04, .038, .07], np.float32) * (1.0 + .8 * yv)       # 近乎黑，越靠近地面越被路面的光染亮一点
+    col_ = body_col * (1 - A_c[..., None]) + can_col * A_c[..., None]
     sh = max(2, int(3 * S))
     eL = np.clip(A - np.roll(A, sh, axis=1), 0, 1)
     eR = np.clip(A - np.roll(A, -sh, axis=1), 0, 1)
     eT = np.clip(A - np.roll(A, sh, axis=0), 0, 1)
-    rim = (eL[..., None] * np.array([1.0, .35, .65]) + eR[..., None] * np.array([.25, .85, 1.0])
-           + eT[..., None] * np.array([1.0, .6, .8]) * .7) * (.9 + .3 * pulse)       # 左粉右青的霓虹边缘光
-    halo = gaussian_filter(A, 12 * S)[..., None] * (np.array([1.0, .45, .75]) * .5 + np.array([.3, .8, 1.0]) * .5) * (.22 + .2 * pulse)
+    rim = (eL[..., None] * np.array([1.0, .35, .65]) + eR[..., None] * np.array([.25, .8, 1.0])
+           + eT[..., None] * np.array([1.0, .5, .7]) * .5) * (.32 + .1 * pulse)   # 很淡的霓虹边缘光
+    halo = gaussian_filter(A, 14 * S)[..., None] * (np.array([1.0, .45, .75]) * .5 + np.array([.3, .8, 1.0]) * .5) * (.06 + .05 * pulse)
     yy, xx = np.mgrid[0:CH, 0:CW].astype(np.float32)
-    pool = np.exp(-(((xx - cx0) / (140 * S)) ** 2 + ((yy - base) / (24 * S)) ** 2))[..., None] * np.array([1.0, .55, .4]) * .3
+    pool = np.exp(-(((xx - cx0) / (140 * S)) ** 2 + ((yy - base) / (24 * S)) ** 2))[..., None] * np.array([1.0, .55, .4]) * .1
     rr = CH - base                                          # 倒影：翻转 + 模糊
     ra = np.zeros_like(A)
     rc = np.zeros_like(col_)
     ra[base:] = A[base - 1::-1][:rr]
     rc[base:] = (col_ + rim)[base - 1::-1][:rr]
-    ra = gaussian_filter(ra, (4 * S, 2 * S)) * .4
+    ra = gaussian_filter(ra, (4 * S, 2 * S)) * .35
     rc = gaussian_filter(rc, (4 * S, 2 * S, 0)) * .6
     oa = np.maximum(A, ra)[..., None]
     oc = np.where(A[..., None] > .01, col_, rc / np.maximum(ra[..., None], 1e-3).clip(.05))
