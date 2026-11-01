@@ -760,7 +760,7 @@ def hk_make_sign(seed, kind, w, h, c1, c2, word, icon):
     if kind in ("vblade", "hboard"):
         dp.rounded_rectangle(box, rad, fill=255)
         if lightbox:
-            d.rounded_rectangle(box, rad, fill=dim(C1, .36))
+            d.rounded_rectangle(box, rad, fill=dim(C1, .28))
             d.rounded_rectangle(box, rad, outline=C2, width=lw)
             tcol = (255, 255, 255)
         else:
@@ -780,7 +780,7 @@ def hk_make_sign(seed, kind, w, h, c1, c2, word, icon):
     elif kind == "round":
         dp.ellipse(box, fill=255)
         if lightbox:
-            d.ellipse(box, fill=dim(C1, .36))
+            d.ellipse(box, fill=dim(C1, .28))
         d.ellipse(box, outline=C2 if lightbox else C1, width=lw)
         ins = lw * 3
         d.ellipse([pad + ins, pad + ins, pad + w - ins, pad + h - ins], outline=C2, width=max(1, lw - 1))
@@ -1010,7 +1010,7 @@ def hk_setup():
         on = 10.67 + .67 * first.index(k) if k in first else (21.33 + rng.uniform(0, 21) if u < .5 else
                                                               42.67 + rng.uniform(0, 21) if u < .8 else 64 + rng.uniform(0, 8))
         signs.append(dict(alpha=A, add=add, add_b=add_b, pad=pad, x=int(sp["sx"] - sp["w"] / 2) - pad,
-                          y=int(sp["sy"] - sp["h"] / 2) - pad, inten=.8 - .4 * sp["d"],
+                          y=int(sp["sy"] - sp["h"] / 2) - pad, inten=.6 - .3 * sp["d"],
                           on=on, off=rng.uniform(111, 124.5), seed=int(rng.integers(1 << 30))))
     # 天空 + 街口暖光
     sky = np.broadcast_to(gradient([(0, (0, 0, .015)), (.55, (.03, .012, .06)), (.9, (.12, .045, .11)),
@@ -1129,7 +1129,8 @@ def hk_frame(i):
     beat = int(t / (60 / 90)) % 2 == 1
     for sg in sc["signs"]:
         hk_blit(up, sg, sign_level(sg, t, pulse), beat)
-    up += 0.2 * np.repeat(np.repeat(gaussian_filter(up[::8, ::8], (5, 5, 0)), 8, 0), 8, 1)[:YH, :W]
+    up += 0.3 * np.repeat(np.repeat(gaussian_filter(up[::8, ::8], (5, 5, 0)), 8, 0), 8, 1)[:YH, :W]
+    up = up * .76 + gaussian_filter(up, (3.5 * S, 3.5 * S, 0)) * .24      # 整体磨砂玻璃：画面轻微漫射，灯暗了光晕仍在
 
     # 湿地面：把整条招牌峡谷压缩 3.5 倍倒映下来，再加水纹
     refl = up[sc["rows"]]
@@ -1139,7 +1140,7 @@ def hk_frame(i):
     # 磨砂玻璃：细碎的随机折射位移 + 较大半径的模糊，倒影只剩一团团色块和光斑
     xi = np.clip((xx + sx + sc["frost_x"] * 14 * S).astype(np.int32), 0, W - 1)
     yi = np.clip((yy + sc["frost_y"] * 7 * S).astype(np.int32), 0, GH - 1)
-    refl = gaussian_filter(refl[yi, xi], (4 * S, 3 * S, 0))
+    refl = gaussian_filter(refl[yi, xi], (5 * S, 3.5 * S, 0))
     ground = sc["ground"] + refl * sc["rmask"]
     img = np.concatenate([up, ground], axis=0)
     hk_person_blit(img, t, pulse)
