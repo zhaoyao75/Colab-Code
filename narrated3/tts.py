@@ -18,8 +18,12 @@ VOICE, RATE = "zh-CN-YunjianNeural", "+0%"
 SR = 44100
 SCENE = 16.0
 LENGTH = 128.0
-CACHE = ".tts_cache"
-S = json.load(open("script.json", encoding="utf-8"))
+import sys
+SCRIPT = sys.argv[1] if len(sys.argv) > 1 else "script.json"
+SUF = sys.argv[2] if len(sys.argv) > 2 else ""          # 输出文件后缀，如 _v2
+CACHE = ".tts_cache" + SUF
+S = json.load(open(SCRIPT, encoding="utf-8"))
+STARTS = S.get("starts")                                  # 可选：每个镜头的起点（秒）
 os.makedirs(CACHE, exist_ok=True)
 
 
@@ -54,9 +58,12 @@ out = np.zeros(int(LENGTH * SR))
 cues, t = [], 0.0
 for k, j, zh, en, a in clips:
     if j == 0:
-        start = 2.4 if k == 0 else k * SCENE + 1.0
-        if k == len(S["scenes"]) - 1:      # 结尾三句较长，提前开始，给片尾留时间
-            start = k * SCENE - 0.4
+        if STARTS:
+            start = 1.6 if k == 0 else STARTS[k] + 0.7
+        else:
+            start = 2.4 if k == 0 else k * SCENE + 1.0
+            if k == len(S["scenes"]) - 1:      # 结尾三句较长，提前开始，给片尾留时间
+                start = k * SCENE - 0.4
         t = max(start, t + 0.6)
     else:
         t += 0.8
@@ -68,8 +75,8 @@ for k, j, zh, en, a in clips:
 assert t < LENGTH - 2, f"旁白超长：结束于 {t:.2f}s"
 
 out = out / np.abs(out).max() * 0.89
-wavfile.write("narration.wav", SR, (out * 32767).astype(np.int16))
-json.dump(cues, open("timings.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+wavfile.write(f"narration{SUF}.wav", SR, (out * 32767).astype(np.int16))
+json.dump(cues, open(f"timings{SUF}.json", "w", encoding="utf-8"), ensure_ascii=False, indent=1)
 
 
 def ts(x):
@@ -79,7 +86,7 @@ def ts(x):
 
 for name, f in [("zh", lambda c: c["zh"]), ("en", lambda c: c["en"]),
                 ("zh_en", lambda c: c["zh"] + "\n" + c["en"])]:
-    with open(f"subtitles_{name}.srt", "w", encoding="utf-8") as fh:
+    with open(f"subtitles{SUF}_{name}.srt", "w", encoding="utf-8") as fh:
         for n, c in enumerate(cues, 1):
             fh.write(f"{n}\n{ts(c['start'])} --> {ts(c['end'] + 0.3)}\n{f(c)}\n\n")
 

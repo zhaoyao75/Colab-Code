@@ -2,13 +2,14 @@
 混音：narration.wav + bgm.wav -> mix.wav（旁白说话时音乐自动压低）
 旁白段音乐比人声低约 15dB，空隙处低约 8dB；最后整体响度标准化到 -14 LUFS（抖音/B站常用）。
 """
-import json, subprocess
+import json, subprocess, sys
+SUF = sys.argv[1] if len(sys.argv) > 1 else ""
 import numpy as np
 from scipy.io import wavfile
 from scipy.ndimage import maximum_filter1d, uniform_filter1d
 
 SR = 44100
-_, v = wavfile.read("narration.wav")
+_, v = wavfile.read(f"narration{SUF}.wav")
 _, m = wavfile.read("bgm.wav")
 v = v.astype(np.float64) / 32768
 m = m.astype(np.float64).T / 32768
@@ -40,5 +41,5 @@ r = subprocess.run(["ffmpeg", "-hide_banner", "-i", ".mix_raw.wav", "-af",
 js = json.loads(r[r.rindex("{"):r.rindex("}") + 1])
 af = ("loudnorm=I=-14:TP=-1.5:LRA=11:linear=true:measured_I={input_i}:measured_TP={input_tp}:"
       "measured_LRA={input_lra}:measured_thresh={input_thresh}:offset={target_offset}").format(**js)
-subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", ".mix_raw.wav", "-af", af, "-ar", str(SR), "mix.wav"], check=True)
+subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", ".mix_raw.wav", "-af", af, "-ar", str(SR), f"mix{SUF}.wav"], check=True)
 print(f"人声 {v_db:.1f} dBFS | 音乐增益 说话时 {20*np.log10(g_voice):.1f} dB / 空隙 {20*np.log10(g_gap):.1f} dB | 输入响度 {js['input_i']} LUFS")
