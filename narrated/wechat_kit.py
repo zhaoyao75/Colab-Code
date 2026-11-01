@@ -44,16 +44,14 @@ def build(name, t, cx, ink, sub_col, dark, W, H, layout, ss=1):
     if dark:
         img = shade(img, 0.55, top=True)
     k = ss
-    if layout == "portrait":        # 3:4
-        t1 = R.text_sprite("天地之中", R.SERIF_BLACK, 190 * k, fill=ink, shadow=6)
-        t2 = R.text_sprite("· 郑州", R.SERIF_BLACK, 190 * k, fill=ink, shadow=6)
-        sub = R.text_sprite(SUB, R.SERIF_BOLD, 52 * k, fill=sub_col, shadow=4)
-        seal = R.seal_sprite("中原", 96 * k)
-        x = 90 * k
-        R.paste(img, t1, x, 90 * k)
-        R.paste(img, t2, x, (90 + 195) * k)
-        R.paste(img, sub, x + 8 * k, (90 + 195 * 2 + 12) * k)
-        R.paste(img, seal, x + t2.w + 24 * k, (90 + 195 + 40) * k)
+    if layout == "portrait":        # 3:4，标题一行
+        t1 = R.text_sprite(R.TITLE_ZH, R.SERIF_BLACK, 124 * k, fill=ink, shadow=5)
+        sub = R.text_sprite(SUB, R.SERIF_BOLD, 50 * k, fill=sub_col, shadow=4)
+        seal = R.seal_sprite("中原", 84 * k)
+        x = 56 * k
+        R.paste(img, t1, x, 110 * k)
+        R.paste(img, seal, x + t1.w + 6 * k, 118 * k)
+        R.paste(img, sub, x + 10 * k, 110 * k + t1.h + 10 * k)
         tag = R.text_sprite("2 分钟 · 水墨动画 · 中英字幕", R.SANS_BOLD, 40 * k, fill=(255, 255, 255), shadow=4)
         R.paste(img, tag, 90 * k, (H - 110) * k)
     elif layout == "banner":        # 2.35:1
@@ -63,13 +61,11 @@ def build(name, t, cx, ink, sub_col, dark, W, H, layout, ss=1):
         R.paste(img, t1, 30 * k, 40 * k)
         R.paste(img, seal, 30 * k + t1.w + 2 * k, 46 * k)
         R.paste(img, sub, 36 * k, 40 * k + t1.h + 2 * k)
-    else:                           # 1:1
-        t1 = R.text_sprite("天地之中", R.SERIF_BLACK, 92 * k, fill=ink, shadow=4)
-        t2 = R.text_sprite("· 郑州", R.SERIF_BLACK, 92 * k, fill=ink, shadow=4)
-        seal = R.seal_sprite("中原", 50 * k)
-        R.paste(img, t1, 34 * k, 30 * k)
-        R.paste(img, t2, 34 * k, 30 * k + 96 * k)
-        R.paste(img, seal, 34 * k + t2.w + 14 * k, 30 * k + 106 * k)
+    else:                           # 1:1，标题一行
+        t1 = R.text_sprite(R.TITLE_ZH, R.SERIF_BLACK, 52 * k, fill=ink, shadow=3)
+        seal = R.seal_sprite("中原", 38 * k)
+        R.paste(img, t1, 26 * k, 44 * k)
+        R.paste(img, seal, 26 * k + t1.w + 2 * k, 48 * k)
     out = Image.fromarray(R.to_u8(img))
     if ss > 1:
         out = out.resize((W, H), Image.LANCZOS)
