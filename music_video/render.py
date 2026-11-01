@@ -812,8 +812,8 @@ def hk_make_sign(seed, kind, w, h, c1, c2, word, icon):
 
 def hk_person():
     """路面上撑红伞的小小人影（含倒影）"""
-    yg, fx = int(YH + 0.80 * GH), int(W * .40)
-    u = 118 * S / 178                       # 把原来 178 高的人缩小
+    yg, fx = int(YH + 0.86 * GH), int(W * .42)
+    u = 300 * S / 178                       # 人物高约 300 像素（占竖屏高度的 16%）
     sil, colim = Image.new("L", (W, H)), Image.new("RGB", (W, H))
     d, dc = ImageDraw.Draw(sil), ImageDraw.Draw(colim)
     dark = (5, 4, 9)
@@ -955,11 +955,13 @@ def hk_setup():
     # 路面
     ground = np.broadcast_to(gradient([(0, (.03, .02, .045)), (1, (.008, .006, .015))], GH), (GH, W, 3)).astype(np.float32).copy()
     puddle = fractal_noise(rng, GH, W, ((40, 1), (14, .4)))
-    rmask = (np.linspace(.9, .55, GH)[:, None] * (.55 + .45 * np.clip((puddle - .25) / .35, 0, 1)))[..., None].astype(np.float32)
+    frost = fractal_noise(rng, GH, W, ((5, 1), (2, .6)))
+    frost2 = fractal_noise(rng, GH, W, ((5, 1), (2, .6)))
+    rmask = (np.linspace(1.0, .6, GH)[:, None] * (.55 + .45 * np.clip((puddle - .25) / .35, 0, 1)))[..., None].astype(np.float32)
     yy, xx = np.mgrid[0:GH, 0:W].astype(np.float32)
     # 光轨：左半边是驶离的尾灯（红），右半边是驶来的车头灯（白黄）
     trails = []
-    for k in range(26):
+    for k in range(0):          # 已去掉车流（光轨）
         away = k < 13
         trails.append(dict(lane=-rng.uniform(.08, .95) if away else rng.uniform(.08, .95), dirn=-1.0 if away else 1.0,
                            speed=rng.uniform(.08, .35), p0=rng.random(), ln=rng.uniform(.18, .5),
@@ -977,7 +979,7 @@ def hk_setup():
     title, logo = overlay_layers()
     return dict(signs=signs, sky=sky, band=band.astype(np.float32), body_a=body_a, body_rgb=body_rgb,
                 win_thr=win_thr, win_rgb=win_rgb, ground=ground, rmask=rmask, xx=xx, yy=yy, yyi=yy.astype(np.int32),
-                persp=(yy + 8 * S) / GH, rows=np.clip(YH - 1 - (np.arange(GH) * 3.5).astype(np.int32), 0, YH - 1),
+                frost_x=(frost * 2 - 1).astype(np.float32), frost_y=(frost2 * 2 - 1).astype(np.float32), persp=(yy + 8 * S) / GH, rows=np.clip(YH - 1 - (np.arange(GH) * 3.5).astype(np.int32), 0, YH - 1),
                 trails=trails, drops=drops, ripples=ripples, person=hk_person(), title=title, logo=logo,
                 vig=(1 - 0.38 * (((vx - W / 2) / (W * .75)) ** 2 + ((vy - H / 2) / (H * .75)) ** 2))[..., None],
                 grain=[rng.standard_normal((H // 2, W // 2)).astype(np.float32) for _ in range(6)],
@@ -1016,32 +1018,15 @@ def hk_frame(i):
     up += 0.2 * np.repeat(np.repeat(gaussian_filter(up[::8, ::8], (5, 5, 0)), 8, 0), 8, 1)[:YH, :W]
 
     # 湿地面：把整条招牌峡谷压缩 3.5 倍倒映下来，再加水纹
-    refl = gaussian_filter(up[sc["rows"]], (1.0, 2.0, 0))
+    refl = up[sc["rows"]]
     xx, yy, persp = sc["xx"], sc["yy"], sc["persp"]
-    sx = (persp * 3.5 * S + 1.0) * (np.sin(xx * 0.02 / S + yy * 0.05 / S - t * 2.3)
-                                    + 0.6 * np.sin(xx * 0.008 / S - yy * 0.035 / S + t * 1.7))
-    refl = refl[sc["yyi"], np.clip((xx + sx).astype(np.int32), 0, W - 1)]
+    sx = (persp * 6 * S + 1.5) * (np.sin(xx * 0.02 / S + yy * 0.05 / S - t * 2.3)
+                                  + 0.6 * np.sin(xx * 0.008 / S - yy * 0.035 / S + t * 1.7))
+    # 磨砂玻璃：细碎的随机折射位移 + 较大半径的模糊，倒影只剩一团团色块和光斑
+    xi = np.clip((xx + sx + sc["frost_x"] * 14 * S).astype(np.int32), 0, W - 1)
+    yi = np.clip((yy + sc["frost_y"] * 7 * S).astype(np.int32), 0, GH - 1)
+    refl = gaussian_filter(refl[yi, xi], (4 * S, 3 * S, 0))
     ground = sc["ground"] + refl * sc["rmask"]
-    # 车灯光轨（长曝光的拖尾）
-    tr = Image.new("RGB", (W, GH))
-    dt = ImageDraw.Draw(tr)
-    segs = 8
-    for tl in sc["trails"]:
-        ph = (tl["p0"] + tl["dirn"] * tl["speed"] * t) % 1.0
-        pts = []
-        for k in range(segs + 1):
-            p = ph - tl["dirn"] * tl["ln"] * k / segs
-            y = GH * min(max(p, 0.0), 1.05) ** 1.5
-            pts.append((p, y, W / 2 + tl["lane"] * 0.62 * W * y / GH))
-        for k in range(segs):
-            (pa, ya, xa), (pb, yb, xb) = pts[k], pts[k + 1]
-            if min(pa, pb) < 0.02 or max(pa, pb) > 1.05:
-                continue
-            f = (1 - k / segs) ** 1.3
-            dt.line([(xa, ya), (xb, yb)], fill=tuple(int(255 * min(1, v * f)) for v in tl["col"]),
-                    width=max(2, int((2 + 16 * ya / GH) * S)))
-    tra = np.asarray(tr).astype(np.float32) / 255
-    ground += (1.5 + .4 * pulse) * tra + 1.4 * gaussian_filter(tra, (4 * S, 4 * S, 0))
     img = np.concatenate([up, ground], axis=0)
     pr = sc["person"]
     img = img * (1 - pr["alpha"][..., None]) + pr["color"] * pr["alpha"][..., None]
