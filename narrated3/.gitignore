@@ -4,3 +4,4 @@
 .segs.txt
 .mix_raw.wav
 mix_v2.wav
+.tts_cache*/
