@@ -282,7 +282,7 @@ def cloud(d, cx, cy, s):
         for x, y, r in parts: d.ellipse([cx + x * 60 * s - r * 60 * s, cy + y * 60 * s + dy * s - r * 60 * s, cx + x * 60 * s + r * 60 * s, cy + y * 60 * s + dy * s + r * 60 * s], fill=col)
         d.rounded_rectangle([cx - 1.9 * 60 * s, cy + .2 * 60 * s + dy * s, cx + 1.9 * 60 * s, cy + 1.0 * 60 * s + dy * s], radius=int(30 * s), fill=col)
 
-def background():
+def background_flat():
     global _bg
     if _bg is not None: return _bg.copy()
     y = np.linspace(0, 1, H)[:, None, None]; hz = 1000 / H
@@ -304,6 +304,92 @@ def background():
         d.ellipse([gx - r * .7, gy - r * .7, gx + r * .7, gy + r * .7], fill=(255, 170, 60, 255))
     d.ellipse([CX - 300, GROUND - 36, CX + 300, GROUND + 46], fill=(255, 238, 205, 255), outline=OUT, width=4)             # 瑜伽垫
     _bg = im.convert("RGB"); return _bg.copy()
+
+def soft(im, fn, blur, base=(255, 255, 255)):
+    g = Image.new("RGBA", (W, H), base + (0,)); fn(ImageDraw.Draw(g)); im.alpha_composite(g.filter(ImageFilter.GaussianBlur(blur)))
+
+def vgrad(stops):
+    ys = np.arange(H); arr = np.stack([np.interp(ys, [p for p, _ in stops], [c[k] for _, c in stops]) for k in range(3)], 1)
+    return Image.fromarray(np.repeat(arr[:, None, :], W, axis=1).astype(np.uint8)).convert("RGBA")
+
+def lay(im, fn):
+    g = Image.new("RGBA", (W, H), (0, 0, 0, 0)); fn(ImageDraw.Draw(g)); im.alpha_composite(g)
+
+def mat(d, fill=(255, 238, 205, 255)):
+    d.ellipse([CX - 300, GROUND - 36, CX + 300, GROUND + 46], fill=fill, outline=OUT, width=4)
+
+def leaf(d, cx, cy, ln, ang, col, wd=.28):
+    pts = []
+    for i in range(24):
+        a = i / 24 * 2 * math.pi; x, y = math.cos(a) * ln / 2, math.sin(a) * ln * wd / 2 * (1 if True else 0)
+        pts.append((cx + (x + ln / 2) * math.cos(math.radians(ang)) - y * math.sin(math.radians(ang)), cy - (x + ln / 2) * math.sin(math.radians(ang)) - y * math.cos(math.radians(ang))))
+    d.polygon(pts, fill=col)
+
+def bg_fresh():      # A 清新治愈：柔和渐变蓝天 + 大朵柔云 + 浅绿缓坡（无花，干净）
+    im = vgrad([(0, (96, 170, 242)), (650, (160, 208, 248)), (1000, (228, 243, 252)), (1001, (156, 214, 132)), (H, (88, 164, 88))])
+    soft(im, lambda d: d.ellipse([-160, 380, 520, 900], fill=(255, 248, 214, 200)), 70, (255, 248, 214))
+    def clouds(d):
+        for cx, cy, s in ((200, 620, 1.35), (820, 780, 1.0), (520, 930, .8), (900, 560, .6)): cloud(d, cx, cy, s)
+    soft(im, clouds, 5)
+    d = ImageDraw.Draw(im, "RGBA")
+    soft(im, lambda dd: (dd.ellipse([-400, 960, 800, 1400], fill=(190, 228, 168, 255)), dd.ellipse([260, 1000, 1500, 1440], fill=(160, 214, 138, 255))), 3, (190, 228, 168))
+    def stripes(d):
+        yy, h, k = 1050, 30, 0
+        while yy < H:
+            if k % 2: d.rectangle([0, yy, W, yy + h], fill=(255, 255, 255, 26))
+            yy += h; h *= 1.18; k += 1
+    lay(im, stripes)
+    rng = np.random.default_rng(4)
+    soft(im, lambda dd: [dd.ellipse([x - r, y - r, x + r, y + r], fill=(255, 255, 255, int(rng.integers(40, 90)))) for x, y, r in ((rng.uniform(0, W), rng.uniform(1050, H), rng.uniform(8, 34)) for _ in range(30))], 3)
+    mat(ImageDraw.Draw(im)); return im
+
+def bg_toy():        # B 潮玩棚拍：马卡龙色拱门 + 圆台 + 几何装饰（泡泡玛特式展台感）
+    im = vgrad([(0, (170, 206, 255)), (1090, (222, 236, 255)), (1091, (255, 232, 200)), (H, (246, 202, 158))])
+    def deco(d):
+        for sh, al in ((0, 120), (60, 70)):
+            d.rounded_rectangle([200 + sh, 600 + sh, 840 - sh, 1100], radius=320 - sh, fill=(255, 255, 255, al))
+        d.ellipse([60, 560, 260, 760], fill=(255, 224, 120, 255)); d.ellipse([800, 960, 940, 1100], fill=(255, 170, 196, 255)); d.ellipse([160, 900, 250, 990], fill=(150, 232, 206, 255))
+        for cx, cy, r in ((760, 700, 30), (260, 790, 22), (880, 880, 18), (110, 1010, 24)): d.polygon(star_pts(cx, cy, r, r * .45), fill=(255, 255, 255, 235))
+    lay(im, deco)
+    soft(im, lambda dd: dd.ellipse([CX - 330, GROUND - 6, CX + 330, GROUND + 80], fill=(190, 140, 110, 110)), 14, (190, 140, 110))
+    d = ImageDraw.Draw(im); d.ellipse([CX - 310, GROUND - 40, CX + 310, GROUND + 50], fill=(255, 255, 255, 255), outline=(255, 214, 170, 255), width=8)
+    d.ellipse([CX - 250, GROUND - 28, CX + 250, GROUND + 36], fill=(255, 241, 222, 255)); return im
+
+def bg_home():       # C 居家客厅：窗外蓝天白云绿草 + 绿植 + 木地板（贴合「居家燃脂」）
+    im = vgrad([(0, (255, 244, 228)), (1100, (252, 232, 208)), (1101, (226, 178, 124)), (H, (196, 146, 96))])
+    d = ImageDraw.Draw(im); d.rectangle([0, 1090, W, 1112], fill=(255, 255, 255, 255))
+    for k in range(0, 12): d.line([(0, 1118 + k * k * 8), (W, 1118 + k * k * 8)], fill=(196, 146, 100, 255), width=3)
+    wx0, wy0, wx1, wy1 = 560, 580, 940, 1040
+    d.rounded_rectangle([wx0 - 22, wy0 - 22, wx1 + 22, wy1 + 22], radius=24, fill=(255, 255, 255, 255), outline=OUT, width=4)
+    win = vgrad([(wy0, (110, 182, 246)), ((wy0 + wy1) // 2 + 60, (214, 238, 252)), (wy1, (214, 238, 252))]).crop((wx0, wy0, wx1, wy1)); wd = ImageDraw.Draw(win)
+    cloud(wd, 120, 110, .55); cloud(wd, 280, 200, .4); wd.ellipse([-100, 300, 300, 560], fill=(150, 214, 128)); wd.ellipse([120, 330, 520, 600], fill=(112, 190, 102))
+    im.paste(win, (wx0, wy0)); d = ImageDraw.Draw(im)
+    d.rectangle([(wx0 + wx1) // 2 - 7, wy0, (wx0 + wx1) // 2 + 7, wy1], fill=(255, 255, 255, 255)); d.rectangle([wx0, (wy0 + wy1) // 2 - 7, wx1, (wy0 + wy1) // 2 + 7], fill=(255, 255, 255, 255))
+    d.rounded_rectangle([wx0 - 36, wy1 + 14, wx1 + 36, wy1 + 40], radius=10, fill=(255, 255, 255, 255), outline=OUT, width=3)
+    d.rounded_rectangle([90, 960, 230, 1100], radius=18, fill=(255, 170, 160, 255), outline=OUT, width=4)                  # 花盆
+    for ang, ln in ((50, 150), (80, 190), (110, 170), (135, 140), (20, 120), (155, 110)): leaf(d, 160, 960, ln, ang, (96, 186, 100, 255), .34)
+    d.ellipse([CX - 300, GROUND - 36, CX + 300, GROUND + 46], fill=(255, 183, 196, 255), outline=OUT, width=4); return im
+
+def bg_sunset():     # D 黄昏暖光：晚霞渐变 + 落日 + 剪影山坡
+    im = vgrad([(0, (112, 96, 190)), (420, (232, 138, 172)), (760, (255, 182, 124)), (1010, (255, 222, 170)), (1011, (128, 176, 108)), (H, (74, 134, 84))])
+    soft(im, lambda d: d.ellipse([430, 700, 970, 1240], fill=(255, 246, 206, 230)), 50, (255, 246, 206))
+    d = ImageDraw.Draw(im); d.ellipse([560, 830, 840, 1110], fill=(255, 244, 200, 255))
+    def cl(dd):
+        for cx, cy, s in ((200, 640, 1.2), (850, 560, .8), (140, 880, .7)): cloud(dd, cx, cy, s)
+    soft(im, cl, 4, (255, 206, 206))
+    d = ImageDraw.Draw(im); d.ellipse([-300, 980, 760, 1380], fill=(118, 112, 172, 255)); d.ellipse([300, 1010, 1500, 1420], fill=(84, 140, 126, 255))
+    d.rectangle([0, 1060, W, H], fill=(110, 168, 100, 255))
+    g = vgrad([(1060, (126, 180, 104)), (H, (70, 128, 80))]); im.paste(g.crop((0, 1060, W, H)), (0, 1060))
+    mat(ImageDraw.Draw(im), (255, 232, 200, 255)); return im
+
+BG_STYLES = {"flat": None, "fresh": bg_fresh, "toy": bg_toy, "home": bg_home, "sunset": bg_sunset}
+BG_STYLE = os.environ.get("BG", "fresh")
+_bgc = {}
+def background():
+    st = BG_STYLE
+    if st not in _bgc:
+        _bgc[st] = (BG_STYLES[st]() if BG_STYLES[st] else background_flat()).convert("RGB")
+    return _bgc[st].copy()
 
 # ---------- 文字 / 版式 ----------
 def font(sz): return ImageFont.truetype(ZH, sz)
@@ -361,6 +447,17 @@ def frame(t, timings):
 def load_timings():
     p = os.path.join(TMP, "timings.json"); return json.load(open(p)) if os.path.exists(p) else []
 
+def do_bgs(t=3.5):
+    global BG_STYLE
+    out = os.path.join(HERE, "preview", "bg"); os.makedirs(out, exist_ok=True); tim = load_timings(); tiles = []
+    for name, label in (("fresh", "A 清新治愈"), ("toy", "B 潮玩棚拍"), ("home", "C 居家客厅"), ("sunset", "D 黄昏暖光")):
+        BG_STYLE = name; im = frame(t, tim); im.save(os.path.join(out, f"{name}.png")); tiles.append((label, im))
+    sw, sh = 405, 720; sheet = Image.new("RGB", (4 * sw, sh), (0, 0, 0))
+    for i, (label, im) in enumerate(tiles):
+        tile = im.resize((sw, sh), Image.LANCZOS); dr = ImageDraw.Draw(tile); dr.rounded_rectangle([10, 668, 190, 708], radius=20, fill=(40, 28, 44)); dr.text((100, 688), label, font=font(24), fill=(255, 255, 255), anchor="mm")
+        sheet.paste(tile, (i * sw, 0))
+    sheet.save(os.path.join(HERE, "preview", "bg_options.png")); print("bgs saved")
+
 def do_stills(ts):
     out = os.path.join(HERE, "preview", "stills"); os.makedirs(out, exist_ok=True)
     for f in os.listdir(out): os.remove(os.path.join(out, f))
@@ -389,5 +486,6 @@ def do_full():
     print("done", out)
 
 if __name__ == "__main__":
-    if "--still" in sys.argv: do_stills([float(x) for x in sys.argv[sys.argv.index("--still") + 1:]])
+    if "--bgs" in sys.argv: do_bgs()
+    elif "--still" in sys.argv: do_stills([float(x) for x in sys.argv[sys.argv.index("--still") + 1:]])
     else: do_full()
