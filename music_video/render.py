@@ -873,7 +873,7 @@ def hk_setup():
         sy = vpy - rng.uniform(-.12, 1.05) * H * s
         if sy + h / 2 > YH - 0.01 * H or sx < -w * .3 or sx > W + w * .3 or sy + h / 2 < 0:
             continue
-        if abs(sx - vpx) < .075 * W + w / 2 and dpt < .78:      # 中间留一条缝给远处的高楼
+        if abs(sx - vpx) < .09 * W + w / 2 and dpt < .78:      # 中间留一条缝给远处的高楼
             continue
         word = {"vblade": HK_WORDS_V + HK_ZH_V, "hboard": HK_WORDS_H + HK_ZH_H,
                 "round": HK_WORDS_R + HK_ZH_R}.get(kind, [""])
@@ -904,30 +904,52 @@ def hk_setup():
     xx_ = np.arange(W, dtype=np.float32)[None, :]
     band = ((np.exp(-((YH - yy_) / (0.07 * H)) ** 2)) * (np.clip(np.abs(xx_ - W / 2) / (W * .5), 0, 1) ** 1.2 * .8 + .2)
             )[..., None] * np.array([1.0, .55, .32], np.float32) * 0.16
-    # 中间的高楼 + 两侧低矮远景楼（窗灯按阈值逐渐点亮）
+    # 背景高楼：远 / 中 / 近三层高低错落，窗灯按阈值随音乐逐渐点亮；招牌挂在它们前面
     body_a = np.zeros((YH, W), np.float32)
     body_rgb = np.zeros((YH, W, 3), np.float32)
     win_thr = np.full((YH, W), 9.0, np.float32)
     win_rgb = np.zeros((YH, W, 3), np.float32)
-    tw0, tw1 = int(vpx - .065 * W), int(vpx + .065 * W)
-    bl, x = [], int(vpx - .21 * W)
-    while x < vpx + .21 * W:
-        bw = int(rng.uniform(.03, .06) * W)
-        bh = int(rng.uniform(.12, .40) * H)
-        if not (x + bw > tw0 - 4 and x < tw1 + 4):
-            bl.append((max(0, x), min(W, x + bw), YH - bh, .5))
-        x += bw + int(rng.uniform(-.005, .015) * W)
-    bl.append((tw0, tw1, 0, 1.0))
-    gx, gy = int(20 * S), int(26 * S)
-    for x0, x1, y0, br in bl:
+
+    def add_building(x0, x1, y0, colr, br, gx, gy, ww, wh):
+        x0, x1 = max(0, x0), min(W, x1)
+        if x1 - x0 < 4:
+            return
         body_a[y0:, x0:x1] = 1
-        body_rgb[y0:, x0:x1] = (.012, .012, .022) if br == 1.0 else (.045, .025, .075)
+        body_rgb[y0:, x0:x1] = colr
+        win_thr[y0:, x0:x1] = 9.0
+        win_rgb[y0:, x0:x1] = 0
+        mx = int(rng.uniform(.2, .5) * gx)
         for yy0 in range(y0 + gy // 2, YH - gy, gy):
-            for xx0 in range(x0 + gx // 2, x1 - gx // 2, gx):
-                if rng.random() < .8:
-                    c = np.array([1, .82, .55] if rng.random() < .75 else [.7, .85, 1.0], np.float32) * br * .6
-                    win_thr[yy0:yy0 + int(11 * S), xx0:xx0 + int(8 * S)] = rng.random()
-                    win_rgb[yy0:yy0 + int(11 * S), xx0:xx0 + int(8 * S)] = c
+            for xx0 in range(x0 + mx, x1 - ww - 1, gx):
+                if rng.random() < .6:
+                    c = np.array([1, .82, .55] if rng.random() < .72 else [.7, .85, 1.0] if rng.random() < .6 else [1, .6, .8],
+                                 np.float32) * br * rng.uniform(.6, 1.0)
+                    win_thr[yy0:yy0 + wh, xx0:xx0 + ww] = rng.random()
+                    win_rgb[yy0:yy0 + wh, xx0:xx0 + ww] = c
+        if y0 > 0 and rng.random() < .5:            # 楼顶天线 + 红色航空灯
+            ax, ah = (x0 + x1) // 2, int(rng.uniform(.03, .07) * H)
+            body_a[max(0, y0 - ah):y0, ax:ax + max(1, int(2 * S))] = 1
+            body_rgb[max(0, y0 - ah):y0, ax:ax + max(1, int(2 * S))] = colr
+            win_thr[max(0, y0 - ah):max(0, y0 - ah) + int(4 * S), ax - 1:ax + int(3 * S)] = .15
+            win_rgb[max(0, y0 - ah):max(0, y0 - ah) + int(4 * S), ax - 1:ax + int(3 * S)] = (1, .1, .1)
+
+    x = int(vpx - .36 * W)                                     # 远景：中间一带，紫色雾气里的摩天楼
+    while x < vpx + .36 * W:
+        bw, bh = int(rng.uniform(.03, .07) * W), int(rng.uniform(.45, 1.05) * H)
+        add_building(x, x + bw, max(0, YH - bh), (.11, .055, .16), .30, int(12 * S), int(16 * S), int(4 * S), int(6 * S))
+        x += int(bw * rng.uniform(.7, 1.0))
+    x = int(vpx - .55 * W)                                     # 中景
+    while x < vpx + .55 * W:
+        bw, bh = int(rng.uniform(.05, .09) * W), int(rng.uniform(.3, .9) * H)
+        add_building(x, x + bw, max(0, YH - bh), (.055, .03, .09), .38, int(16 * S), int(22 * S), int(6 * S), int(8 * S))
+        x += int(bw * rng.uniform(.75, 1.0))
+    for sd in (-1, 1):                                         # 近景：街道两侧高楼的立面
+        x = -10 if sd < 0 else W + 10
+        while (x < .27 * W) if sd < 0 else (x > .73 * W):
+            bw, bh = int(rng.uniform(.09, .14) * W), int(rng.uniform(.6, 1.1) * H)
+            add_building(x if sd < 0 else x - bw, x + bw if sd < 0 else x, max(0, YH - bh), (.018, .013, .03), .45,
+                         int(24 * S), int(32 * S), int(8 * S), int(11 * S))
+            x += int(bw * .9) * (1 if sd < 0 else -1)
     # 路面
     ground = np.broadcast_to(gradient([(0, (.03, .02, .045)), (1, (.008, .006, .015))], GH), (GH, W, 3)).astype(np.float32).copy()
     puddle = fractal_noise(rng, GH, W, ((40, 1), (14, .4)))
