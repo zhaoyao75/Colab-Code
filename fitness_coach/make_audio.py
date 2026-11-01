@@ -3,7 +3,7 @@
 运行：python3 make_audio.py      -> .tmp/audio.wav（旁白+配乐，16 秒）、.tmp/timings.json、.tmp/voice_env.npy
       python3 make_audio.py --voice-only   -> 只出旁白试听 preview/narration_preview.mp3
 """
-import json, os, subprocess, sys, wave
+import json, math, os, subprocess, sys, wave
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -32,7 +32,31 @@ def resample(x, sr0, sr1):
     return np.interp(np.linspace(0, len(x) - 1, n), np.arange(len(x)), x).astype(np.float32)
 
 
+VOICE = os.environ.get("TTS_VOICE", "zh-CN-XiaoxiaoNeural")     # 微软 Edge 在线女声；TTS_VOICE=piper 用离线 Piper
+WINDOW = [(LINES[i + 1][0] if i + 1 < len(LINES) else DUR) - LINES[i][0] - 0.12 for i in range(len(LINES))]
+
+
+def edge_line(i, text, rate):
+    """微软 Edge TTS（edge-tts）。代理会重签证书：让 edge-tts 信任代理 CA 包（不关闭校验）并走 HTTPS_PROXY。"""
+    import asyncio, ssl, edge_tts, edge_tts.communicate as c
+    ca = "/root/.ccr/ca-bundle.crt"
+    if os.path.exists(ca): c._SSL_CTX = ssl.create_default_context(cafile=ca)
+    mp3 = os.path.join(TMP, f"edge{i}.mp3")
+    asyncio.run(edge_tts.Communicate(text, VOICE, rate=f"{rate:+d}%", proxy=os.environ.get("HTTPS_PROXY")).save(mp3))
+    wav = os.path.join(TMP, f"edge{i}.wav")
+    subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", mp3, "-ar", str(SR), "-ac", "1", wav], check=True)
+    x, _ = read_wav(wav)
+    nz = np.where(np.abs(x) > 0.01)[0]
+    return x[nz[0]:nz[-1] + 1] if len(nz) else x
+
+
 def synth_line(i, text, ls):
+    if VOICE != "piper":
+        x = edge_line(i, text, 0)
+        if len(x) / SR > WINDOW[i]:                       # 太长就加速，最多 +45%
+            rate = min(45, int(math.ceil((len(x) / SR / WINDOW[i] - 1) * 100)) + 2)
+            x = edge_line(i, text, rate)
+        return x / max(np.abs(x).max(), 1e-6) * 0.9
     out = os.path.join(TMP, f"line{i}.wav")
     subprocess.run([sys.executable, "-m", "piper", "-m", MODEL, "--length-scale", str(ls),
                     "--noise-scale", "0.5", "--noise-w-scale", "0.6", "-f", out],
@@ -115,7 +139,7 @@ def main():
     # 旁白提亮 + 压缩（ffmpeg）
     write_wav(os.path.join(TMP, "voice_raw.wav"), v)
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", os.path.join(TMP, "voice_raw.wav"), "-af",
-                    "highpass=f=90,equalizer=f=3000:t=q:w=1:g=3,acompressor=threshold=-20dB:ratio=3:makeup=4,aecho=0.8:0.6:35:0.12",
+                    "highpass=f=90,equalizer=f=3000:t=q:w=1:g=3,acompressor=threshold=-20dB:ratio=3:makeup=4" + (",aecho=0.8:0.6:35:0.12" if VOICE == "piper" else ""),
                     os.path.join(TMP, "voice_fx.wav")], check=True)
     v, _ = read_wav(os.path.join(TMP, "voice_fx.wav")); v = np.pad(v, (0, max(0, int(SR * DUR) - len(v))))[:int(SR * DUR)]
     v = v / np.abs(v).max() * 0.92

@@ -147,3 +147,13 @@ ffmpeg -y -i stellar_echo_full_bw.mp4 -c:v libx264 -preset slower -b:v 1650k -pa
 - 「先出静帧 / 10 秒 demo」——确认风格后再出完整版，省时间。
 - 「彩色 / 黑白 / 标志保留颜色」「标题出现时间」「分享平台的大小限制」——一开始说明，可以少改几轮。
 - 想换旋律或音色：改 `compose.py` 里的 `THEME` 和乐器函数；想换画面：改第 4 节的参数表。
+
+---
+
+## 8. 小燃 16 秒健身短视频（`fitness_coach/`）经验
+
+- **微软 Edge 女声（edge-tts）**：`pip install edge-tts`，音色如 `zh-CN-XiaoxiaoNeural`（亲切）、`zh-CN-XiaoyiNeural`（元气）。云端环境里它会报 `self-signed certificate in chain`——因为 edge-tts 用 certifi 自己的证书库，不读 `SSL_CERT_FILE`。**不要关校验**，把 `edge_tts.communicate._SSL_CTX` 换成信任 `/root/.ccr/ca-bundle.crt` 的上下文，并传 `proxy=$HTTPS_PROXY`，即可联网合成。
+- 无法联网时的离线备选：Piper（`pip install piper-tts` + HuggingFace 的 `zh_CN-huayan-medium`），音质偏机械。
+- 旁白按时间窗口自动调速：先按原速合成，超过窗口就按比例加速（`rate=+N%`），保证每句在下一句开始前说完。
+- 卡通角色用「关节坐标 + 粗线胶囊」直接画，2 倍超采样；正面视角的抬腿/深蹲用透视缩短（膝盖高度、外展量）手工调，再逐帧看放大图检查肢体。
+- 配乐用 120BPM，一拍 0.5 秒，动作周期取拍的整数倍，画面自然踩点；旁白包络做配乐闪避。
