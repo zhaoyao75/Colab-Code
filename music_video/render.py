@@ -150,62 +150,100 @@ def glow_patch(mask, color, s1=5, s2=16, core=1.0):
     return (mask[..., None] * corec * core + g1[..., None] * c * 1.6 + g2[..., None] * c * 0.9).astype(np.float32)
 
 
-def text_mask(text, size, vertical, pad):
-    f = ImageFont.truetype(ZH, int(size))
+def text_mask(text, size, vertical, pad, border=False):
+    """英文霓虹字：横排，或竖排的「招牌式」逐字母叠放；border=True 时外加圆角灯管边框"""
+    f = ImageFont.truetype(EN, int(size))
+    tmp = ImageDraw.Draw(Image.new("L", (1, 1)))
     if vertical:
-        cw = int(size * 1.05)
-        im = Image.new("L", (cw + 2 * pad, int(size * 1.08 * len(text)) + 2 * pad))
+        cw = int(size * 1.0)
+        im = Image.new("L", (cw + 2 * pad, int(size * 1.12 * len(text)) + 2 * pad))
         d = ImageDraw.Draw(im)
         for k, ch in enumerate(text):
-            d.text((pad + (cw - d.textlength(ch, font=f)) / 2, pad + k * size * 1.08), ch, font=f, fill=255)
+            d.text((pad + (cw - d.textlength(ch, font=f)) / 2, pad + k * size * 1.12), ch, font=f, fill=255)
     else:
-        tmp = ImageDraw.Draw(Image.new("L", (1, 1)))
         tw = int(tmp.textlength(text, font=f))
-        im = Image.new("L", (tw + 2 * pad, int(size * 1.2) + 2 * pad))
-        ImageDraw.Draw(im).text((pad, pad), text, font=f, fill=255)
-    # 霓虹灯管感：只保留笔画轮廓附近
-    m = np.asarray(im).astype(np.float32) / 255
-    return m
+        bx = int(size * 0.35) if border else 0
+        im = Image.new("L", (tw + 2 * pad + 2 * bx, int(size * 1.2) + 2 * pad + 2 * bx))
+        d = ImageDraw.Draw(im)
+        d.text((pad + bx, pad + bx), text, font=f, fill=255)
+        if border:
+            d.rounded_rectangle([pad, pad, pad + tw + 2 * bx, pad + int(size * 1.2) + 2 * bx],
+                                radius=int(size * .3), outline=255, width=max(1, int(2 * S)))
+    return np.asarray(im).astype(np.float32) / 255
 
 
-SIGNS = [("咖啡", (1.0, .25, .62), True), ("书店", (.2, .85, 1.0), True), ("OPEN", (1.0, .3, .3), False),
-         ("旅馆", (.7, .35, 1.0), True), ("24H", (1.0, .72, .25), False), ("雨", (.3, 1.0, .75), True),
-         ("BAR", (1.0, .25, .62), False), ("拉面", (1.0, .55, .2), True)]
-# 点亮时刻：第一块在鼓点进入（10.7s），其余在主歌开头按拍子依次亮起，旅馆在 B 段亮
-SIGN_ON = [10.67, 21.33, 22.0, 64.0, 22.67, 23.33, 42.67, 43.33]
-SIGN_OFF = [124.5, 118.0, 121.5, 115.0, 120.0, 116.8, 117.5, 119.0]
+def icon_mask(kind, size, pad):
+    """图形霓虹：鸡尾酒杯 / 音符 / 咖啡杯，用细线勾勒成灯管"""
+    sz = int(size)
+    im = Image.new("L", (sz + 2 * pad, sz + 2 * pad))
+    d = ImageDraw.Draw(im)
+    lw = max(2, int(2.5 * S))
+    o = pad
+    if kind == "cocktail":
+        d.line([(o, o + sz * .1), (o + sz, o + sz * .1), (o + sz / 2, o + sz * .58), (o, o + sz * .1)], fill=255, width=lw)
+        d.line([(o + sz / 2, o + sz * .58), (o + sz / 2, o + sz * .92)], fill=255, width=lw)
+        d.line([(o + sz * .25, o + sz * .95), (o + sz * .75, o + sz * .95)], fill=255, width=lw)
+        r = sz * .08
+        d.ellipse([o + sz * .62 - r, o + sz * .22 - r, o + sz * .62 + r, o + sz * .22 + r], outline=255, width=lw)
+        d.line([(o + sz * .62, o + sz * .22), (o + sz * .85, o - sz * .02)], fill=255, width=lw)
+    elif kind == "note":
+        r = sz * .13
+        for cx in (o + sz * .25, o + sz * .78):
+            d.ellipse([cx - r * 1.3, o + sz * .8 - r, cx + r * 1.3, o + sz * .8 + r], outline=255, width=lw)
+            d.line([(cx + r * 1.25, o + sz * .8), (cx + r * 1.25, o + sz * .12)], fill=255, width=lw)
+        d.line([(o + sz * .25 + r * 1.25, o + sz * .12), (o + sz * .78 + r * 1.25, o + sz * .04)], fill=255, width=lw * 2)
+    elif kind == "cup":
+        d.line([(o + sz * .1, o + sz * .35), (o + sz * .2, o + sz * .9), (o + sz * .7, o + sz * .9),
+                (o + sz * .8, o + sz * .35), (o + sz * .1, o + sz * .35)], fill=255, width=lw)
+        d.arc([o + sz * .68, o + sz * .45, o + sz * 1.0, o + sz * .75], 270, 90, fill=255, width=lw)
+        for k in range(3):   # 热气
+            x = o + sz * (.28 + .17 * k)
+            d.arc([x - sz * .05, o, x + sz * .05, o + sz * .14], 90, 270, fill=255, width=lw)
+            d.arc([x - sz * .05, o + sz * .12, x + sz * .05, o + sz * .26], 270, 90, fill=255, width=lw)
+    return np.asarray(im).astype(np.float32) / 255
+
+
+# (类型, 内容, 颜色, 竖排)。只用英文和图形；都挂在街面高度（楼的最底部几层）
+SIGNS = [("text", "CAFE", (1.0, .25, .62), False), ("text", "BOOKS", (.2, .85, 1.0), False),
+         ("text", "OPEN", (1.0, .3, .3), False), ("text", "HOTEL", (.7, .35, 1.0), True),
+         ("text", "24H", (1.0, .72, .25), False), ("icon", "cocktail", (.3, 1.0, .75), False),
+         ("text", "BAR", (1.0, .25, .62), True), ("icon", "note", (.45, .7, 1.0), False),
+         ("icon", "cup", (1.0, .55, .2), False), ("text", "RECORDS", (.3, 1.0, .75), False)]
+# 点亮时刻：第一块在鼓点进入（10.7s），其余在主歌开头按拍子依次亮起，HOTEL 在 B 段亮
+SIGN_ON = [10.67, 21.33, 22.0, 64.0, 22.67, 23.33, 42.67, 43.33, 24.0, 44.0]
+SIGN_OFF = [124.5, 118.0, 121.5, 115.0, 120.0, 116.8, 117.5, 119.0, 122.0, 116.0]
 
 
 def build_signs(rng, near):
+    """店招挂在街面高度：横招牌在一层门面上方，竖招牌从二层往上挂在楼角"""
     signs = []
-    blds = sorted([b for b in near["blds"] if b[1] - b[0] > 70 * S], key=lambda b: b[0])
+    blds = sorted([b for b in near["blds"] if b[1] - b[0] > 60 * S], key=lambda b: b[0])
     pad = int(40 * S)
     used = 0
     for x0, x1, y0 in blds:
         if used >= len(SIGNS):
             break
-        text, c, vert = SIGNS[used]
-        size = (40 if vert else 34) * S
-        m = text_mask(text, size, vert, pad)
-        ph, pw = m.shape
-        if vert:
-            px = x0 + (6 * S if rng.random() < .5 else (x1 - x0) - 6 * S - (pw - 2 * pad)) - pad
-            py = y0 + rng.uniform(.05, .3) * (YH - y0) - pad
+        kind, txt, c, vert = SIGNS[used]
+        if kind == "icon":
+            m = icon_mask(txt, 34 * S, pad)
         else:
-            px = (x0 + x1) / 2 - pw / 2
-            py = y0 + rng.uniform(.15, .45) * (YH - y0) - pad
-        if py + ph > YH - 10 * S or py < 0.12 * YH:
+            m = text_mask(txt, (22 if vert else 24) * S, vert, pad, border=txt in ("OPEN", "CAFE", "24H"))
+        ph, pw = m.shape
+        if pw - 2 * pad > (x1 - x0) - 8 * S or x0 < 20 * S:   # 画面左外侧的楼永远看不到，跳过
             continue
+        if vert:   # 竖招牌：底端离地约两层楼
+            px = x0 + (5 * S if rng.random() < .5 else (x1 - x0) - 5 * S - (pw - 2 * pad)) - pad
+            py = YH - 0.035 * YH - (ph - 2 * pad) - pad
+        else:      # 门头招牌：贴近地面
+            px = (x0 + x1) / 2 - pw / 2 + rng.uniform(-.2, .2) * max(0, (x1 - x0) - (pw - 2 * pad))
+            py = YH - rng.uniform(.03, .06) * YH - (ph - 2 * pad) - pad
+        if py + pad < y0 + 6 * S:
+            continue
+        # 招牌背后的窗户熄掉，文字更清楚
+        near["wid"][int(py + pad - 4 * S):int(py + ph - pad + 4 * S), max(0, int(px + pad - 4 * S)):int(px + pw - pad + 4 * S)] = 0
         signs.append(dict(patch=glow_patch(m, c), x=int(px), y=int(py), on=SIGN_ON[used],
                           off=SIGN_OFF[used], seed=rng.integers(1 << 30)))
         used += 1
-    # 两栋楼的楼顶霓虹灯带
-    for (x0, x1, y0), c in zip(sorted(blds, key=lambda b: b[2])[:2], [(.2, .85, 1.0), (1.0, .25, .62)]):
-        pad2 = int(40 * S)
-        m = np.zeros((int(8 * S) + 2 * pad2, x1 - x0 + 2 * pad2), np.float32)
-        m[pad2:pad2 + max(2, int(3 * S)), pad2:-pad2] = 1
-        signs.append(dict(patch=glow_patch(m, c, 4, 12, .8), x=x0 - pad2, y=y0 - pad2 - int(2 * S),
-                          on=21.33 + 0.67 * len(signs) % 3, off=117.0, seed=rng.integers(1 << 30)))
     return signs
 
 
