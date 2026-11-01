@@ -760,7 +760,7 @@ def hk_make_sign(seed, kind, w, h, c1, c2, word, icon):
     if kind in ("vblade", "hboard"):
         dp.rounded_rectangle(box, rad, fill=255)
         if lightbox:
-            d.rounded_rectangle(box, rad, fill=dim(C1, .42))
+            d.rounded_rectangle(box, rad, fill=dim(C1, .36))
             d.rounded_rectangle(box, rad, outline=C2, width=lw)
             tcol = (255, 255, 255)
         else:
@@ -780,7 +780,7 @@ def hk_make_sign(seed, kind, w, h, c1, c2, word, icon):
     elif kind == "round":
         dp.ellipse(box, fill=255)
         if lightbox:
-            d.ellipse(box, fill=dim(C1, .42))
+            d.ellipse(box, fill=dim(C1, .36))
         d.ellipse(box, outline=C2 if lightbox else C1, width=lw)
         ins = lw * 3
         d.ellipse([pad + ins, pad + ins, pad + w - ins, pad + h - ins], outline=C2, width=max(1, lw - 1))
@@ -1010,7 +1010,7 @@ def hk_setup():
         on = 10.67 + .67 * first.index(k) if k in first else (21.33 + rng.uniform(0, 21) if u < .5 else
                                                               42.67 + rng.uniform(0, 21) if u < .8 else 64 + rng.uniform(0, 8))
         signs.append(dict(alpha=A, add=add, add_b=add_b, pad=pad, x=int(sp["sx"] - sp["w"] / 2) - pad,
-                          y=int(sp["sy"] - sp["h"] / 2) - pad, inten=1.05 - .5 * sp["d"],
+                          y=int(sp["sy"] - sp["h"] / 2) - pad, inten=.8 - .4 * sp["d"],
                           on=on, off=rng.uniform(111, 124.5), seed=int(rng.integers(1 << 30))))
     # 天空 + 街口暖光
     sky = np.broadcast_to(gradient([(0, (0, 0, .015)), (.55, (.03, .012, .06)), (.9, (.12, .045, .11)),
