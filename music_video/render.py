@@ -700,6 +700,12 @@ HK_WORDS_H = ["PUB & DISCO", "RESTAURANT", "PHARMACY", "WATCH CO.", "SEAFOOD", "
               "PRINCE CITY", "FORUM", "RED LIPS BAR", "LA BAMBA", "NIGHT CLUB", "HOT POT", "DIM SUM",
               "TEA HOUSE", "COFFEE", "BOOKS", "RECORDS", "BILLIARDS", "24H OPEN"]
 HK_WORDS_R = ["OPEN", "24H", "VIP", "LIVE", "BAR", "SPA", "FUN", "HOT", "CITY", "GOLD"]
+# 中文招牌用语（和英文各占一半，混排）
+HK_ZH_V = ["酒店", "茶餐厅", "卡拉OK", "夜总会", "按摩", "当铺", "海鲜酒家", "龙凤茶楼", "金铺", "药房", "旅馆",
+           "粥面", "烧味", "咖啡室", "桑拿", "新花城", "太子城", "大酒楼"]
+HK_ZH_H = ["海鲜酒家", "翠华餐厅", "新花城", "太子城", "茶餐厅", "卡拉OK夜总会", "金宝越南餐馆", "龙凤大酒楼",
+           "同昌商业大厦", "二十四小时营业", "游戏机中心", "港式烧味", "药房", "大新公司"]
+HK_ZH_R = ["福", "酒", "营业", "24小时", "茶", "喜", "龙", "金", "夜"]
 HK_ICONS = ["fish", "crown", "star", "cocktail", "note", "cup", "heart", "bolt", "moon", "beer"]
 HK_COLS = [PINK, CYAN, RED, AMBER, GREEN, BLUE, ORANGE, PURPLE, (1.0, .15, .15), (.1, 1.0, .5), (1.0, .9, .3)]
 FONT_B = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
@@ -741,12 +747,15 @@ def hk_make_sign(seed, kind, w, h, c1, c2, word, icon):
     box = [pad, pad, pad + w, pad + h]
     rad = max(3, int(min(w, h) * 0.2))
     lightbox = rng.random() < 0.4        # 灯箱（实心色块 + 白字）或 灯管（暗底 + 发光线条）
-    path = [FONT_B, FONT_SB, FONT_MB][int(rng.integers(3))]
+    cjk = any(ord(ch) > 0x2e80 for ch in word)
+    path = ZH if cjk else [FONT_B, FONT_SB, FONT_MB][int(rng.integers(3))]
 
     def text_c(txt, fpath, cx, cy, bw, bh, fill):
         f = fit_font(txt, fpath, bw, bh)
         bb = d.textbbox((0, 0), txt, font=f)
-        d.text((cx - (bb[0] + bb[2]) / 2, cy - (bb[1] + bb[3]) / 2), txt, font=f, fill=fill)
+        sw = max(1, int(lw * .4)) if cjk else 0     # 中文笔画细，加一点描边让灯管更饱满
+        d.text((cx - (bb[0] + bb[2]) / 2, cy - (bb[1] + bb[3]) / 2), txt, font=f, fill=fill,
+               stroke_width=sw, stroke_fill=fill)
 
     if kind in ("vblade", "hboard"):
         dp.rounded_rectangle(box, rad, fill=255)
@@ -782,7 +791,7 @@ def hk_make_sign(seed, kind, w, h, c1, c2, word, icon):
                 r1 = r0 * (1.14 if k % 2 else 1.24)
                 d.line([(cx + r0 * 1.04 * np.cos(a), cy + r0 * 1.04 * np.sin(a)),
                         (cx + r1 * np.cos(a), cy + r1 * np.sin(a))], fill=C1, width=max(1, lw - 1))
-        text_c(word, FONT_B, pad + w / 2, pad + h / 2, w * .62, h * .3, (255, 255, 255) if lightbox else WARM)
+        text_c(word, ZH if cjk else FONT_B, pad + w / 2, pad + h / 2, w * .62, h * .3, (255, 255, 255) if lightbox else WARM)
     else:                                 # 图形招牌
         m_ = icon_mask(icon, min(w, h) * .8, 0, lw=lw)
         sz = m_.shape[0]
@@ -866,7 +875,8 @@ def hk_setup():
             continue
         if abs(sx - vpx) < .075 * W + w / 2 and dpt < .78:      # 中间留一条缝给远处的高楼
             continue
-        word = {"vblade": HK_WORDS_V, "hboard": HK_WORDS_H, "round": HK_WORDS_R}.get(kind, [""])
+        word = {"vblade": HK_WORDS_V + HK_ZH_V, "hboard": HK_WORDS_H + HK_ZH_H,
+                "round": HK_WORDS_R + HK_ZH_R}.get(kind, [""])
         word = word[int(rng.integers(len(word)))] if kind != "icon" else ""
         icon = HK_ICONS[int(rng.integers(len(HK_ICONS)))] if kind == "icon" else None
         i1, i2 = rng.choice(len(HK_COLS), 2, replace=False)
