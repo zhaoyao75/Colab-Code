@@ -6,3 +6,5 @@ __pycache__/
 music_video/*.wav
 music_video/.seg_*
 music_video/.segs_*
+music_video/douyin/.part_*
+music_video/douyin/.title.png
