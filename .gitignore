@@ -5,3 +5,6 @@ video/.segs.txt
 __pycache__/
 video/.seg_v*
 video/.segs_v.txt
+fitness_coach/.models/
+fitness_coach/.tmp/
+fitness_coach/*.wav
