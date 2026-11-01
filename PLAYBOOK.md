@@ -166,3 +166,4 @@ ffmpeg -y -i stellar_echo_full_bw.mp4 -c:v libx264 -preset slower -b:v 1650k -pa
 - **用角色参考图做设计**：取配色（靛蓝/奶油/薰衣草紫/奶油黄）、发型（双丸子+星星发夹）、服装细节（护腕、条纹袜、厚底鞋、四角星标志）和场景道具，画成原创卡通；不复刻 3D 渲染质感与具体相貌，服装按通用受众收得更完整。
 - **画圆头肢体的坑**：`cap()`（圆头线段）画「裤脚包边/袜口条纹」会变成圆盘。要做包边，先画更长的包边色肢段，再画略短的主色肢段，露出一圈月牙；头顶/抬手高度别越过进度条（安全区）。
 - **小燃 16 秒成片复现**（`fitness_coach/`）：`python3 make_audio.py`（需联网合成 Edge 旁白，默认晓伊，`TTS_VOICE=zh-CN-XiaoxiaoNeural` 换声）→ `python3 render.py --still 1 3.5 8 11.25 15` 先看静帧 → `python3 render.py` 渲染成片（4 进程，约 1~2 分钟，输出约 3.9MB）→ `python3 make_cover.py` 出封面。成片后务必用 `ffmpeg -ss t` 从 mp4 里逐秒抽帧再看一遍，别只看静帧。`render_buns_alt.py` 是备选的双丸子头角色版本。
+- **抖音封面要三张**：App 用 9:16；网页端（创作者中心）要 **3:4 竖封面 + 4:3 横封面两张都有**，别漏横封面。3:4 可由 9:16 裁 y 240~1680；4:3 不能裁竖图，要单独按横版构图（`make_cover.py` 的 `cover_4x3()`：自己画横版背景，临时改 `render` 的 `CX/GROUND/K/LAY` 全局来复用角色绘制）。
