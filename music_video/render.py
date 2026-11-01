@@ -31,7 +31,7 @@ WORKERS = 4
 CRF = "25"          # 雨丝每帧都在动，码率很高；25 画质仍好，128 秒约 80MB（GitHub 单文件上限 100MB）
 AUDIO = os.path.join(HERE, "neon_rain.mp3")
 PORTRAIT = "--portrait" in sys.argv
-STYLE = sys.argv[sys.argv.index("--style") + 1] if "--style" in sys.argv else "tower"   # tower / street / close / alley
+STYLE = sys.argv[sys.argv.index("--style") + 1] if "--style" in sys.argv else "hk"   # hk（香港招牌峡谷，默认）/ tower / street / close / alley
 TAG = "9x16" if PORTRAIT else "16x9"
 W, H = (1080, 1920) if PORTRAIT else (1920, 1080)
 S = min(W, H) / 1080
@@ -696,15 +696,15 @@ sc_red = None
 # 中间留一条缝，缝里是一栋亮着窗的高楼；路面有长曝光的车灯光轨。招牌只用英文和图形。
 HK_WORDS_V = ["HOTEL", "KARAOKE", "DISCO", "SAUNA", "PAWN", "JAZZ", "LIVE", "MOTEL", "CLUB", "GOLD",
               "NOODLE", "SEAFOOD", "ROOMS", "MASSAGE", "TEA", "BAR", "PUB", "CAFE", "PIZZA", "WINE"]
-HK_WORDS_H = ["PUB & DISCO", "RESTAURANT", "PHARMACY", "WATCH CO.", "SEAFOOD", "KARAOKE", "GAME ZONE",
-              "PRINCE CITY", "FORUM", "RED LIPS BAR", "LA BAMBA", "NIGHT CLUB", "HOT POT", "DIM SUM",
+HK_WORDS_H = ["PUB & DISCO", "RESTAURANT", "PHARMACY", "NEON CLUB", "SEAFOOD", "KARAOKE", "GAME ZONE",
+              "LUCKY STAR", "SKY LOUNGE", "MOON BAR", "GOLDEN DRAGON", "NIGHT CLUB", "HOT POT", "DIM SUM",
               "TEA HOUSE", "COFFEE", "BOOKS", "RECORDS", "BILLIARDS", "24H OPEN"]
 HK_WORDS_R = ["OPEN", "24H", "VIP", "LIVE", "BAR", "SPA", "FUN", "HOT", "CITY", "GOLD"]
 # 中文招牌用语（和英文各占一半，混排）
 HK_ZH_V = ["酒店", "茶餐厅", "卡拉OK", "夜总会", "按摩", "当铺", "海鲜酒家", "龙凤茶楼", "金铺", "药房", "旅馆",
-           "粥面", "烧味", "咖啡室", "桑拿", "新花城", "太子城", "大酒楼"]
-HK_ZH_H = ["海鲜酒家", "翠华餐厅", "新花城", "太子城", "茶餐厅", "卡拉OK夜总会", "金宝越南餐馆", "龙凤大酒楼",
-           "同昌商业大厦", "二十四小时营业", "游戏机中心", "港式烧味", "药房", "大新公司"]
+           "粥面", "烧味", "咖啡室", "桑拿", "金龙", "星光", "大酒楼"]
+HK_ZH_H = ["海鲜酒家", "星光餐厅", "金龙酒家", "幸运茶楼", "茶餐厅", "卡拉OK夜总会", "越南粉面", "龙凤大酒楼",
+           "商业大厦", "二十四小时营业", "游戏机中心", "港式烧味", "药房", "百货公司"]
 HK_ZH_R = ["福", "酒", "营业", "24小时", "茶", "喜", "龙", "金", "夜"]
 HK_ICONS = ["fish", "crown", "star", "cocktail", "note", "cup", "heart", "bolt", "moon", "beer"]
 HK_COLS = [PINK, CYAN, RED, AMBER, GREEN, BLUE, ORANGE, PURPLE, (1.0, .15, .15), (.1, 1.0, .5), (1.0, .9, .3)]
@@ -885,15 +885,17 @@ def hk_setup():
                           alt=rng.random() < .18, c3=HK_COLS[int(rng.integers(len(HK_COLS)))]))
     specs.sort(key=lambda sp: sp["s"])          # 远的先画
     signs = []
-    big = max(range(len(specs)), key=lambda k: specs[k]["w"] * specs[k]["h"] if specs[k]["sx"] < vpx else 0)
+    inside = [k for k, sp in enumerate(specs) if sp["sx"] - sp["w"] / 2 >= 0 and sp["sx"] + sp["w"] / 2 <= W
+              and sp["sy"] - sp["h"] / 2 >= .08 * H and sp["sy"] + sp["h"] / 2 <= YH]
+    first = sorted(inside, key=lambda k: -specs[k]["w"] * specs[k]["h"])[:3]    # 鼓点进入时先亮的三块大招牌（必须完整在画面里）
     for k, sp in enumerate(specs):
         A, add, pad = hk_make_sign(sp["seed"], sp["kind"], sp["w"], sp["h"], sp["c1"], sp["c2"], sp["word"], sp["icon"])
         add_b = None
         if sp["alt"]:
             add_b = hk_make_sign(sp["seed"], sp["kind"], sp["w"], sp["h"], sp["c2"], sp["c3"], sp["word"], sp["icon"])[1]
         u = rng.random()
-        on = 10.67 if k == big else (21.33 + rng.uniform(0, 21) if u < .5 else
-                                      42.67 + rng.uniform(0, 21) if u < .8 else 64 + rng.uniform(0, 8))
+        on = 10.67 + .67 * first.index(k) if k in first else (21.33 + rng.uniform(0, 21) if u < .5 else
+                                                              42.67 + rng.uniform(0, 21) if u < .8 else 64 + rng.uniform(0, 8))
         signs.append(dict(alpha=A, add=add, add_b=add_b, pad=pad, x=int(sp["sx"] - sp["w"] / 2) - pad,
                           y=int(sp["sy"] - sp["h"] / 2) - pad, inten=1.05 - .5 * sp["d"],
                           on=on, off=rng.uniform(111, 124.5), seed=int(rng.integers(1 << 30))))
