@@ -31,6 +31,7 @@ WORKERS = 4
 CRF = "25"          # 雨丝每帧都在动，码率很高；25 画质仍好，128 秒约 80MB（GitHub 单文件上限 100MB）
 AUDIO = os.path.join(HERE, "neon_rain.mp3")
 PORTRAIT = "--portrait" in sys.argv
+STYLE = sys.argv[sys.argv.index("--style") + 1] if "--style" in sys.argv else "tower"   # tower / street / close / alley
 TAG = "9x16" if PORTRAIT else "16x9"
 W, H = (1080, 1920) if PORTRAIT else (1920, 1080)
 S = min(W, H) / 1080
@@ -80,7 +81,7 @@ WIN_COLORS = [(col(1.0, .70, .40), .45), (col(1.0, .86, .66), .25), (col(.62, .7
               (col(.45, .95, .9), .06), (col(1.0, .5, .78), .06)]
 
 
-def gen_layer(rng, name, hmin, hmax, wmin, wmax, win, inten, top, bot):
+def gen_layer(rng, name, hmin, hmax, wmin, wmax, win, inten, top, bot, gap=(-0.15, .5)):
     Ww = W + int(PAN[name] * W) + 4
     sil = np.zeros((YH, Ww), np.float32)
     wid = np.zeros((YH, Ww), np.int32)
@@ -136,7 +137,7 @@ def gen_layer(rng, name, hmin, hmax, wmin, wmax, win, inten, top, bot):
                     nid += 1
                 yy += gy
             blds.append((x0, x1, y0))
-        x += bw + rng.uniform(-0.15, 0.5) * wmax * S
+        x += bw + rng.uniform(*gap) * wmax * S
     return dict(name=name, sil=sil, wid=wid, wrgb=wrgb, u=np.array(us, np.float32),
                 col=gradient([(0, top), (1, bot)], YH), blds=blds, antennas=antennas)
 
@@ -203,52 +204,108 @@ def icon_mask(kind, size, pad):
     return np.asarray(im).astype(np.float32) / 255
 
 
-# (类型, 内容, 颜色, 竖排)。只用英文和图形；都挂在街面高度（楼的最底部几层）
-SIGNS = [("text", "CAFE", (1.0, .25, .62), False), ("text", "BOOKS", (.2, .85, 1.0), False),
-         ("text", "OPEN", (1.0, .3, .3), False), ("text", "HOTEL", (.7, .35, 1.0), True),
-         ("text", "24H", (1.0, .72, .25), False), ("icon", "cocktail", (.3, 1.0, .75), False),
-         ("text", "BAR", (1.0, .25, .62), True), ("icon", "note", (.45, .7, 1.0), False),
-         ("icon", "cup", (1.0, .55, .2), False), ("text", "RECORDS", (.3, 1.0, .75), False)]
-# 点亮时刻：第一块在鼓点进入（10.7s），其余在主歌开头按拍子依次亮起，HOTEL 在 B 段亮
-SIGN_ON = [10.67, 21.33, 22.0, 64.0, 22.67, 23.33, 42.67, 43.33, 24.0, 44.0]
-SIGN_OFF = [124.5, 118.0, 121.5, 115.0, 120.0, 116.8, 117.5, 119.0, 122.0, 116.0]
+SF = {"tower": 1.0, "street": 1.4, "close": 1.9, "alley": 1.5}[STYLE]      # 招牌放大倍数
+PINK, CYAN, RED, AMBER, GREEN, BLUE, ORANGE, PURPLE = ((1.0, .25, .62), (.2, .85, 1.0), (1.0, .3, .3),
+                                                       (1.0, .72, .25), (.3, 1.0, .75), (.45, .7, 1.0),
+                                                       (1.0, .55, .2), (.7, .35, 1.0))
+# 横招牌（门头）：(类型, 内容, 颜色, 是否加灯管边框)；只用英文和图形
+HSIGNS = [("text", "CAFE", PINK, True), ("text", "BOOKS", CYAN, False), ("text", "OPEN", RED, True),
+          ("text", "24H", AMBER, True), ("icon", "cocktail", GREEN, False), ("icon", "note", BLUE, False),
+          ("icon", "cup", ORANGE, False), ("text", "RECORDS", GREEN, False), ("text", "RAMEN", ORANGE, False),
+          ("text", "PIZZA", RED, True), ("text", "DINER", PINK, True), ("text", "VINYL", CYAN, False)]
+# 竖招牌（挂在楼角）
+VSIGNS = [("HOTEL", PURPLE), ("BAR", PINK), ("JAZZ", CYAN), ("MOTEL", GREEN), ("LIVE", AMBER)]
+# 点亮 / 熄灭时刻：第一块在鼓点进入（10.7s），其余在主歌开头按拍子依次亮起，竖招牌在 B 段亮
+H_ON = [10.67, 21.33, 22.0, 22.67, 23.33, 24.0, 24.67, 25.33, 42.67, 43.33, 44.0, 44.67]
+H_OFF = [124.5, 118.0, 121.5, 120.0, 116.8, 117.5, 119.0, 122.0, 116.0, 118.5, 120.5, 115.5]
+V_ON = [64.0, 44.0, 65.33, 45.33, 66.0]
+V_OFF = [115.0, 117.5, 119.5, 116.2, 118.2]
+
+
+def shop_patch(w, h, c, awn):
+    """一楼橱窗：暖光玻璃 + 窗框 + 条纹遮阳篷，带光晕"""
+    pad = int(30 * S)
+    ah = max(6, int(h * 0.2))
+    m = np.zeros((h + 2 * pad, w + 2 * pad), np.float32)
+    aw = np.zeros_like(m)
+    m[pad + ah:pad + h, pad:pad + w] = 1
+    step = max(8, int(40 * S))
+    for xx in range(pad + step, pad + w - 4, step):
+        m[pad + ah:pad + h, xx:xx + max(2, int(2 * S))] = 0.15
+    sw = max(6, int(16 * S))
+    for k, xx in enumerate(range(pad, pad + w, sw)):
+        aw[pad:pad + ah, xx:min(pad + w, xx + sw)] = 1.0 if k % 2 == 0 else 0.25
+    glow = gaussian_filter(m, 14 * S)
+    c, awn = np.asarray(c, np.float32), np.asarray(awn, np.float32)
+    patch = (m[..., None] * c * 0.30 + glow[..., None] * c * 0.38 + aw[..., None] * awn * 0.42
+             + gaussian_filter(aw, 6 * S)[..., None] * awn * 0.3)
+    return patch.astype(np.float32), pad
 
 
 def build_signs(rng, near):
-    """店招挂在街面高度：横招牌在一层门面上方，竖招牌从二层往上挂在楼角"""
-    signs = []
-    blds = sorted([b for b in near["blds"] if b[1] - b[0] > 60 * S], key=lambda b: b[0])
+    """街面店铺：一楼橱窗 + 遮阳篷，门头横招牌挂在橱窗上方，竖招牌挂在楼角"""
+    signs, hi, vi, k = [], 0, 0, 0
     pad = int(40 * S)
-    used = 0
+    SH = int(44 * S * SF ** 0.8)                      # 一楼橱窗高度
+    shop_cols = [(1.0, .72, .4), (1.0, .72, .4), (.5, .8, 1.0), (1.0, .5, .75)]
+    awn_cols = [PINK, CYAN, ORANGE, GREEN, PURPLE, RED]
+    blds = sorted([b for b in near["blds"] if b[1] - b[0] > 90 * S], key=lambda b: b[0])
     for x0, x1, y0 in blds:
-        if used >= len(SIGNS):
-            break
-        kind, txt, c, vert = SIGNS[used]
-        if kind == "icon":
-            m = icon_mask(txt, 34 * S, pad)
-        else:
-            m = text_mask(txt, (22 if vert else 24) * S, vert, pad, border=txt in ("OPEN", "CAFE", "24H"))
-        ph, pw = m.shape
-        if pw - 2 * pad > (x1 - x0) - 8 * S or x0 < 20 * S:   # 画面左外侧的楼永远看不到，跳过
+        bw = x1 - x0
+        if YH - y0 < SH + 20 * S:
             continue
-        if vert:   # 竖招牌：底端离地约两层楼
-            px = x0 + (5 * S if rng.random() < .5 else (x1 - x0) - 5 * S - (pw - 2 * pad)) - pad
-            py = YH - 0.035 * YH - (ph - 2 * pad) - pad
-        else:      # 门头招牌：贴近地面
-            px = (x0 + x1) / 2 - pw / 2 + rng.uniform(-.2, .2) * max(0, (x1 - x0) - (pw - 2 * pad))
-            py = YH - rng.uniform(.03, .06) * YH - (ph - 2 * pad) - pad
-        if py + pad < y0 + 6 * S:
+        # 橱窗
+        sx, sw_ = x0 + int(8 * S), int(bw - 16 * S)
+        patch, sp = shop_patch(sw_, SH, shop_cols[k % 4], awn_cols[k % 6])
+        near["wid"][int(YH - SH - 4 * S):, x0 + int(4 * S):x1 - int(4 * S)] = 0
+        signs.append(dict(patch=patch, x=sx - sp, y=int(YH - SH - sp - 2 * S), on=21.33 + 0.4 * k,
+                          off=119.0 + (k % 3) * 0.8, seed=int(rng.integers(1 << 30)), steady=True))
+        k += 1
+        if x1 < 60 * S:
             continue
-        # 招牌背后的窗户熄掉，文字更清楚
-        near["wid"][int(py + pad - 4 * S):int(py + ph - pad + 4 * S), max(0, int(px + pad - 4 * S)):int(px + pw - pad + 4 * S)] = 0
-        signs.append(dict(patch=glow_patch(m, c), x=int(px), y=int(py), on=SIGN_ON[used],
-                          off=SIGN_OFF[used], seed=rng.integers(1 << 30)))
-        used += 1
+        # 门头横招牌
+        fx0 = fx1 = None
+        if hi < len(HSIGNS) and x0 > -bw * 0.3:
+            kind, txt, c, border = HSIGNS[hi]
+            m = icon_mask(txt, 34 * S * SF, pad) if kind == "icon" else text_mask(txt, 24 * S * SF, False, pad, border)
+            ph, pw = m.shape
+            top_ok = YH - SH - 12 * S - (ph - 2 * pad) >= y0 + 8 * S
+            if pw - 2 * pad <= bw - 12 * S and top_ok:
+                jit = rng.uniform(-.2, .2) * max(0, bw - (pw - 2 * pad))
+                px = (x0 + x1) / 2 - pw / 2 + jit
+                py = YH - SH - 12 * S - (ph - 2 * pad) - pad
+                near["wid"][int(py + pad - 4 * S):int(YH - SH - 4 * S), int(px + pad - 4 * S):int(px + pw - pad + 4 * S)] = 0
+                signs.append(dict(patch=glow_patch(m, c), x=int(px), y=int(py), on=H_ON[hi % len(H_ON)],
+                                  off=H_OFF[hi % len(H_OFF)], seed=int(rng.integers(1 << 30))))
+                fx0, fx1 = px + pad, px + pw - pad
+                hi += 1
+        # 竖招牌：挂在门头招牌旁边空位较大的一侧
+        if vi < len(VSIGNS) and fx0 is not None and rng.random() < .75:
+            txt, c = VSIGNS[vi]
+            m = text_mask(txt, 20 * S * SF, True, pad)
+            ph, pw = m.shape
+            room_l, room_r = fx0 - x0, x1 - fx1
+            bwid = pw - 2 * pad
+            side = 0 if room_l >= room_r else 1
+            if max(room_l, room_r) >= bwid + 10 * S:
+                px = (x0 + 5 * S if side == 0 else x1 - 5 * S - bwid) - pad
+                py = YH - SH - 10 * S - (ph - 2 * pad) - pad
+                if py + pad >= y0 + 6 * S:
+                    near["wid"][int(py + pad - 4 * S):int(YH - SH - 4 * S), int(px + pad - 4 * S):int(px + pw - pad + 4 * S)] = 0
+                    signs.append(dict(patch=glow_patch(m, c), x=int(px), y=int(py), on=V_ON[vi % len(V_ON)],
+                                      off=V_OFF[vi % len(V_OFF)], seed=int(rng.integers(1 << 30))))
+                    vi += 1
     return signs
 
 
 def sign_level(sg, t, pulse):
     """霓虹灯开关：点亮瞬间不规则闪几下，平时轻微电流抖动"""
+    if sg.get("steady"):
+        if t < sg["on"]:
+            return 0.0
+        if t > sg["off"]:
+            return max(0.0, 1 - (t - sg["off"]) / 1.5)
+        return min(1.0, (t - sg["on"]) / 0.6) * (1 + 0.08 * pulse)
     if t < sg["on"] or t > sg["off"] + 0.9:
         return 0.0
     r = np.random.default_rng(sg["seed"] + int(t * 20))
@@ -281,6 +338,12 @@ def build_fg(rng):
     pw = 5 * S
     poly([(lx - pw * 1.8, yg), (lx + pw * 1.8, yg), (lx + pw * 1.2, yg - 40 * S), (lx - pw * 1.2, yg - 40 * S)])
     poly([(lx - pw, yg - 40 * S), (lx + pw, yg - 40 * S), (lx + pw * .8, top), (lx - pw * .8, top)])
+    if STYLE != "tower":   # 拉过街面的电线
+        for sag, dy in ((60, 0), (95, 40), (45, -28)):
+            for xa, xb in ((0, lx), (lx, Wf)):
+                pts = [(xa + (xb - xa) * u, top + (10 + dy) * S + sag * S * 4 * u * (1 - u)) for u in np.linspace(0, 1, 40)]
+                d.line(pts, fill=255, width=max(1, int(1.5 * S)))
+                dc.line(pts, fill=dark, width=max(1, int(1.5 * S)))
     for k in range(12):   # 弯曲的灯臂
         a0, a1 = k / 12 * np.pi / 2, (k + 1) / 12 * np.pi / 2
         r = 62 * S
@@ -415,11 +478,39 @@ def audio_pulse():
 def setup():
     rng = np.random.default_rng(1031)
     hs = 1.0 if not PORTRAIT else 1.08
-    layers = [
-        gen_layer(rng, "far", .22, .5 * hs, 50, 120, (3, 4, 8, 10), .42, col(.09, .055, .16), col(.20, .10, .25)),
-        gen_layer(rng, "mid", .28, .66 * hs, 70, 160, (5, 7, 12, 15), .62, col(.045, .032, .09), col(.11, .06, .16)),
-        gen_layer(rng, "near", .32, .80 * hs, 100, 230, (8, 11, 17, 22), .85, col(.02, .016, .042), col(.05, .03, .08)),
-    ]
+    lowk = 1080 * 0.64 / YH            # 低层建筑按像素高度（而不是占画面比例）设计，横竖屏楼层数一致
+    if STYLE == "tower":
+        layers = [
+            gen_layer(rng, "far", .22, .5 * hs, 50, 120, (3, 4, 8, 10), .42, col(.09, .055, .16), col(.20, .10, .25)),
+            gen_layer(rng, "mid", .28, .66 * hs, 70, 160, (5, 7, 12, 15), .62, col(.045, .032, .09), col(.11, .06, .16)),
+            gen_layer(rng, "near", .32, .80 * hs, 100, 230, (8, 11, 17, 22), .85, col(.02, .016, .042), col(.05, .03, .08)),
+        ]
+    else:
+        cfg = {"street": ((.22, .5), (.22, .42), (.24, .40), (160, 300)),
+               "close": ((.20, .48), (.2, .38), (.30, .46), (260, 420)),
+               "alley": ((.24, .55), (.22, .42), (.34, .56), (190, 300))}[STYLE]
+        if STYLE == "alley":
+            PAN["near"] = 0.03
+        layers = [
+            gen_layer(rng, "far", cfg[0][0], cfg[0][1] * hs, 50, 120, (3, 4, 8, 10), .42, col(.09, .055, .16), col(.20, .10, .25)),
+            gen_layer(rng, "mid", cfg[1][0] * lowk, cfg[1][1] * lowk, 90, 200, (5, 7, 12, 15), .62, col(.045, .032, .09),
+                      col(.11, .06, .16), gap=(-.02, .08)),
+            gen_layer(rng, "near", cfg[2][0] * lowk, cfg[2][1] * lowk, cfg[3][0], cfg[3][1], (8, 11, 17, 22), .85,
+                      col(.02, .016, .042), col(.05, .03, .08), gap=(-.02, .05)),
+        ]
+        if STYLE == "alley":   # 中间留出一条缝，看到远处的城市
+            L = layers[2]
+            a, b = 0.34 * W, 0.66 * W
+            keep, gone = [], []
+            for (x0, x1, y0) in L["blds"]:
+                if x1 > a and x0 < b:
+                    L["sil"][:, max(0, x0):x1] = 0
+                    L["wid"][:, max(0, x0):x1] = 0
+                    gone.append((x0, x1))
+                else:
+                    keep.append((x0, x1, y0))
+            L["blds"] = keep
+            L["antennas"] = [an for an in L["antennas"] if not any(g0 <= an[0] <= g1 for g0, g1 in gone)]
     signs = build_signs(rng, layers[2])
     sky_a = gradient([(0, (.015, .015, .06)), (.6, (.08, .045, .16)), (.93, (.30, .12, .27)),
                       (1, (.42, .17, .32))], YH)
@@ -605,15 +696,21 @@ def render(i0, i1, out, t_audio):
 def main():
     init()
     if "--still" in sys.argv:
-        ts = [float(v) for v in sys.argv[sys.argv.index("--still") + 1:] if not v.startswith("--")]
+        ts = []
+        for v in sys.argv[sys.argv.index("--still") + 1:]:
+            try:
+                ts.append(float(v))
+            except ValueError:
+                pass
+        suf = "" if STYLE == "tower" else f"_{STYLE}"
         tw, th = (360, 640) if PORTRAIT else (640, 360)
         cols = len(ts) if PORTRAIT else 2
         ims = [Image.fromarray(frame(min(int(t * FPS), NF - 1))) for t in ts]
-        ims[0].save(os.path.join(HERE, f"still_{TAG}.png"))
+        ims[0].save(os.path.join(HERE, f"still_{TAG}{suf}.png"))
         sheet = Image.new("RGB", (tw * cols, th * ((len(ims) + cols - 1) // cols)))
         for n, im in enumerate(ims):
             sheet.paste(im.resize((tw, th), Image.LANCZOS), ((n % cols) * tw, (n // cols) * th))
-        sheet.save(os.path.join(HERE, f"preview_{TAG}.png"))
+        sheet.save(os.path.join(HERE, f"preview_{TAG}{suf}.png"))
         print("preview saved")
         return
     if "--demo" in sys.argv:
