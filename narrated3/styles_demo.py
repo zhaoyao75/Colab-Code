@@ -291,9 +291,108 @@ def style_E():
     return subtitle(img)
 
 
+# ===================================================================== B+C v2：明亮线刻 + 蜡笔
+PAPER_L = (247, 240, 222)
+INK_L = (34, 30, 32)
+
+
+def light_woodcut_bg():
+    """米色纸 + 黑色刻线（不是黑底白线），天空淡黄光晕，山与田野薄涂淡色"""
+    S = 2
+    ink = Image.new("L", (W * S, H * S), 0)
+    d = ImageDraw.Draw(ink)
+    r = np.random.default_rng(4)
+    sx, sy = 1380 * S, 300 * S
+    for rad in np.arange(175, 1800, 30):                      # 天空：同心刻痕，断断续续
+        a0 = r.random() * 360
+        wdt = int(max(3, 6 - rad / 500) * S)
+        while a0 < 720:
+            seg = r.uniform(10, 46) * 300 / rad + 6
+            d.arc([sx - rad * S, sy - rad * S, sx + rad * S, sy + rad * S], a0, a0 + seg, fill=255, width=wdt)
+            a0 += seg + r.uniform(5, 22) * 300 / rad + 3
+    washes = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    wd = ImageDraw.Draw(washes)
+    for base, amp, seed, spacing, col in ((640, 170, 31, 20, (150, 190, 215, 150)), (770, 130, 47, 16, (176, 214, 150, 170))):
+        ridge = base - amp * (0.5 + 0.5 * R.fbm1d(W, 600, 5, seed))
+        d.polygon([(0, H * S)] + [(x * S, ridge[x] * S) for x in range(0, W, 4)] + [(W * S, H * S)], fill=0)
+        wd.polygon([(0, H)] + [(x, ridge[x]) for x in range(0, W, 4)] + [(W, H)], fill=col)
+        d.line([(x * S, ridge[x] * S) for x in range(0, W, 4)], fill=255, width=6 * S)
+        for k in range(1, 9):
+            pts = [(x * S, (ridge[x] + k * spacing + 6 * math.sin(x / 90 + k)) * S) for x in range(0, W, 6)]
+            d.line(pts, fill=255, width=max(2, int((4 - k * 0.3) * S)))
+    road_l = [(520, 1080), (740, 900), (940, 780), (1040, 700)]
+    road_r = [(1300, 1080), (1150, 900), (1090, 780), (1070, 700)]
+    road = [(x * S, y * S) for x, y in road_l + road_r[::-1]]
+    d.polygon(road, fill=0)
+    wd.polygon(road_l + road_r[::-1], fill=(0, 0, 0, 0))                      # 小路保持纸色
+    d.line([(x * S, y * S) for x, y in road_l], fill=255, width=6 * S)
+    d.line([(x * S, y * S) for x, y in road_r], fill=255, width=6 * S)
+    for k in range(14):                                                        # 路面横纹
+        u = k / 14
+        y = 1080 - (1080 - 720) * (1 - (1 - u) ** 2)
+        xl = np.interp(-y, [-p[1] for p in road_l], [p[0] for p in road_l])
+        xr = np.interp(-y, [-p[1] for p in road_r], [p[0] for p in road_r])
+        for j in range(3):
+            xa = xl + (xr - xl) * (0.15 + 0.3 * j)
+            d.line([(xa * S, y * S), ((xa + (xr - xl) * 0.12) * S, y * S)], fill=255, width=max(2, int((1 - u) * 5 * S)))
+    for _ in range(150):                                                       # 草丛
+        x, y = r.random() * W, 880 + r.random() * 200
+        if 480 < x < 1340 and y > 840:
+            continue
+        hgt = 22 + r.random() * 30
+        d.line([(x * S, y * S), ((x - 6) * S, (y - hgt) * S)], fill=255, width=3 * S)
+        d.line([(x * S, y * S), ((x + 7) * S, (y - hgt * 0.8) * S)], fill=255, width=3 * S)
+    ink = ink.resize((W, H), Image.LANCZOS)
+    a = np.asarray(ink, np.float32) / 255 * (0.9 + 0.1 * np.random.default_rng(8).random((H, W)))
+    bg = R.paper(W, H, 7, base=PAPER_L, vig=False).convert("RGBA")
+    yy, xx = np.mgrid[0:H, 0:W]
+    glow = np.clip(1 - np.hypot(xx - 1380, yy - 300) / 1000, 0, 1) ** 1.5 * 170
+    g = np.zeros((H, W, 4), np.uint8)
+    g[..., :3] = (255, 226, 130)
+    g[..., 3] = glow.astype(np.uint8)
+    bg = Image.alpha_composite(bg, Image.fromarray(g, "RGBA"))
+    bg = Image.alpha_composite(bg, washes)
+    inkl = np.zeros((H, W, 4), np.uint8)
+    inkl[..., :3] = INK_L
+    inkl[..., 3] = np.clip(a * 235, 0, 255).astype(np.uint8)
+    return Image.alpha_composite(bg, Image.fromarray(inkl, "RGBA")).convert("RGB")
+
+
+def style_BC2():
+    img = light_woodcut_bg().convert("RGBA")
+    boy = boy_sprite("sil")
+    bx, by, bs = 1000, 700, 1.5
+    R.place(img, boy, bx, by, scale=bs)
+    img = img.convert("RGB")
+    lay = doodle_car(440, 900)
+    d = ImageDraw.Draw(lay)
+    for k in range(18):                                                        # 车灯光束（蜡笔黄排线）
+        d.line([(712, 828 + (k - 9) * 1.2), (930, 690 + k * 11)], fill=(255, 214, 70, 255), width=6)
+    hx, hy = boy_bundle_pos(bx, by, bs)
+    d.ellipse([hx - 46, hy - 42, hx + 46, hy + 42], fill=(250, 150, 40, 255), outline=(60, 40, 30, 255), width=6)
+    for dx, dy in ((-20, -8), (12, -20), (18, 14), (-8, 18)):
+        d.ellipse([hx + dx - 8, hy + dy - 8, hx + dx + 8, hy + dy + 8], fill=(220, 40, 50, 255))
+    # 太阳：蜡笔橙 + 深色同心圈
+    sx, sy = 1380, 300
+    d.ellipse([sx - 125, sy - 125, sx + 125, sy + 125], fill=(255, 190, 50, 255), outline=(70, 44, 30, 255), width=7)
+    for rr in (92, 60, 28):
+        d.ellipse([sx - rr, sy - rr, sx + rr, sy + rr], outline=(235, 110, 40, 255), width=7)
+    for stx, sty, s in ((300, 90, 30), (700, 150, 26), (1700, 120, 34), (1750, 420, 26)):
+        pts = [(stx + (s if k % 2 == 0 else s * 0.42) * math.sin(k * math.pi / 5),
+                sty - (s if k % 2 == 0 else s * 0.42) * math.cos(k * math.pi / 5)) for k in range(10)]
+        d.polygon(pts, fill=(255, 214, 70, 255), outline=(70, 44, 30, 255))
+    d.rounded_rectangle([90, 215, 600, 470], radius=24, fill=(250, 245, 230, 240))     # 片名底牌
+    d.text((345, 320), "黄永玉", font=R.font(R.F_BRUSH, 150), fill=(30, 26, 28, 255), anchor="mm")
+    d.line([(160, 420), (540, 416), (520, 432), (170, 434)], fill=(232, 50, 52, 255), width=10)
+    lay = crayon_finish(lay, seed=3, wobble=2.2, grain=0.3)
+    img = Image.alpha_composite(img.convert("RGBA"), with_halo(lay, 5)).convert("RGB")
+    R.place(img, R.seal("童心", 96), 1780, 960)
+    return subtitle(img)
+
+
 if __name__ == "__main__":
     os.chdir(R.HERE)
     os.makedirs("styles", exist_ok=True)
-    for name, fn in (("A_现版", style_A), ("BC_木刻加蜡笔", style_BC), ("E_拼贴绘本", style_E)):
+    for name, fn in (("A_现版", style_A), ("BC_木刻加蜡笔", style_BC), ("BC2_明亮版", style_BC2), ("E_拼贴绘本", style_E)):
         fn().save(f"styles/{name}.jpg", quality=92)
         print("->", f"styles/{name}.jpg")
