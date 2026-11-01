@@ -16,8 +16,8 @@ HERE = os.path.dirname(os.path.abspath(__file__)); TMP = os.path.join(HERE, ".tm
 W, H, FPS, DUR = 1080, 1920, 30, 16.0
 NF = int(FPS * DUR)
 ZH = "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc"
-GROUND, CX = 1250, 520
-K = 1.55                          # 角色整体放大（以脚底为轴）
+GROUND, CX = 1300, 520
+K = 1.75                          # 角色整体放大（以脚底为轴）
 SS = 2
 LAY = (0, 430, W, 900)
 YAW = math.radians(38)             # 机位：角色朝向画面右前方 38°
@@ -217,9 +217,6 @@ def draw_coach(P, t, voice):
         tipx = cx + (-ro * .84 * math.cos(math.radians(18))) * S2 * k; tipy = cy - ro * .84 * math.sin(math.radians(18)) * S2
         tx, ty = tipx - rr(T * .6), tipy + rr(8)
         d.ellipse([tx - rr(16), ty - rr(16), tx + rr(16), ty + rr(16)], fill=OUT); d.ellipse([tx - rr(12), ty - rr(12), tx + rr(12), ty + rr(12)], fill=(70, 72, 100)); d.ellipse([tx - rr(6.5), ty - rr(6.5), tx + rr(6.5), ty + rr(6.5)], fill=AICOL)
-        mx, my = fx - rr(.14 * R), fy + rr(.36 * R)
-        d.line([(tx, ty + rr(12)), (tx + rr(8), my + rr(10)), (mx - rr(.10 * R), my + rr(4))], fill=(70, 72, 100), width=wi(3.4), joint="curve")
-        d.ellipse([mx - rr(.10 * R) - rr(5), my + rr(4) - rr(5), mx - rr(.10 * R) + rr(5), my + rr(4) + rr(5)], fill=(70, 72, 100))
         blink = (t % 3.2) < 0.12
         for sgn in (-1, 1):
             ex = fx + sgn * rr(.30 * R * k * 1.15); ey = fy
@@ -345,6 +342,18 @@ def bg_home():       # C 居家客厅：窗外蓝天白云绿草 + 绿植 + 木�
     im = vgrad([(0, (255, 244, 228)), (1100, (252, 232, 208)), (1101, (226, 178, 124)), (H, (196, 146, 96))])
     d = ImageDraw.Draw(im); d.rectangle([0, 1090, W, 1112], fill=(255, 255, 255, 255))
     for k in range(0, 12): d.line([(0, 1118 + k * k * 8), (W, 1118 + k * k * 8)], fill=(196, 146, 100, 255), width=3)
+    lay(im, lambda g: [g.rectangle([x, 0, x + 45, 1090], fill=(255, 255, 255, 46)) for x in range(0, W, 90)])
+    d = ImageDraw.Draw(im)
+    fy = lambda x: 20 + 92 * (1 - (2 * x / W - 1) ** 2)
+    d.line([(x, fy(x)) for x in range(-20, W + 40, 20)], fill=INK, width=4)
+    for i, c in zip(range(1, 11), [(255, 170, 170), (255, 224, 120), (150, 220, 200), (160, 190, 255), (230, 170, 255)] * 2):
+        x = i * W / 11; y = fy(x); d.polygon([(x - 34, y), (x + 34, y), (x, y + 80)], fill=c, outline=INK)
+    d.polygon([(200, 1620), (880, 1620), (1060, 1912), (20, 1912)], fill=(255, 214, 214), outline=INK)                          # 地毯
+    for k in range(1, 4): d.line([(200 - k * 40, 1620 + k * 70), (880 + k * 45, 1620 + k * 70)], fill=(255, 240, 220), width=6)
+    d.rounded_rectangle([96, 1600, 254, 1624], radius=10, fill=(120, 120, 154), outline=INK, width=3)                          # 哑铃
+    for x0 in (66, 232): d.rounded_rectangle([x0, 1570, x0 + 40, 1656], radius=14, fill=(255, 170, 160), outline=INK, width=4)
+    d.rounded_rectangle([890, 1560, 964, 1740], radius=30, fill=(150, 200, 255), outline=INK, width=4); d.rounded_rectangle([910, 1530, 944, 1566], radius=8, fill=(255, 224, 120), outline=INK, width=3)   # 水瓶
+    d.rounded_rectangle([430, 1760, 650, 1820], radius=18, fill=(255, 248, 232), outline=INK, width=4); d.rounded_rectangle([430, 1760, 650, 1790], radius=18, fill=(255, 232, 196), outline=INK, width=4)   # 毛巾
     wx0, wy0, wx1, wy1 = 560, 580, 940, 1040
     d.rounded_rectangle([wx0 - 22, wy0 - 22, wx1 + 22, wy1 + 22], radius=24, fill=(255, 255, 255, 255), outline=OUT, width=4)
     win = vgrad([(wy0, (110, 182, 246)), ((wy0 + wy1) // 2 + 60, (214, 238, 252)), (wy1, (214, 238, 252))]).crop((wx0, wy0, wx1, wy1)); wd = ImageDraw.Draw(win)
@@ -393,27 +402,30 @@ def overlay(t, name, lt, timings):
     titles = {"hook": ("16秒挑战", "你敢接吗？"), "jack": ("① 开合跳", ""), "squat": ("② 深蹲", ""), "knees": ("③ 高抬腿", ""), "outro": ("量力而行", "不舒服就停一停")}
     big, small = titles[name]; a0 = {n: a for a, b, n in SEGS}[name]; sc = pop(a0, t)
     if name == "hook":
-        stext(dr, (CX + 20, 285), big, int(190 * sc), YEL, stroke=12); stext(dr, (CX + 20, 408), small, int(70 * sc), (255, 255, 255), stroke=8)
+        stext(dr, (CX + 20, 285), big, int(190 * sc), YEL, stroke=12); stext(dr, (CX + 20, 418), small, int(66 * sc), (255, 255, 255), stroke=8)
     else:
         stext(dr, (CX + 20, 300), big, int(124 * sc), YEL if name != "outro" else (255, 255, 255), stroke=10)
         if small: stext(dr, (CX + 20, 400), small, int(58 * sc), (255, 255, 255), stroke=7)
-    x0, x1, yb = 130, 830, 480
+    x0, x1, yb = 130, 830, 474
     dr.rounded_rectangle([x0, yb - 11, x1, yb + 11], radius=11, fill=(255, 255, 255, 110))
     dr.rounded_rectangle([x0, yb - 11, x0 + (x1 - x0) * t / DUR, yb + 11], radius=11, fill=YEL)
     for a, b, n in SEGS[:-1]:
         xx = x0 + (x1 - x0) * b / DUR; dr.ellipse([xx - 7, yb - 7, xx + 7, yb + 7], fill=(255, 255, 255, 240))
-    rem = max(1, math.ceil(DUR - t - 1e-6)); cxm, cym, R = 150, 640, 74 + int(6 * (1 - beat))
+    rem = max(1, math.ceil(DUR - t - 1e-6)); cxm, cym, R = 150, 650, 74 + int(6 * (1 - beat))
     dr.ellipse([cxm - R, cym - R, cxm + R, cym + R], fill=PANEL, outline=YEL, width=7)
     stext(dr, (cxm, cym - 6), str(rem), 86, (255, 255, 255), stroke=5, sc=(40, 28, 56)); stext(dr, (cxm, cym + 50), "秒", 28, YEL, stroke=3, sc=(40, 28, 56))
     cnt = {"jack": (int(lt) + 1, 4), "squat": (int(lt // 2) + 1, 2), "knees": (min(int(lt * 2) + 1, 6), 6)}.get(name)
-    if cnt: stext(dr, (880, 640), f"{cnt[0]}/{cnt[1]}", 76, (255, 255, 255), stroke=7)
-    dr.rounded_rectangle([60, 1300, 360, 1364], radius=32, fill=PANEL, outline=(120, 255, 225, 255), width=3)
-    stext(dr, (210, 1332), "AI虚拟教练·小燃", 30, (255, 255, 255), stroke=0)
+    if cnt: stext(dr, (880, 650), f"{cnt[0]}/{cnt[1]}", 76, (255, 255, 255), stroke=7)
+    label, f34 = "小燃 · AI虚拟教练", font(36); lw_ = dr.textlength(label, font=f34); w_ = lw_ + 116; nx0 = CX + 20 - w_ / 2; ny0, nh = 1350, 62   # 名牌：星星「AI」图标 + 名称
+    dr.rounded_rectangle([nx0, ny0, nx0 + w_, ny0 + nh], radius=29, fill=(255, 248, 232, 255), outline=INK, width=4)
+    ix, iy = nx0 + 40, ny0 + nh / 2
+    draw_star(dr, ix, iy, 29, 13, 4, fill=STAR); dr.text((ix, iy + 2), "AI", font=font(16), fill=INK, anchor="mm")
+    dr.text((nx0 + 76, iy + 1), label, font=f34, fill=INK, anchor="lm")
     cur = [x for x in timings if x["start"] - 0.05 <= t <= x["end"] + 0.35]
     if cur:
         tw = dr.textlength(cur[0]["text"], font=font(56)) / 2 + 36
-        dr.rounded_rectangle([CX + 20 - tw, 1374, CX + 20 + tw, 1452], radius=39, fill=(60, 38, 40, 120))
-        stext(dr, (CX + 20, 1412), cur[0]["text"], 56, (255, 255, 255), stroke=8)
+        dr.rounded_rectangle([CX + 20 - tw, 1420, CX + 20 + tw, 1498], radius=39, fill=(60, 38, 40, 120))
+        stext(dr, (CX + 20, 1458), cur[0]["text"], 56, (255, 255, 255), stroke=8)
     return ov
 
 def sun_pulse(t, im):
