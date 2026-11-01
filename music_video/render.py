@@ -35,7 +35,7 @@ STYLE = sys.argv[sys.argv.index("--style") + 1] if "--style" in sys.argv else "t
 TAG = "9x16" if PORTRAIT else "16x9"
 W, H = (1080, 1920) if PORTRAIT else (1920, 1080)
 S = min(W, H) / 1080
-YH = int(H * (0.60 if PORTRAIT else 0.64))     # 地平线
+YH = int(H * ((0.78 if PORTRAIT else 0.80) if STYLE == "hk" else (0.60 if PORTRAIT else 0.64)))     # 地平线（hk 场景里路面更窄）
 GH = H - YH
 BAR = 8 / 3
 
@@ -173,12 +173,12 @@ def text_mask(text, size, vertical, pad, border=False):
     return np.asarray(im).astype(np.float32) / 255
 
 
-def icon_mask(kind, size, pad):
+def icon_mask(kind, size, pad, lw=None):
     """图形霓虹：鸡尾酒杯 / 音符 / 咖啡杯，用细线勾勒成灯管"""
     sz = int(size)
     im = Image.new("L", (sz + 2 * pad, sz + 2 * pad))
     d = ImageDraw.Draw(im)
-    lw = max(2, int(2.5 * S))
+    lw = lw or max(2, int(2.5 * S))
     o = pad
     if kind == "cocktail":
         d.line([(o, o + sz * .1), (o + sz, o + sz * .1), (o + sz / 2, o + sz * .58), (o, o + sz * .1)], fill=255, width=lw)
@@ -201,10 +201,45 @@ def icon_mask(kind, size, pad):
             x = o + sz * (.28 + .17 * k)
             d.arc([x - sz * .05, o, x + sz * .05, o + sz * .14], 90, 270, fill=255, width=lw)
             d.arc([x - sz * .05, o + sz * .12, x + sz * .05, o + sz * .26], 270, 90, fill=255, width=lw)
+    elif kind == "fish":
+        d.ellipse([o + sz * .05, o + sz * .28, o + sz * .72, o + sz * .72], outline=255, width=lw)
+        d.line([(o + sz * .7, o + sz * .5), (o + sz * .96, o + sz * .26), (o + sz * .96, o + sz * .74),
+                (o + sz * .7, o + sz * .5)], fill=255, width=lw)
+        d.ellipse([o + sz * .17, o + sz * .42, o + sz * .25, o + sz * .5], fill=255)
+        d.arc([o + sz * .35, o + sz * .35, o + sz * .5, o + sz * .65], 300, 60, fill=255, width=lw)
+    elif kind == "crown":
+        pts = [(.08, .78), (.08, .3), (.3, .52), (.5, .18), (.7, .52), (.92, .3), (.92, .78), (.08, .78)]
+        d.line([(o + sz * x, o + sz * y) for x, y in pts], fill=255, width=lw, joint="curve")
+        d.line([(o + sz * .08, o + sz * .9), (o + sz * .92, o + sz * .9)], fill=255, width=lw)
+    elif kind == "star":
+        pts = []
+        for k in range(10):
+            r, a = (sz * .48 if k % 2 == 0 else sz * .2), -np.pi / 2 + k * np.pi / 5
+            pts.append((o + sz * .5 + r * np.cos(a), o + sz * .53 + r * np.sin(a)))
+        d.line(pts + [pts[0]], fill=255, width=lw, joint="curve")
+    elif kind == "heart":
+        pts = [(o + sz * (.5 + .03 * 16 * np.sin(a) ** 3),
+                o + sz * (.45 - .03 * (13 * np.cos(a) - 5 * np.cos(2 * a) - 2 * np.cos(3 * a) - np.cos(4 * a))))
+               for a in np.linspace(0, 2 * np.pi, 80)]
+        d.line(pts, fill=255, width=lw, joint="curve")
+    elif kind == "bolt":
+        pts = [(.58, .04), (.22, .56), (.46, .56), (.36, .96), (.78, .4), (.54, .4), (.58, .04)]
+        d.line([(o + sz * x, o + sz * y) for x, y in pts], fill=255, width=lw, joint="curve")
+    elif kind == "moon":
+        outer = [(o + sz * .5 + sz * .45 * np.cos(a), o + sz * .5 + sz * .45 * np.sin(a))
+                 for a in np.linspace(np.radians(50), np.radians(310), 50)]
+        inner = [(o + sz * .6 + sz * .38 * np.cos(a), o + sz * .5 + sz * .38 * np.sin(a))
+                 for a in np.linspace(np.radians(299), np.radians(61), 50)]
+        d.line(outer + inner + [outer[0]], fill=255, width=lw, joint="curve")
+    elif kind == "beer":
+        d.rounded_rectangle([o + sz * .12, o + sz * .2, o + sz * .6, o + sz * .92], radius=int(sz * .05), outline=255, width=lw)
+        d.arc([o + sz * .5, o + sz * .34, o + sz * .9, o + sz * .74], 270, 90, fill=255, width=lw)
+        for cx in (.22, .36, .5):
+            d.ellipse([o + sz * (cx - .09), o + sz * .08, o + sz * (cx + .09), o + sz * .28], outline=255, width=max(1, lw - 1))
     return np.asarray(im).astype(np.float32) / 255
 
 
-SF = {"tower": 1.0, "street": 1.4, "close": 1.9, "alley": 1.5}[STYLE]      # 招牌放大倍数
+SF = {"tower": 1.0, "street": 1.4, "close": 1.9, "alley": 1.5, "hk": 1.0}[STYLE]      # 招牌放大倍数
 PINK, CYAN, RED, AMBER, GREEN, BLUE, ORANGE, PURPLE = ((1.0, .25, .62), (.2, .85, 1.0), (1.0, .3, .3),
                                                        (1.0, .72, .25), (.3, 1.0, .75), (.45, .7, 1.0),
                                                        (1.0, .55, .2), (.7, .35, 1.0))
@@ -476,6 +511,8 @@ def audio_pulse():
 
 
 def setup():
+    if STYLE == "hk":
+        return hk_setup()
     rng = np.random.default_rng(1031)
     hs = 1.0 if not PORTRAIT else 1.08
     lowk = 1080 * 0.64 / YH            # 低层建筑按像素高度（而不是占画面比例）设计，横竖屏楼层数一致
@@ -563,6 +600,8 @@ SC = None
 
 
 def frame(i):
+    if STYLE == "hk":
+        return hk_frame(i)
     sc = SC
     t = i / FPS
     pulse = sc["pulse"][min(i, NF - 1)]
@@ -650,6 +689,371 @@ def frame(i):
 
 
 sc_red = None
+
+
+# ====================================================================== 香港霓虹街景（--style hk）
+# 参考：旺角 / 弥敦道的「招牌峡谷」——沿街道往里看，两侧大量招牌层层叠叠、近大远小，
+# 中间留一条缝，缝里是一栋亮着窗的高楼；路面有长曝光的车灯光轨。招牌只用英文和图形。
+HK_WORDS_V = ["HOTEL", "KARAOKE", "DISCO", "SAUNA", "PAWN", "JAZZ", "LIVE", "MOTEL", "CLUB", "GOLD",
+              "NOODLE", "SEAFOOD", "ROOMS", "MASSAGE", "TEA", "BAR", "PUB", "CAFE", "PIZZA", "WINE"]
+HK_WORDS_H = ["PUB & DISCO", "RESTAURANT", "PHARMACY", "WATCH CO.", "SEAFOOD", "KARAOKE", "GAME ZONE",
+              "PRINCE CITY", "FORUM", "RED LIPS BAR", "LA BAMBA", "NIGHT CLUB", "HOT POT", "DIM SUM",
+              "TEA HOUSE", "COFFEE", "BOOKS", "RECORDS", "BILLIARDS", "24H OPEN"]
+HK_WORDS_R = ["OPEN", "24H", "VIP", "LIVE", "BAR", "SPA", "FUN", "HOT", "CITY", "GOLD"]
+HK_ICONS = ["fish", "crown", "star", "cocktail", "note", "cup", "heart", "bolt", "moon", "beer"]
+HK_COLS = [PINK, CYAN, RED, AMBER, GREEN, BLUE, ORANGE, PURPLE, (1.0, .15, .15), (.1, 1.0, .5), (1.0, .9, .3)]
+FONT_B = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+FONT_SB = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"
+FONT_MB = "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf"
+HK_PANEL = np.array([.012, .010, .022], np.float32)
+
+
+def fit_font(text, path, w, h):
+    size = max(6, int(h))
+    f = ImageFont.truetype(path, size)
+    tw = ImageDraw.Draw(Image.new("L", (1, 1))).textlength(text, font=f)
+    if tw > w:
+        size = max(6, int(size * w / tw))
+    return ImageFont.truetype(path, size)
+
+
+def blur_big(E, sigma):
+    """大半径高斯模糊：先缩小 4 倍再放大，快很多"""
+    if sigma <= 8:
+        return gaussian_filter(E, (sigma, sigma, 0))
+    g = gaussian_filter(E[::4, ::4], (sigma / 4, sigma / 4, 0))
+    return np.repeat(np.repeat(g, 4, 0), 4, 1)[:E.shape[0], :E.shape[1]]
+
+
+def hk_make_sign(seed, kind, w, h, c1, c2, word, icon):
+    """画一块招牌，返回 (面板不透明度, 发光层, 边距)；发光层 = 灯管 + 两层光晕 + 灯管中心的白热"""
+    rng = np.random.default_rng(seed)
+    pad = int(max(w, h) * 0.14) + 8
+    PW, PH = w + 2 * pad, h + 2 * pad
+    em = Image.new("RGB", (PW, PH))
+    d = ImageDraw.Draw(em)
+    pm = Image.new("L", (PW, PH))
+    dp = ImageDraw.Draw(pm)
+    C1, C2 = tuple(int(255 * v) for v in c1), tuple(int(255 * v) for v in c2)
+    dim = lambda c, k: tuple(int(v * k) for v in c)
+    WARM = (255, 238, 214)
+    lw = max(2, int(min(w, h) * 0.05))
+    box = [pad, pad, pad + w, pad + h]
+    rad = max(3, int(min(w, h) * 0.2))
+    lightbox = rng.random() < 0.4        # 灯箱（实心色块 + 白字）或 灯管（暗底 + 发光线条）
+    path = [FONT_B, FONT_SB, FONT_MB][int(rng.integers(3))]
+
+    def text_c(txt, fpath, cx, cy, bw, bh, fill):
+        f = fit_font(txt, fpath, bw, bh)
+        bb = d.textbbox((0, 0), txt, font=f)
+        d.text((cx - (bb[0] + bb[2]) / 2, cy - (bb[1] + bb[3]) / 2), txt, font=f, fill=fill)
+
+    if kind in ("vblade", "hboard"):
+        dp.rounded_rectangle(box, rad, fill=255)
+        if lightbox:
+            d.rounded_rectangle(box, rad, fill=dim(C1, .36))
+            d.rounded_rectangle(box, rad, outline=C2, width=lw)
+            tcol = (255, 255, 255)
+        else:
+            d.rounded_rectangle(box, rad, outline=C1, width=lw)
+            ins = lw * 3
+            d.rounded_rectangle([pad + ins, pad + ins, pad + w - ins, pad + h - ins], max(2, rad - ins // 2),
+                                outline=C2, width=max(1, lw - 1))
+            tcol = WARM if rng.random() < .5 else C2
+        if kind == "vblade":
+            word = word.replace(" ", "")
+            n = len(word)
+            cell = (h - 6 * lw) / n
+            for k, ch in enumerate(word):
+                text_c(ch, path, pad + w / 2, pad + 3 * lw + cell * (k + .5), w * .62, cell * .78, tcol)
+        else:
+            text_c(word, path, pad + w / 2, pad + h / 2, w * .86, h * .56, tcol)
+    elif kind == "round":
+        dp.ellipse(box, fill=255)
+        if lightbox:
+            d.ellipse(box, fill=dim(C1, .36))
+        d.ellipse(box, outline=C2 if lightbox else C1, width=lw)
+        ins = lw * 3
+        d.ellipse([pad + ins, pad + ins, pad + w - ins, pad + h - ins], outline=C2, width=max(1, lw - 1))
+        if rng.random() < .55:           # 放射光芒
+            cx, cy, r0 = pad + w / 2, pad + h / 2, w / 2
+            for k in range(24):
+                a = k * 2 * np.pi / 24
+                r1 = r0 * (1.14 if k % 2 else 1.24)
+                d.line([(cx + r0 * 1.04 * np.cos(a), cy + r0 * 1.04 * np.sin(a)),
+                        (cx + r1 * np.cos(a), cy + r1 * np.sin(a))], fill=C1, width=max(1, lw - 1))
+        text_c(word, FONT_B, pad + w / 2, pad + h / 2, w * .62, h * .3, (255, 255, 255) if lightbox else WARM)
+    else:                                 # 图形招牌
+        m_ = icon_mask(icon, min(w, h) * .8, 0, lw=lw)
+        sz = m_.shape[0]
+        x, y = pad + (w - sz) // 2, pad + (h - sz) // 2
+        mimg = Image.fromarray((m_ * 255).astype(np.uint8))
+        em.paste(Image.new("RGB", mimg.size, C1), (x, y), mimg)
+        pm.paste(255, (x, y), mimg.filter(ImageFilter.MaxFilter(2 * lw + 3)))
+        if rng.random() < .6:
+            d.ellipse(box, outline=C2, width=max(1, lw - 1))
+            dp.ellipse(box, fill=255)
+    E = np.asarray(em).astype(np.float32) / 255
+    A = np.asarray(pm).astype(np.float32) / 255
+    g1 = blur_big(E, max(1.5, lw * 1.3))
+    g2 = blur_big(E, max(4.0, lw * 4.5))
+    white = np.clip(E.max(axis=2, keepdims=True) - .55, 0, 1) * .6
+    return A, (E + .5 * g1 + .35 * g2 + .8 * white).astype(np.float32), pad
+
+
+def hk_person():
+    """路面上撑红伞的小小人影（含倒影）"""
+    yg, fx = int(YH + 0.80 * GH), int(W * .40)
+    u = 118 * S / 178                       # 把原来 178 高的人缩小
+    sil, colim = Image.new("L", (W, H)), Image.new("RGB", (W, H))
+    d, dc = ImageDraw.Draw(sil), ImageDraw.Draw(colim)
+    dark = (5, 4, 9)
+
+    def poly(pts, fc=dark):
+        d.polygon(pts, fill=255)
+        dc.polygon(pts, fill=fc)
+    fh = 178 * u
+    poly([(fx - 7 * u, yg), (fx - 3 * u, yg), (fx - 4 * u, yg - fh * .42), (fx - 10 * u, yg - fh * .42)])
+    poly([(fx + 3 * u, yg), (fx + 7 * u, yg), (fx + 10 * u, yg - fh * .42), (fx + 4 * u, yg - fh * .42)])
+    poly([(fx - 19 * u, yg - fh * .38), (fx + 19 * u, yg - fh * .38), (fx + 13 * u, yg - fh * .82),
+          (fx - 13 * u, yg - fh * .82)], (12, 9, 16))
+    d.ellipse([fx - 10 * u, yg - fh * .95, fx + 10 * u, yg - fh * .82], fill=255)
+    dc.ellipse([fx - 10 * u, yg - fh * .95, fx + 10 * u, yg - fh * .82], fill=dark)
+    d.line([(fx + 12 * u, yg - fh * .6), (fx + 4 * u, yg - fh * 1.08)], fill=255, width=max(1, int(2 * u)))
+    dc.line([(fx + 12 * u, yg - fh * .6), (fx + 4 * u, yg - fh * 1.08)], fill=dark, width=max(1, int(2 * u)))
+    ur, uy = 66 * u, yg - fh * 1.04
+    box = [fx + 4 * u - ur, uy - ur * .75, fx + 4 * u + ur, uy + ur * .75]
+    d.pieslice(box, 180, 360, fill=255)
+    dc.pieslice(box, 180, 360, fill=(150, 18, 34))
+    sil_a = np.asarray(sil).astype(np.float32) / 255
+    fcol = np.asarray(colim).astype(np.float32) / 255
+    ref_a = np.zeros_like(sil_a)
+    ref_a[yg:] = sil_a[yg - 1::-1][:H - yg]
+    ref_a = gaussian_filter(ref_a, (5 * S, 1.5 * S)) * 0.5
+    ref_c = np.zeros_like(fcol)
+    ref_c[yg:] = fcol[yg - 1::-1][:H - yg] * 0.5
+    ref_c = gaussian_filter(ref_c, (5 * S, 1.5 * S, 0))
+    alpha = np.maximum(sil_a, ref_a)
+    color = np.where(sil_a[..., None] > 0.01, fcol, ref_c / np.maximum(ref_a[..., None], 1e-3) * 0.5)
+    return dict(alpha=alpha.astype(np.float32), color=color.astype(np.float32))
+
+
+def hk_setup():
+    rng = np.random.default_rng(1101)
+    vpx, vpy = W / 2, YH - 0.015 * H            # 灭点：街道尽头，贴着地平线
+    N = int(175 * W * H / (1920 * 1080))
+    specs, tries = [], 0
+    while len(specs) < N and tries < N * 20:
+        tries += 1
+        dpt = rng.random() ** 0.85              # 0 = 最近，1 = 最远
+        s = 1 / (1 + 2.0 * dpt)
+        side = rng.choice([-1, 1])
+        kind = str(rng.choice(["vblade", "vblade", "vblade", "hboard", "hboard", "round", "icon"]))
+        if kind == "vblade":
+            bw, bh = rng.uniform(70, 120), rng.uniform(260, 520)
+        elif kind == "hboard":
+            bw, bh = rng.uniform(240, 460), rng.uniform(64, 120)
+        elif kind == "round":
+            bw = bh = rng.uniform(120, 210)
+        else:
+            bw = bh = rng.uniform(90, 190)
+        w, h = int(bw * s * S * .95), int(bh * s * S * .95)
+        if w < 14 or h < 14:
+            continue
+        sx = vpx + side * rng.uniform(.14, .62) * W * s
+        sy = vpy - rng.uniform(-.12, 1.05) * H * s
+        if sy + h / 2 > YH - 0.01 * H or sx < -w * .3 or sx > W + w * .3 or sy + h / 2 < 0:
+            continue
+        if abs(sx - vpx) < .075 * W + w / 2 and dpt < .78:      # 中间留一条缝给远处的高楼
+            continue
+        word = {"vblade": HK_WORDS_V, "hboard": HK_WORDS_H, "round": HK_WORDS_R}.get(kind, [""])
+        word = word[int(rng.integers(len(word)))] if kind != "icon" else ""
+        icon = HK_ICONS[int(rng.integers(len(HK_ICONS)))] if kind == "icon" else None
+        i1, i2 = rng.choice(len(HK_COLS), 2, replace=False)
+        specs.append(dict(s=s, d=dpt, kind=kind, w=w, h=h, sx=sx, sy=sy, word=word, icon=icon,
+                          c1=HK_COLS[i1], c2=HK_COLS[i2], seed=int(rng.integers(1 << 30)),
+                          alt=rng.random() < .18, c3=HK_COLS[int(rng.integers(len(HK_COLS)))]))
+    specs.sort(key=lambda sp: sp["s"])          # 远的先画
+    signs = []
+    big = max(range(len(specs)), key=lambda k: specs[k]["w"] * specs[k]["h"] if specs[k]["sx"] < vpx else 0)
+    for k, sp in enumerate(specs):
+        A, add, pad = hk_make_sign(sp["seed"], sp["kind"], sp["w"], sp["h"], sp["c1"], sp["c2"], sp["word"], sp["icon"])
+        add_b = None
+        if sp["alt"]:
+            add_b = hk_make_sign(sp["seed"], sp["kind"], sp["w"], sp["h"], sp["c2"], sp["c3"], sp["word"], sp["icon"])[1]
+        u = rng.random()
+        on = 10.67 if k == big else (21.33 + rng.uniform(0, 21) if u < .5 else
+                                      42.67 + rng.uniform(0, 21) if u < .8 else 64 + rng.uniform(0, 8))
+        signs.append(dict(alpha=A, add=add, add_b=add_b, pad=pad, x=int(sp["sx"] - sp["w"] / 2) - pad,
+                          y=int(sp["sy"] - sp["h"] / 2) - pad, inten=1.05 - .5 * sp["d"],
+                          on=on, off=rng.uniform(111, 124.5), seed=int(rng.integers(1 << 30))))
+    # 天空 + 街口暖光
+    sky = np.broadcast_to(gradient([(0, (0, 0, .015)), (.55, (.03, .012, .06)), (.9, (.12, .045, .11)),
+                                    (1, (.2, .08, .13))], YH), (YH, W, 3)).astype(np.float32).copy()
+    yy_ = np.arange(YH, dtype=np.float32)[:, None]
+    xx_ = np.arange(W, dtype=np.float32)[None, :]
+    band = ((np.exp(-((YH - yy_) / (0.07 * H)) ** 2)) * (np.clip(np.abs(xx_ - W / 2) / (W * .5), 0, 1) ** 1.2 * .8 + .2)
+            )[..., None] * np.array([1.0, .55, .32], np.float32) * 0.16
+    # 中间的高楼 + 两侧低矮远景楼（窗灯按阈值逐渐点亮）
+    body_a = np.zeros((YH, W), np.float32)
+    body_rgb = np.zeros((YH, W, 3), np.float32)
+    win_thr = np.full((YH, W), 9.0, np.float32)
+    win_rgb = np.zeros((YH, W, 3), np.float32)
+    tw0, tw1 = int(vpx - .065 * W), int(vpx + .065 * W)
+    bl, x = [], int(vpx - .21 * W)
+    while x < vpx + .21 * W:
+        bw = int(rng.uniform(.03, .06) * W)
+        bh = int(rng.uniform(.12, .40) * H)
+        if not (x + bw > tw0 - 4 and x < tw1 + 4):
+            bl.append((max(0, x), min(W, x + bw), YH - bh, .5))
+        x += bw + int(rng.uniform(-.005, .015) * W)
+    bl.append((tw0, tw1, 0, 1.0))
+    gx, gy = int(20 * S), int(26 * S)
+    for x0, x1, y0, br in bl:
+        body_a[y0:, x0:x1] = 1
+        body_rgb[y0:, x0:x1] = (.012, .012, .022) if br == 1.0 else (.045, .025, .075)
+        for yy0 in range(y0 + gy // 2, YH - gy, gy):
+            for xx0 in range(x0 + gx // 2, x1 - gx // 2, gx):
+                if rng.random() < .8:
+                    c = np.array([1, .82, .55] if rng.random() < .75 else [.7, .85, 1.0], np.float32) * br * .6
+                    win_thr[yy0:yy0 + int(11 * S), xx0:xx0 + int(8 * S)] = rng.random()
+                    win_rgb[yy0:yy0 + int(11 * S), xx0:xx0 + int(8 * S)] = c
+    # 路面
+    ground = np.broadcast_to(gradient([(0, (.03, .02, .045)), (1, (.008, .006, .015))], GH), (GH, W, 3)).astype(np.float32).copy()
+    puddle = fractal_noise(rng, GH, W, ((40, 1), (14, .4)))
+    rmask = (np.linspace(.9, .55, GH)[:, None] * (.55 + .45 * np.clip((puddle - .25) / .35, 0, 1)))[..., None].astype(np.float32)
+    yy, xx = np.mgrid[0:GH, 0:W].astype(np.float32)
+    # 光轨：左半边是驶离的尾灯（红），右半边是驶来的车头灯（白黄）
+    trails = []
+    for k in range(26):
+        away = k < 13
+        trails.append(dict(lane=-rng.uniform(.08, .95) if away else rng.uniform(.08, .95), dirn=-1.0 if away else 1.0,
+                           speed=rng.uniform(.08, .35), p0=rng.random(), ln=rng.uniform(.18, .5),
+                           col=(np.array([1., .07, .04]) if away else np.array([1., .9, .65])) * rng.uniform(.7, 1.1)))
+    drops = []
+    n_far, n_near = [int(k * W * H / (1920 * 1080)) for k in (900, 380)]
+    for n, v, ln, a, wdt in ((n_far, 950, 22, .30, 1), (n_near, 1750, 48, .5, 2)):
+        drops.append(dict(x=rng.uniform(0, W + 200 * S, n), y=rng.uniform(0, H + 100 * S, n),
+                          v=v * S * rng.uniform(.85, 1.15, n), ln=ln * S * rng.uniform(.7, 1.3, n),
+                          a=a * rng.uniform(.5, 1, n), w=max(1, int(wdt * S))))
+    nr = int(DUR * 70)
+    ripples = dict(t=np.sort(rng.uniform(-1, DUR, nr)), x=rng.uniform(0, W, nr),
+                   y=YH + 4 * S + (GH - 4 * S) * rng.uniform(0, 1, nr) ** 0.7, a=rng.uniform(.4, 1, nr))
+    vy, vx = np.mgrid[0:H, 0:W].astype(np.float32)
+    title, logo = overlay_layers()
+    return dict(signs=signs, sky=sky, band=band.astype(np.float32), body_a=body_a, body_rgb=body_rgb,
+                win_thr=win_thr, win_rgb=win_rgb, ground=ground, rmask=rmask, xx=xx, yy=yy, yyi=yy.astype(np.int32),
+                persp=(yy + 8 * S) / GH, rows=np.clip(YH - 1 - (np.arange(GH) * 3.5).astype(np.int32), 0, YH - 1),
+                trails=trails, drops=drops, ripples=ripples, person=hk_person(), title=title, logo=logo,
+                vig=(1 - 0.38 * (((vx - W / 2) / (W * .75)) ** 2 + ((vy - H / 2) / (H * .75)) ** 2))[..., None],
+                grain=[rng.standard_normal((H // 2, W // 2)).astype(np.float32) for _ in range(6)],
+                pulse=audio_pulse(), vp=(vpx, vpy))
+
+
+def hk_blit(img, sg, level, use_b):
+    x, y = sg["x"], sg["y"]
+    A = sg["alpha"]
+    ph, pw = A.shape
+    x0, y0, x1, y1 = max(0, x), max(0, y), min(img.shape[1], x + pw), min(img.shape[0], y + ph)
+    if x1 <= x0 or y1 <= y0:
+        return
+    a = A[y0 - y:y1 - y, x0 - x:x1 - x][..., None]
+    reg = img[y0:y1, x0:x1]
+    reg *= 1 - a
+    reg += a * HK_PANEL
+    if level > 0:
+        add = sg["add_b"] if (use_b and sg["add_b"] is not None) else sg["add"]
+        reg += add[y0 - y:y1 - y, x0 - x:x1 - x] * (level * sg["inten"])
+
+
+def hk_frame(i):
+    sc = SC
+    t = i / FPS
+    pulse = sc["pulse"][min(i, NF - 1)]
+    hue = interp(HUE, t)
+    lights = interp(LIGHTS, t)
+    up = sc["sky"] + sc["band"] * (0.25 + 1.4 * lights)
+    a = sc["body_a"][..., None]
+    up = up * (1 - a) + sc["body_rgb"] * a
+    up += sc["win_rgb"] * (sc["win_thr"] < lights * 1.6)[..., None]
+    beat = int(t / (60 / 90)) % 2 == 1
+    for sg in sc["signs"]:
+        hk_blit(up, sg, sign_level(sg, t, pulse), beat)
+    up += 0.2 * np.repeat(np.repeat(gaussian_filter(up[::8, ::8], (5, 5, 0)), 8, 0), 8, 1)[:YH, :W]
+
+    # 湿地面：把整条招牌峡谷压缩 3.5 倍倒映下来，再加水纹
+    refl = gaussian_filter(up[sc["rows"]], (1.0, 2.0, 0))
+    xx, yy, persp = sc["xx"], sc["yy"], sc["persp"]
+    sx = (persp * 3.5 * S + 1.0) * (np.sin(xx * 0.02 / S + yy * 0.05 / S - t * 2.3)
+                                    + 0.6 * np.sin(xx * 0.008 / S - yy * 0.035 / S + t * 1.7))
+    refl = refl[sc["yyi"], np.clip((xx + sx).astype(np.int32), 0, W - 1)]
+    ground = sc["ground"] + refl * sc["rmask"]
+    # 车灯光轨（长曝光的拖尾）
+    tr = Image.new("RGB", (W, GH))
+    dt = ImageDraw.Draw(tr)
+    segs = 8
+    for tl in sc["trails"]:
+        ph = (tl["p0"] + tl["dirn"] * tl["speed"] * t) % 1.0
+        pts = []
+        for k in range(segs + 1):
+            p = ph - tl["dirn"] * tl["ln"] * k / segs
+            y = GH * min(max(p, 0.0), 1.05) ** 1.5
+            pts.append((p, y, W / 2 + tl["lane"] * 0.62 * W * y / GH))
+        for k in range(segs):
+            (pa, ya, xa), (pb, yb, xb) = pts[k], pts[k + 1]
+            if min(pa, pb) < 0.02 or max(pa, pb) > 1.05:
+                continue
+            f = (1 - k / segs) ** 1.3
+            dt.line([(xa, ya), (xb, yb)], fill=tuple(int(255 * min(1, v * f)) for v in tl["col"]),
+                    width=max(2, int((2 + 16 * ya / GH) * S)))
+    tra = np.asarray(tr).astype(np.float32) / 255
+    ground += (1.5 + .4 * pulse) * tra + 1.4 * gaussian_filter(tra, (4 * S, 4 * S, 0))
+    img = np.concatenate([up, ground], axis=0)
+    pr = sc["person"]
+    img = img * (1 - pr["alpha"][..., None]) + pr["color"] * pr["alpha"][..., None]
+
+    # 雨丝 + 涟漪
+    rain = Image.new("L", (W, H))
+    d = ImageDraw.Draw(rain)
+    dens = interp(RAIN, t) * 0.75
+    for L in sc["drops"]:
+        n = int(len(L["x"]) * min(1, dens))
+        yv = (L["y"][:n] + L["v"][:n] * t) % (H + 100 * S) - 50 * S
+        xv = (L["x"][:n] + 0.16 * L["v"][:n] * t) % (W + 200 * S) - 100 * S
+        for x, y, ln, al in zip(xv, yv, L["ln"][:n], L["a"][:n] * min(1.3, dens)):
+            d.line([(x, y), (x - 0.16 * ln, y - ln)], fill=int(255 * al), width=L["w"])
+    rp = sc["ripples"]
+    k0, k1 = np.searchsorted(rp["t"], [t - 0.5, t])
+    for k in range(k0, k1):
+        age = (t - rp["t"][k]) / 0.5
+        r = (3 + 26 * (rp["y"][k] - YH) / GH) * S * (0.3 + age)
+        x, y = rp["x"][k], rp["y"][k]
+        d.ellipse([x - r, y - r * 0.28, x + r, y + r * 0.28], outline=int(150 * rp["a"][k] * (1 - age)))
+    img += np.asarray(rain.filter(ImageFilter.GaussianBlur(0.6 * S))).astype(np.float32)[..., None] / 255 * col(.55, .55, .7)
+
+    # 冷蓝段调色、柔光、暗角、颗粒
+    img *= np.array([1 - .22 * hue, 1 - .04 * hue, 1 + .22 * hue], np.float32)
+    ga = 0.18 * hue
+    img = img * (1 - ga) + img[..., ::-1] * ga
+    bl = gaussian_filter(np.maximum(img[::4, ::4] - 0.7, 0), (6, 6, 0))
+    img += 0.3 * np.repeat(np.repeat(bl, 4, 0), 4, 1)[:H, :W]
+    img *= sc["vig"]
+    img = np.where(img > 0.8, 0.8 + 0.2 * np.tanh((img - 0.8) / 0.2), img)
+    img += 0.009 * np.repeat(np.repeat(sc["grain"][(i // 2) % 6], 2, 0), 2, 1)[..., None]
+    # 镜头缓缓推向街道尽头
+    z = 1.0 + 0.07 * ramp(t, 0, DUR)
+    vpx, vpy = sc["vp"]
+    cw, ch = W / z, H / z
+    im = Image.fromarray((np.clip(img, 0, 1) * 255).astype(np.uint8)).resize(
+        (W, H), Image.BILINEAR, box=(vpx - vpx / z, vpy - vpy / z, vpx - vpx / z + cw, vpy - vpy / z + ch))
+    img = np.asarray(im).astype(np.float32) / 255 * ramp(t, 0, 2.5)
+    title_a = ramp(t, 0.6, 1.6) * (1 - ramp(t, 4.6, 6.0)) + ramp(t, 117.5, 119.5)
+    for layer, al in ((sc["title"], title_a), (sc["logo"], ramp(t, 1.5, 3.0))):
+        if al > 0:
+            aa = layer[..., 3:4] * al
+            img = img * (1 - aa) + layer[..., :3] * aa
+    img *= 1 - ramp(t, DUR - 3, DUR)
+    return (np.clip(img, 0, 1) * 255).astype(np.uint8)
 
 
 def init():
