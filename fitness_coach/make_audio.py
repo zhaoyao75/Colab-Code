@@ -32,7 +32,7 @@ def resample(x, sr0, sr1):
     return np.interp(np.linspace(0, len(x) - 1, n), np.arange(len(x)), x).astype(np.float32)
 
 
-VOICE = os.environ.get("TTS_VOICE", "zh-CN-XiaoxiaoNeural")     # 微软 Edge 在线女声；TTS_VOICE=piper 用离线 Piper
+VOICE = os.environ.get("TTS_VOICE", "zh-CN-XiaoyiNeural")     # 微软 Edge 在线女声；TTS_VOICE=piper 用离线 Piper
 WINDOW = [(LINES[i + 1][0] if i + 1 < len(LINES) else DUR) - LINES[i][0] - 0.12 for i in range(len(LINES))]
 
 
