@@ -60,12 +60,12 @@ def cover(t, name, ink, sub_col, shade=None):
         xx = np.linspace(0, 1, R.W, dtype=np.float32)[None, :, None]
         yy = np.linspace(0, 1, R.H, dtype=np.float32)[:, None, None]
         img = img * (1 - shade * np.clip(1.2 - xx * 1.6, 0, 1) * np.clip(1.3 - yy * 1.5, 0, 1))
-    big = R.text_sprite("郑州八千年", R.SERIF_BLACK, 210, fill=ink, shadow=6)
+    big = R.text_sprite(R.TITLE_ZH, R.SERIF_BLACK, 170, fill=ink, shadow=6)
     line2 = R.text_sprite("从商朝都城到「米」字形高铁", R.SERIF_BOLD, 70, fill=sub_col, shadow=4)
     seal = R.seal_sprite("中原", 92)
     tag = tag_sprite("2 分钟 · 水墨动画 · 中英字幕")
     R.paste(img, big, 110, 110)
-    R.paste(img, seal, 110 + big.w + 10, 140)
+    R.paste(img, seal, 110 + big.w + 10, 125)
     R.paste(img, line2, 120, 110 + big.h + 10)
     R.paste(img, tag, 128, 110 + big.h + line2.h + 40)
     im = Image.fromarray(R.to_u8(img))
