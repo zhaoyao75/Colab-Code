@@ -60,7 +60,7 @@ def car_sprite_cartoon():
     return R.fin(im)
 
 
-def boy_sprite(mode="color"):
+def boy_sprite(mode="color", stick=True):
     """背小包袱的少年（朝右走）：mode='color' 彩色，'sil' 纯黑剪影（包袱另用蜡笔画）"""
     S = R.SS
     w, h = 240, 330
@@ -79,14 +79,15 @@ def boy_sprite(mode="color"):
     d.polygon([(x * S, y * S) for x, y in [(78, 118), (146, 118), (158, 226), (68, 226)]], fill=tunic)
     d.line([(112 * S, 120 * S), (112 * S, 226 * S)], fill=(255, 255, 255, 60) if not sil else K, width=2 * S)
     # 木棍 + 包袱
-    L([(120, 160), (228, 34)], (120, 80, 44, 255) if not sil else K, 8)
-    if not sil:
+    if stick:
+        L([(120, 160), (228, 34)], (120, 80, 44, 255) if not sil else K, 8)
+    if not sil and stick:
         d.ellipse([196 * S, 6 * S, 250 * S, 62 * S], fill=(214, 70, 60, 255), outline=(120, 30, 30, 255), width=3 * S)
         for a, b in ((214, 22), (232, 30), (220, 44)):
             d.ellipse([(a - 4) * S, (b - 4) * S, (a + 4) * S, (b + 4) * S], fill=(250, 240, 230, 255))
         d.polygon([(x * S, y * S) for x, y in [(206, 56), (240, 56), (226, 70)]], fill=(214, 70, 60, 255))
     # 手臂搭在棍上
-    L([(138, 130), (172, 96)], skin if not sil else K, 16)
+    L([(138, 130), (172, 96)] if stick else [(138, 130), (150, 196)], skin if not sil else K, 16)
     # 头：圆脸 + 短发 + 耳朵 + 眼睛
     d.ellipse([72 * S, 34 * S, 152 * S, 118 * S], fill=skin)
     d.pieslice([70 * S, 28 * S, 154 * S, 112 * S], 180, 360, fill=hair)
@@ -358,7 +359,7 @@ def light_woodcut_bg():
     return Image.alpha_composite(bg, Image.fromarray(inkl, "RGBA")).convert("RGB")
 
 
-def style_BC2():
+def style_BC2(with_sub=True):
     img = light_woodcut_bg().convert("RGBA")
     boy = boy_sprite("sil")
     bx, by, bs = 1000, 700, 1.5
@@ -387,7 +388,7 @@ def style_BC2():
     lay = crayon_finish(lay, seed=3, wobble=2.2, grain=0.3)
     img = Image.alpha_composite(img.convert("RGBA"), with_halo(lay, 5)).convert("RGB")
     R.place(img, R.seal("童心", 96), 1780, 960)
-    return subtitle(img)
+    return subtitle(img) if with_sub else img
 
 
 if __name__ == "__main__":
