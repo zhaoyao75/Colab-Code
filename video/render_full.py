@@ -24,7 +24,8 @@ RW, RH, OW, OH, FPS = rd.RW, rd.RH, rd.OW, rd.OH, rd.FPS
 DUR = 128.0
 NF = int(DUR * FPS)
 AUDIO_MP3 = os.path.join(HERE, "..", "music", "stellar_echo.mp3")
-OUT = os.path.join(HERE, "stellar_echo_full_bw.mp4")
+SUF = "_en" if rd.EN else ""
+OUT = os.path.join(HERE, f"stellar_echo_full_bw{SUF}.mp4")
 WORKERS = 4
 
 
@@ -147,7 +148,7 @@ def main():
         sheet = Image.new("RGB", (1280, 360 * ((len(ims) + 1) // 2)))
         for n, im in enumerate(ims):
             sheet.paste(im, ((n % 2) * 640, (n // 2) * 360))
-        sheet.save(os.path.join(HERE, "full_bw_preview.png"))
+        sheet.save(os.path.join(HERE, f"full_bw_preview{SUF}.png"))
         print("preview saved")
         return
     bounds = np.linspace(0, NF, WORKERS + 1).astype(int)

@@ -25,6 +25,7 @@ RIN, ROUT = 3.0, 13.0        # 吸积盘内外半径（史瓦西半径 = 1）
 CACHE = os.path.join(HERE, ".trace_cache.npz")
 rng = np.random.default_rng(3)
 BW = "--bw" in sys.argv
+EN = "--en" in sys.argv       # 纯英文版：标题和副标题都用英文
 
 
 # ------------------------------------------------------------------ 光线追踪（一次）
@@ -177,8 +178,15 @@ def overlay_layers():
             dr.text((x, y), c, font=font, fill=fill)
             x += w + spacing
 
-    spaced("星际回响", zh, 572, 26, (242, 242, 242, 255) if BW else (245, 240, 232, 255))
-    spaced("STELLAR  ECHO", en, 646, 9, (196, 196, 196, 255) if BW else (200, 196, 190, 255))
+    main_c = (242, 242, 242, 255) if BW else (245, 240, 232, 255)
+    sub_c = (196, 196, 196, 255) if BW else (200, 196, 190, 255)
+    if EN:
+        big = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 50)
+        spaced("STELLAR ECHO", big, 576, 20, main_c)
+        spaced("A TRIBUTE TO INTERSTELLAR", en, 646, 9, sub_c)
+    else:
+        spaced("星际回响", zh, 572, 26, main_c)
+        spaced("STELLAR  ECHO", en, 646, 9, sub_c)
     title = title.filter(__import__("PIL.ImageFilter", fromlist=["x"]).GaussianBlur(0.3))
 
     logo = Image.new("RGBA", (OW, OH), (0, 0, 0, 0))
@@ -268,7 +276,7 @@ def main():
         return (np.clip(out, 0, 1) * 255).astype(np.uint8)
 
     if still is not None:
-        Image.fromarray(frame(still)).save(os.path.join(HERE, "still_bw.png" if BW else "still.png"))
+        Image.fromarray(frame(still)).save(os.path.join(HERE, ("still_bw" if BW else "still") + ("_en" if EN else "") + ".png"))
         print("still saved")
         return
 
