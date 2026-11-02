@@ -219,6 +219,6 @@ python3 vertical_v2.py                                    # 抖音竖版（复�
 | 蜡笔层里贴完精灵，后面用 `d = cl.d` 画的东西全丢了 | `Image.alpha_composite` 返回新图，缓存的 `ImageDraw` 还指向旧图；改成 `im.alpha_composite(sprite, dest)` 原地合成 |
 | 半透明光锥放进蜡笔层会带白边，像个三角形轮廓 | 光锥画进线刻层的淡色涂层 |
 | 字幕盖住画面主体（纸船、小路） | 画面内容放在 y<780，字幕单行后更不挡；静帧里专门检查底部 |
-| 压低 `pkill -f xxx.py` | 会连执行它的 shell 一起杀；用 `ps | grep "[x]xx.py"` 查 PID |
+| 用 `pkill -f xxx.py` 停后台渲染 | 会连执行它的 shell 一起杀；用 `ps | grep "[x]xx.py"` 查 PID |
 | 旁白超出镜头窗口 | 先量每句 TTS 实际时长，再按需分配每镜起点（`script_v2.json` 的 `starts`），不要平均分 |
 | 讲真实人物 | 只用查得到出处的事实，查不到的写成「点到为止」（如猫头鹰只写「他画了一只猫头鹰」）；人物是卡通示意，不是肖像 |
