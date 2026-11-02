@@ -273,6 +273,97 @@ def old_man(kind="shen"):
     return R.fin(im)
 
 
+STYLE = "line"      # 老人画法：line 蜡笔简笔画（采用）；None 旧的多边形画法；sil、back 已弃用
+
+
+def old_man_alt(kind="huang", style="line"):
+    """三种新画法（圆润笔触，不用尖角多边形）。line：蜡笔简笔画；sil：黑色木刻剪影 + 奶油色五官；back：背影（不画脸）"""
+    S = R.SS
+    w, h = 360, 400
+    im = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    line = (50, 36, 30, 255)
+    cream = (250, 246, 236, 255)
+    shen = kind == "shen"
+    sil = style == "sil"
+    robe = (22, 20, 22, 255) if sil else ((112, 132, 156, 255) if shen else (214, 88, 66, 255))
+    skin = (22, 20, 22, 255) if sil else (246, 208, 168, 255)
+    pink = (242, 172, 156, 255)
+    hairc = (226, 226, 232, 255) if shen else cream
+    fc = cream if sil else line                                     # 五官线条色
+
+    def P(pts):
+        return [(x * S, y * S) for x, y in pts]
+
+    def E(cx, cy, rx, ry, **kw):
+        d.ellipse([(cx - rx) * S, (cy - ry) * S, (cx + rx) * S, (cy + ry) * S], **kw)
+
+    def cloud(pts, r, fill, ow=4):
+        for x, y in pts:
+            E(x, y, r + ow, r + ow, fill=line if not sil else cream)
+        for x, y in pts:
+            E(x, y, r, r, fill=fill)
+
+    def arcpts(cx, cy, rx, ry, a0, a1, n):
+        return [(cx + rx * math.cos(math.radians(a)), cy + ry * math.sin(math.radians(a))) for a in np.linspace(a0, a1, n)]
+    # 身体：圆润的肩
+    d.rounded_rectangle([40 * S, 250 * S, 320 * S, 440 * S], radius=85 * S, fill=robe, outline=line if not sil else None, width=5 * S)
+    cx, cy = 180, 140
+    rx, ry = (56, 72) if shen else (66, 72)
+    if style == "back":
+        d.rectangle([158 * S, 196 * S, 202 * S, 262 * S], fill=skin)
+        E(cx - rx + 2, 146, 13, 19, fill=skin, outline=line, width=5 * S)
+        E(cx + rx - 2, 146, 13, 19, fill=skin, outline=line, width=5 * S)
+        pts = arcpts(cx, cy, rx - 6, ry - 6, 0, 360, 22)
+        cloud(pts + [(cx, cy), (cx - 20, cy - 20), (cx + 20, cy - 20)], 26, hairc if not shen else (226, 226, 232, 255))
+        d.line(P([(180, 262), (180, 420)]), fill=(150, 56, 42, 255) if not shen else (84, 100, 124, 255), width=4 * S)
+        d.line(P([(270, 300), (300, 380)]), fill=robe if not sil else robe, width=44 * S, joint="curve")
+        E(302, 392, 22, 18, fill=skin, outline=line, width=5 * S)
+        d.line(P([(305, 380), (344, 404)]), fill=(60, 40, 30, 255), width=8 * S)
+        return R.fin(im)
+    d.rectangle([160 * S, 196 * S, 200 * S, 262 * S], fill=skin)
+    if not sil:
+        d.polygon(P([(150, 252), (180, 318), (210, 252)]), fill=cream, outline=line, width=4 * S)
+        for by in (336, 372):
+            E(180, by, 6, 6, fill=line)
+    for sx in (-1, 1):
+        E(cx + sx * (rx - 1), 146, 13, 19, fill=skin, outline=line if not sil else None, width=5 * S)
+    E(cx, cy, rx, ry, fill=skin, outline=line if not sil else None, width=6 * S)
+    # 头发 / 胡子：一团团圆形连成的"云"
+    if shen:
+        hp = arcpts(cx, cy + 2, rx + 2, ry + 3, 200, 340, 9)
+        cloud(hp, 15, hairc)
+    else:
+        hp = arcpts(cx, cy, rx + 4, ry + 4, 192, 348, 11)
+        cloud(hp + [(cx - 20, 62), (cx + 18, 58)], 22, hairc)
+        bp = arcpts(cx, cy, rx - 4, ry - 2, 24, 156, 9)
+        cloud(bp + [(cx - 26, 214), (cx + 4, 224), (cx + 28, 212)], 19, hairc)
+        cloud([(cx - 30, 172), (cx - 12, 168), (cx + 12, 168), (cx + 30, 172)], 12, hairc, 3)
+    # 眼镜、眼睛、鼻、嘴
+    for sx in (-1, 1):
+        ex = cx + sx * 26
+        E(ex, 132, 23, 23, fill=(228, 242, 250, 255) if not sil else None, outline=fc, width=5 * S)
+        if shen:
+            E(ex, 134, 6, 7, fill=fc)
+        else:
+            d.arc([(ex - 14) * S, 122 * S, (ex + 14) * S, 148 * S], 200, 340, fill=fc, width=6 * S)
+    d.line(P([(cx - 4, 130), (cx + 4, 130)]), fill=fc, width=5 * S)
+    E(cx, 158, 9, 12, fill=None if sil else (236, 186, 148, 255), outline=fc, width=4 * S)
+    if not sil:
+        for sx in (-1, 1):
+            E(cx + sx * 44, 168, 14, 9, fill=pink)
+    if shen:
+        d.arc([150 * S, 160 * S, 210 * S, 198 * S], 20, 160, fill=fc, width=5 * S)
+    else:
+        E(cx, 198, 24, 16, fill=(130, 40, 44, 255) if not sil else cream, outline=line, width=4 * S)
+        if not sil:
+            E(cx, 206, 14, 7, fill=(226, 104, 110, 255))
+    for hx in (95, 265):
+        E(hx, 388, 24, 20, fill=skin, outline=line if not sil else None, width=5 * S)
+    d.line(P([(268, 374), (322, 400)]), fill=(60, 40, 30, 255) if not sil else cream, width=8 * S)
+    return R.fin(im)
+
+
 def bust(spr, keep=0.66):
     return spr.crop((0, 0, spr.width, int(spr.height * keep)))
 
@@ -389,7 +480,7 @@ def shot4(sub_on=True):
     d.polygon([(1250, 692), (1560, 692), (1580, 712), (1230, 712)], fill=CREAM, outline=(60, 40, 30, 255))
     boy = bust(SD.boy_sprite("color", False), 0.7)
     cl.paste(boy, 470, 700 - boy.height * 1.45 / 2 + 4, 1.45)
-    man = old_man("shen")
+    man = old_man_alt("shen", STYLE) if STYLE else old_man("shen")
     cl.paste(man, 1420, 700 - man.height / 2 + 6, 1.0)
     def envelope(cx, cy, ang, s=1.0):
         e = Image.new("RGBA", (130, 90), (0, 0, 0, 0))
@@ -507,7 +598,7 @@ def shot8(sub_on=True):
     cl = CL()
     d = cl.d
     d.polygon([(620, 712), (900, 704), (920, 724), (600, 732)], fill=CREAM, outline=(60, 40, 30, 255))
-    man = old_man("huang")
+    man = old_man_alt("huang", STYLE) if STYLE else old_man("huang")
     cl.paste(man, 560, 720 - man.height * 1.3 / 2 + 6, 1.3)
     for (x, y, r_) in ((850, 520, 16), (905, 470, 24), (975, 420, 34)):             # 思绪泡泡
         d.ellipse([x - r_, y - r_, x + r_, y + r_], fill=CREAM, outline=(60, 40, 30, 255), width=5)
