@@ -116,10 +116,13 @@ class CL:
             im = im.copy()
             im.putalpha(im.getchannel("A").point(lambda v: int(v * alpha)))
         x, y = int(cx - im.width / 2), int(cy - im.height / 2)
-        tmp = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-        tmp.paste(im, (x, y))
-        self.im = Image.alpha_composite(self.im, tmp)
-        self.d = ImageDraw.Draw(self.im)
+        if x < 0:                                   # 超出画布的部分裁掉
+            im, x = im.crop((-x, 0, im.width, im.height)), 0
+        if y < 0:
+            im, y = im.crop((0, -y, im.width, im.height)), 0
+        im = im.crop((0, 0, min(im.width, W - x), min(im.height, H - y)))
+        if im.width > 0 and im.height > 0:
+            self.im.alpha_composite(im, (x, y))     # 原地合成，self.d 始终有效
 
     def finish(self, base, seed=3, wobble=2.2, grain=0.3, halo=5):
         lay = SD.crayon_finish(self.im, seed=seed, wobble=wobble, grain=grain)
@@ -193,6 +196,75 @@ def glasses(cl, cx, top, s=1.0):
     for dx in (-22, 22):
         cl.d.ellipse([cx + (dx - 16) * s, top + (2 - 16) * s, cx + (dx + 16) * s, top + (2 + 16) * s], outline=CREAM, width=5)
     cl.d.line([(cx - 6 * s, top + 2 * s), (cx + 6 * s, top + 2 * s)], fill=CREAM, width=5)
+
+
+def old_man(kind="shen"):
+    """彩色卡通老人上半身（360×400）。kind='shen' 清瘦儒雅的沈从文；'huang' 圆脸白胡子、笑得张嘴的黄永玉"""
+    S = R.SS
+    w, h = 360, 400
+    im = Image.new("RGBA", (w * S, h * S), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    line = (50, 36, 30, 255)
+    skin, skin2, white = (246, 208, 168, 255), (236, 186, 148, 255), (250, 248, 244, 255)
+    shen = kind == "shen"
+    robe = (112, 132, 156, 255) if shen else (214, 88, 66, 255)
+
+    def P(pts):
+        return [(x * S, y * S) for x, y in pts]
+
+    def E(cx, cy, rx, ry, **kw):
+        d.ellipse([(cx - rx) * S, (cy - ry) * S, (cx + rx) * S, (cy + ry) * S], **kw)
+
+    def L(pts, fill, wd):
+        d.line(P(pts), fill=fill, width=int(wd * S), joint="curve")
+    # 身体与领口
+    d.polygon(P([(30, 400), (50, 270), (120, 222), (240, 222), (310, 270), (330, 400)]), fill=robe, outline=line, width=5 * S)
+    d.polygon(P([(150, 222), (180, 300), (210, 222)]), fill=white, outline=line, width=4 * S)
+    for by in (322, 358):
+        E(180, by, 6, 6, fill=line)
+    d.rectangle([160 * S, 190 * S, 200 * S, 234 * S], fill=skin2)
+    # 头、耳
+    rx, ry = (54, 72) if shen else (64, 70)
+    for sx in (-1, 1):
+        E(180 + sx * rx, 138, 13, 19, fill=skin, outline=line, width=5 * S)
+    E(180, 135, rx, ry, fill=skin, outline=line, width=6 * S)
+    # 头发
+    if shen:
+        d.polygon(P([(126, 112), (130, 70), (160, 56), (200, 56), (232, 70), (234, 112), (220, 90), (190, 80), (150, 88)]), fill=(224, 224, 230, 255), outline=line, width=4 * S)
+    else:
+        d.polygon(P([(118, 122), (102, 86), (128, 94), (124, 58), (152, 78), (160, 44), (182, 72), (204, 44), (212, 78), (238, 58), (236, 94), (258, 86), (242, 122), (222, 98), (180, 88), (140, 98)]),
+                  fill=white, outline=line, width=4 * S)
+    # 眉、眼镜、眼
+    for sx in (-1, 1):
+        cx = 180 + sx * 26
+        L([(cx - 17, 104 if not shen else 108), (cx + 17, 100 if not shen else 106)] if sx > 0 else [(cx - 17, 100 if not shen else 106), (cx + 17, 104 if not shen else 108)],
+          line if shen else line, 11 if not shen else 5)
+        if not shen:
+            L([(cx - 14, 104), (cx + 14, 102)] if sx > 0 else [(cx - 14, 102), (cx + 14, 104)], white, 7)
+        E(cx, 132, 23, 23, fill=(228, 242, 250, 255))
+        if shen:
+            E(cx, 134, 6, 7, fill=line)
+        else:
+            d.arc([(cx - 15) * S, 120 * S, (cx + 15) * S, 148 * S], 200, 340, fill=line, width=6 * S)
+        E(cx, 132, 23, 23, outline=line, width=5 * S)
+    L([(204 - 26, 130), (180 + 4, 130)], line, 5)
+    # 鼻、腮红、嘴
+    E(180, 156, 10, 14, fill=skin2, outline=line, width=4 * S)
+    for sx in (-1, 1):
+        E(180 + sx * 42, 168, 14, 9, fill=(242, 172, 156, 255))
+    if shen:
+        d.arc([150 * S, 160 * S, 210 * S, 200 * S], 20, 160, fill=line, width=5 * S)
+    else:
+        d.polygon(P([(140, 176), (180, 164), (220, 176), (204, 184), (180, 176), (156, 184)]), fill=white, outline=line, width=4 * S)      # 胡子
+        E(180, 192, 30, 22, fill=(130, 40, 44, 255), outline=line, width=5 * S)                                                            # 张嘴大笑
+        E(180, 202, 18, 9, fill=(226, 104, 110, 255))
+        d.rectangle([156 * S, 174 * S, 204 * S, 184 * S], fill=white)
+        d.polygon(P([(152, 204), (208, 204), (194, 232), (180, 248), (166, 232)]), fill=white, outline=line, width=4 * S)
+    # 双手 + 笔
+    for hx in (95, 265):
+        E(hx, 386, 24, 20, fill=skin, outline=line, width=5 * S)
+    L([(268, 372), (322, 398)], (60, 40, 30, 255), 8)
+    return R.fin(im)
 
 
 def bust(spr, keep=0.66):
@@ -295,30 +367,24 @@ def shot4(sub_on=True):
     for (x0, x1) in ((150, 810), (1110, 1770)):                                   # 书桌
         la.rect(x0, 700, x1, 735, wash=WOOD, w=6)
         la.line([(x0 + 40, 735), (x0 + 40, 810)], 7); la.line([(x1 - 40, 735), (x1 - 40, 810)], 7)
-    man_sil(la, 1440, 520, 1.05, laugh=False)
-    la.rect(1110, 700, 1770, 735, wash=WOOD, w=6)
-    # 台灯
-    la.line([(1640, 700), (1640, 560)], 6); la.poly([(1590, 550), (1690, 550), (1668, 490), (1612, 490)], wash=YELLOW, w=5)
+    la.line([(1700, 700), (1700, 560)], 6); la.poly([(1650, 550), (1750, 550), (1728, 490), (1672, 490)], wash=YELLOW, w=5)   # 台灯
+    la.wd.polygon([(1700, 500), (1900, 706), (1500, 706)], fill=(255, 226, 120, 85))
     la.text((960, 70), "一九四六", 64)
-    la.text((1440, 380), "表叔 沈从文", 52)
-    la.text((480, 380), "少年", 52)
+    la.text((1420, 310), "表叔 沈从文", 52)
+    la.text((470, 310), "少年", 52)
     cl = CL()
     d = cl.d
-    glasses(cl, 1440, 520, 1.05)
-    boy = bust(SD.boy_sprite("sil", False), 0.7)
-    cl.paste(boy, 480, 560, 1.3)
-    la_rect = lambda *a, **k: None
-    # 木板 + 刻刀（左桌）
-    d.rectangle([400, 672, 580, 702], fill=(190, 130, 70, 255), outline=(60, 40, 30, 255), width=5)
+    # 左桌：木板 + 刻刀；右桌：稿纸 + 灯光
+    d.rectangle([400, 676, 580, 702], fill=(190, 130, 70, 255), outline=(60, 40, 30, 255), width=5)
     for k in range(5):
-        d.line([(420 + k * 32, 680), (440 + k * 32, 696)], fill=(250, 240, 220, 255), width=4)
-    d.line([(560, 560), (520, 664)], fill=(60, 40, 30, 255), width=9)
-    d.polygon([(504, 664), (536, 664), (520, 690)], fill=(200, 204, 210, 255), outline=(60, 40, 30, 255))
-    # 右桌：稿纸 + 笔 + 灯光
-    d.polygon([(1280, 690), (1560, 690), (1580, 710), (1260, 710)], fill=CREAM, outline=(60, 40, 30, 255))
-    d.line([(1420, 600), (1380, 680)], fill=(60, 40, 30, 255), width=7)
-    d.polygon([(1640, 500), (1840, 700), (1440, 700)], fill=(255, 226, 120, 70))
-    # 信：从右飞到左，叠成一摞
+        d.line([(420 + k * 32, 684), (440 + k * 32, 698)], fill=(250, 240, 220, 255), width=4)
+    d.rectangle([610, 684, 680, 700], fill=(150, 100, 56, 255), outline=(60, 40, 30, 255), width=4)
+    d.polygon([(680, 684), (736, 692), (680, 700)], fill=(200, 204, 210, 255), outline=(60, 40, 30, 255))
+    d.polygon([(1250, 692), (1560, 692), (1580, 712), (1230, 712)], fill=CREAM, outline=(60, 40, 30, 255))
+    boy = bust(SD.boy_sprite("color", False), 0.7)
+    cl.paste(boy, 470, 700 - boy.height * 1.45 / 2 + 4, 1.45)
+    man = old_man("shen")
+    cl.paste(man, 1420, 700 - man.height / 2 + 6, 1.0)
     def envelope(cx, cy, ang, s=1.0):
         e = Image.new("RGBA", (130, 90), (0, 0, 0, 0))
         ed = ImageDraw.Draw(e)
@@ -331,8 +397,8 @@ def shot4(sub_on=True):
     for k, t in enumerate(np.linspace(0.08, 0.92, 6)):
         envelope(1180 - 420 * t, 640 - 330 * math.sin(math.pi * t), 18 - 36 * t, 0.9)
     for k in range(6):
-        envelope(310 + k * 4, 668 - k * 14, (k % 3 - 1) * 4, 0.9)
-    cl.paste(R.seal("书信", 86), 1730, 170)
+        envelope(300 + k * 4, 668 - k * 14, (k % 3 - 1) * 4, 0.9)
+    cl.paste(R.seal("书信", 86), 1760, 170)
     return finish(la.render(), cl, 3, sub_on, seed=6)
 
 
@@ -367,7 +433,6 @@ def shot5(sub_on=True):
     cl.paste(teacher, 760, 540, 1.9)
     kid = SD.boy_sprite("color")
     cl.paste(kid, 400, 690, 0.9)
-    d.polygon([(560, 330), (620, 320), (900, 470), (880, 490)], fill=(60, 40, 30, 255))      # 教鞭
     cl.paste(R.seal("讲台", 86), 1100, 700)
     return finish(la.render(), cl, 4, sub_on, seed=7)
 
@@ -421,38 +486,33 @@ def shot8(sub_on=True):
     la.rect(0, 0, W, 810, wash=(253, 240, 208, 210), outline=False)
     la.rect(0, 810, W, H, wash=(232, 206, 168, 190), outline=False)
     la.line([(0, 810), (W, 810)], 6)
-    man_sil(la, 560, 440, 1.2, laugh=True)
-    la.rect(180, 720, 1000, 758, wash=WOOD, w=6)
-    la.line([(220, 758), (220, 810)], 7); la.line([(960, 758), (960, 810)], 7)
-    la.line([(880, 720), (880, 560)], 6); la.poly([(830, 550), (930, 550), (908, 490), (852, 490)], wash=YELLOW, w=5)
+    la.rect(150, 720, 1020, 758, wash=WOOD, w=6)
+    la.line([(190, 758), (190, 810)], 7); la.line([(980, 758), (980, 810)], 7)
+    la.line([(900, 720), (900, 570)], 6); la.poly([(850, 560), (950, 560), (928, 500), (872, 500)], wash=YELLOW, w=5)
+    la.wd.polygon([(900, 505), (1020, 722), (780, 722)], fill=(255, 226, 120, 85))
     base = la.render()
-    # 云朵里的凤凰小景（回到镜 2）
-    mini = shot2(False).resize((900, 506), Image.LANCZOS).convert("RGBA")
+    mini = shot2(False).resize((900, 506), Image.LANCZOS).convert("RGBA")           # 云朵里的凤凰小景（回到镜 2）
     mask = Image.new("L", mini.size, 0)
     ImageDraw.Draw(mask).ellipse([20, 14, 880, 492], fill=255)
-    mask = mask.filter(ImageFilter.GaussianBlur(10))
-    mini.putalpha(mask)
+    mini.putalpha(mask.filter(ImageFilter.GaussianBlur(10)))
     tmp = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    tmp.paste(mini, (1380 - 450, 400 - 253))
+    tmp.paste(mini, (1390 - 450, 400 - 253))
     base = Image.alpha_composite(base, tmp)
     cl = CL()
     d = cl.d
-    glasses(cl, 560, 440, 1.2)
-    for (x, y, r_) in ((900, 620, 20), (990, 560, 30), (1060, 500, 42)):          # 思绪泡泡
+    d.polygon([(620, 712), (900, 704), (920, 724), (600, 732)], fill=CREAM, outline=(60, 40, 30, 255))
+    man = old_man("huang")
+    cl.paste(man, 560, 720 - man.height * 1.3 / 2 + 6, 1.3)
+    for (x, y, r_) in ((850, 520, 16), (905, 470, 24), (975, 420, 34)):             # 思绪泡泡
         d.ellipse([x - r_, y - r_, x + r_, y + r_], fill=CREAM, outline=(60, 40, 30, 255), width=5)
-    d.polygon([(800, 700), (1000, 640), (1020, 660), (830, 720)], fill=CREAM, outline=(60, 40, 30, 255))
-    d.line([(640, 600), (760, 690)], fill=(60, 40, 30, 255), width=8)                # 手臂和笔
-    d.polygon([(560, 640), (680, 660), (700, 740), (540, 740)], fill=(0, 0, 0, 0))
-    d.polygon([(940, 360), (1020, 380), (1000, 470)], fill=(255, 226, 120, 70))
-    # 《收获》杂志
     mag = Image.new("RGBA", (190, 250), (0, 0, 0, 0))
     md = ImageDraw.Draw(mag)
     md.rectangle([4, 4, 186, 246], fill=(210, 50, 48, 255), outline=(60, 40, 30, 255), width=5)
     md.text((95, 90), "收获", font=R.font(R.F_BRUSH, 74), fill=(255, 240, 220, 255), anchor="mm")
     md.rectangle([22, 160, 168, 172], fill=(255, 226, 120, 255))
-    cl.paste(mag, 300, 660, 0.78, 8)
-    d.text((330, 300), "哈 哈 哈", font=R.font(R.F_FUN, 84), fill=(250, 140, 40, 255), anchor="mm", stroke_width=3, stroke_fill=(70, 44, 30, 255))
-    for sx, sy, s in ((150, 150, 28), (760, 120, 30)):
+    cl.paste(mag, 255, 650, 0.7, 8)
+    d.text((300, 250), "哈 哈 哈", font=R.font(R.F_FUN, 84), fill=(250, 140, 40, 255), anchor="mm", stroke_width=3, stroke_fill=(70, 44, 30, 255))
+    for sx, sy, s in ((120, 120, 28), (760, 110, 30)):
         star(d, sx, sy, s)
     return finish(base, cl, 7, sub_on, seed=10)
 
