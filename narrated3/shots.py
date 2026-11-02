@@ -155,24 +155,17 @@ def dashed(d, pts, color, w, dash=34, gap=22):
 
 
 def sub(img, i):
-    c = [c for c in CUES if c["scene"] == i][0]
-    fz, fe = R.font(R.F_FUN, 52), R.font(R.F_EN, 32)
-    zl = V.wrap_zh(c["zh"], fz, 1500)
-    el = R.wrap_en(c["en"], fe, 1500)
-    hgt = 30 + 62 * len(zl) + 10 + 42 * len(el)
-    bw = max([fz.getlength(l) for l in zl] + [fe.getlength(l) for l in el]) + 70
+    """中文单行字幕：取该镜第一条切分字幕"""
+    import subs
+    sg = [x for x in subs.load() if x["scene"] == i][0]
+    fz = R.font(R.F_FUN, 56)
+    tw = fz.getlength(sg["text"])
+    hgt = 84
     lay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     d = ImageDraw.Draw(lay)
-    y0 = H - 40 - hgt
-    d.rounded_rectangle([(W - bw) / 2, y0, (W + bw) / 2, y0 + hgt], radius=22, fill=(20, 16, 12, 130))
-    y = y0 + 20 + 31
-    for l in zl:
-        d.text((W / 2, y), l, font=fz, fill=(255, 252, 240, 255), anchor="mm", stroke_width=3, stroke_fill=(30, 22, 15, 255))
-        y += 62
-    y += 10 - 31 + 21
-    for l in el:
-        d.text((W / 2, y), l, font=fe, fill=(235, 228, 210, 255), anchor="mm", stroke_width=2, stroke_fill=(30, 22, 15, 255))
-        y += 42
+    y0 = H - 56 - hgt
+    d.rounded_rectangle([(W - tw) / 2 - 36, y0, (W + tw) / 2 + 36, y0 + hgt], radius=24, fill=(20, 16, 12, 130))
+    d.text((W / 2, y0 + hgt / 2 + 2), sg["text"], font=fz, fill=(255, 252, 240, 255), anchor="mm", stroke_width=3, stroke_fill=(30, 22, 15, 255))
     return Image.alpha_composite(img.convert("RGBA"), lay).convert("RGB")
 
 

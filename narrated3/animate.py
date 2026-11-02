@@ -317,26 +317,18 @@ SUBS = []
 
 
 def build_subs():
-    import vertical as V
-    fz, fe = R.font(R.F_FUN, 52), R.font(R.F_EN, 32)
+    """只要中文、单行：每条字幕来自 subs.py 的切分（≤30 字）"""
+    import subs
+    fz = R.font(R.F_FUN, 56)
     out = []
-    for c in CUES:
-        zl = V.wrap_zh(c["zh"], fz, 1500)
-        el = R.wrap_en(c["en"], fe, 1500)
-        hgt = 30 + 62 * len(zl) + 10 + 42 * len(el)
-        bw = max([fz.getlength(l) for l in zl] + [fe.getlength(l) for l in el]) + 70
+    for sg in subs.load():
+        tw = fz.getlength(sg["text"])
+        hgt = 84
         im = Image.new("RGBA", (W, hgt + 4), (0, 0, 0, 0))
         d = ImageDraw.Draw(im)
-        d.rounded_rectangle([(W - bw) / 2, 0, (W + bw) / 2, hgt], radius=22, fill=(20, 16, 12, 130))
-        y = 20 + 31
-        for l in zl:
-            d.text((W / 2, y), l, font=fz, fill=(255, 252, 240, 255), anchor="mm", stroke_width=3, stroke_fill=(30, 22, 15, 255))
-            y += 62
-        y += 10 - 31 + 21
-        for l in el:
-            d.text((W / 2, y), l, font=fe, fill=(235, 228, 210, 255), anchor="mm", stroke_width=2, stroke_fill=(30, 22, 15, 255))
-            y += 42
-        out.append((c["start"] - 0.05, c["end"] + 0.35, im, H - 40 - hgt))
+        d.rounded_rectangle([(W - tw) / 2 - 36, 0, (W + tw) / 2 + 36, hgt], radius=24, fill=(20, 16, 12, 130))
+        d.text((W / 2, hgt / 2 + 2), sg["text"], font=fz, fill=(255, 252, 240, 255), anchor="mm", stroke_width=3, stroke_fill=(30, 22, 15, 255))
+        out.append((sg["start"] - 0.05, sg["end"] + 0.2, im, H - 56 - hgt))
     return out
 
 
