@@ -193,7 +193,7 @@ def draw_coach(P, t, voice):
                 c = X(pr(hd)); cap(hd + V(0, 3, 0), hd + V(0, 21, 0), 11 + 2 * OW, OUT); cap(hd + V(0, 3, 0), hd + V(0, 21, 0), 11, SKIN)
             disc(hd, 12, shade(SKIN, f))
         add(dp(hd) + .5, hand)
-        add(dp(sh) + .6, lambda sh=sh, el=el, f=f: (group([(sh, sh + (el - sh) * .42, 29)], shade(TOP, f))))
+        add(max(dp(sh) + .6, dp(sh + hd) / 2 + .1), lambda sh=sh, el=el, f=f: (group([(sh, sh + (el - sh) * .42, 29)], shade(TOP, f))))   # 袖子始终盖在本侧手臂上
 
     def head():
         hc = pr(b["head"]); cx, cy = X(hc); R = HEAD_R; ro = R * 1.22; ri = ro * .56; rnd = 30
