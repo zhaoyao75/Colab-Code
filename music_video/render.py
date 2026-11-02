@@ -1100,14 +1100,24 @@ def hk_setup():
                 pulse=audio_pulse(), vp=(vpx, vpy))
 
 
-def hk_blit(img, sg, level, use_b):
+def hk_panel_op(sg, t, lo=.08):
+    """招牌面板的不透明度：亮着时是实心的（挡住身后的招牌，保留前后遮挡）；没亮或熄灭后几乎透明，
+    后面还亮着的招牌和楼上的窗灯会透出来，不会留下一块块黑色矩形。点亮 / 熄灭时平滑过渡。"""
+    if t < sg["on"]:
+        return lo
+    if t > sg["off"]:
+        return lo + (1 - lo) * max(0.0, 1 - (t - sg["off"]) / 1.0)
+    return lo + (1 - lo) * min(1.0, (t - sg["on"]) / 0.6)
+
+
+def hk_blit(img, sg, level, use_b, op=1.0):
     x, y = sg["x"], sg["y"]
     A = sg["alpha"]
     ph, pw = A.shape
     x0, y0, x1, y1 = max(0, x), max(0, y), min(img.shape[1], x + pw), min(img.shape[0], y + ph)
     if x1 <= x0 or y1 <= y0:
         return
-    a = A[y0 - y:y1 - y, x0 - x:x1 - x][..., None]
+    a = A[y0 - y:y1 - y, x0 - x:x1 - x][..., None] * op
     reg = img[y0:y1, x0:x1]
     reg *= 1 - a
     reg += a * HK_PANEL
@@ -1128,7 +1138,7 @@ def hk_frame(i):
     up += sc["win_rgb"] * (sc["win_thr"] < lights * 1.6)[..., None]
     beat = int(t / (60 / 90)) % 2 == 1
     for sg in sc["signs"]:
-        hk_blit(up, sg, sign_level(sg, t, pulse), beat)
+        hk_blit(up, sg, sign_level(sg, t, pulse), beat, hk_panel_op(sg, t))
     up += 0.3 * np.repeat(np.repeat(gaussian_filter(up[::8, ::8], (5, 5, 0)), 8, 0), 8, 1)[:YH, :W]
     up = up * .76 + gaussian_filter(up, (3.5 * S, 3.5 * S, 0)) * .24      # 整体磨砂玻璃：画面轻微漫射，灯暗了光晕仍在
 
