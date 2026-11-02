@@ -181,9 +181,11 @@ def overlay_layers():
     main_c = (242, 242, 242, 255) if BW else (245, 240, 232, 255)
     sub_c = (196, 196, 196, 255) if BW else (200, 196, 190, 255)
     if EN:
-        big = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 50)
-        spaced("STELLAR ECHO", big, 576, 20, main_c)
-        spaced("A TRIBUTE TO INTERSTELLAR", en, 646, 9, sub_c)
+        # 海报风：细而宽的无衬线大字、大字距；副标题小号浅灰
+        big = ImageFont.truetype("/usr/share/fonts/opentype/inter/InterDisplay-ExtraLight.otf", 62)
+        small = ImageFont.truetype("/usr/share/fonts/opentype/inter/Inter-Light.otf", 15)
+        spaced("STELLAR ECHO", big, 566, 28, main_c)
+        spaced("AN ORIGINAL SCORE  ·  INSPIRED BY INTERSTELLAR", small, 650, 7, sub_c)
     else:
         spaced("星际回响", zh, 572, 26, main_c)
         spaced("STELLAR  ECHO", en, 646, 9, sub_c)
