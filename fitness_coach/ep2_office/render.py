@@ -312,30 +312,46 @@ def background():
     if "o" not in _bgc: _bgc["o"] = bg_office().convert("RGB")
     return _bgc["o"].copy()
 
-def boss(im, t):                         # 老板从背后路过（只在钩子段 0.6-3.0 秒）
+def boss(im, t):                         # 老板：中年上司（秃顶+眼镜+八字胡+啤酒肚+领带+工牌），0.6-3.0 秒从背后走过
     if not 0.6 <= t <= 3.0: return
     u = (t - 0.6) / 2.4; X0 = lerp(-200, 1280, u); ph = (t - 0.6) * 2 * math.pi * 1.6; x, y = 200, 640 - 6 * abs(math.sin(ph))
     g = Image.new("RGBA", (400, 700), (0, 0, 0, 0)); d = ImageDraw.Draw(g); sw = 26 * math.sin(ph)
-    SUIT, SUIT_D, PNT = (82, 88, 126), (62, 68, 104), (58, 62, 92)
+    SUIT, SUIT_D, PNT, SK, SK_D = (70, 78, 118), (54, 62, 100), (96, 100, 124), (255, 214, 176), (236, 176, 138)
     def cp(p, q, w, col):
         d.line([p, q], fill=col, width=int(w)); r = w / 2
         for c in (p, q): d.ellipse([c[0] - r, c[1] - r, c[0] + r, c[1] + r], fill=col)
-    for sg in (-1, 1):
-        a, b_ = (x + sg * 18, y - 200), (x + sg * 18 + sg * sw, y - 14)
-        cp(a, b_, 38, INK); cp(a, b_, 30, PNT); d.ellipse([b_[0] - 4, b_[1] - 14, b_[0] + 40, b_[1] + 10], fill=INK)
-    d.rounded_rectangle([x - 64, y - 430, x + 64, y - 190], radius=40, fill=SUIT, outline=INK, width=5)
-    d.polygon([(x + 4, y - 424), (x + 40, y - 424), (x + 22, y - 330)], fill=(255, 255, 255), outline=INK); d.polygon([(x + 18, y - 410), (x + 30, y - 410), (x + 34, y - 330), (x + 24, y - 296), (x + 14, y - 330)], fill=(220, 70, 70), outline=INK)
-    for sg, sw2 in ((-1, -sw), (1, sw)):                                                                                # 摆臂 + 公文包
-        a, b_ = (x + sg * 60, y - 396), (x + sg * 66 + sw2 * .6, y - 262)
-        cp(a, b_, 36, INK); cp(a, b_, 28, SUIT_D); d.ellipse([b_[0] - 14, b_[1] - 14, b_[0] + 14, b_[1] + 14], fill=(255, 214, 176), outline=INK, width=3)
-        if sg == 1: d.rounded_rectangle([b_[0] - 36, b_[1] + 8, b_[0] + 36, b_[1] + 66], radius=8, fill=(150, 98, 70), outline=INK, width=4)
-    hx, hy = x + 6, y - 492
-    d.ellipse([hx - 64, hy - 64, hx + 64, hy + 64], fill=(255, 214, 176), outline=INK, width=5); d.pieslice([hx - 64, hy - 66, hx + 64, hy + 40], 180, 360, fill=(120, 124, 140), outline=INK, width=4)
-    for ex in (hx + 6, hx + 40):
-        d.ellipse([ex - 6, hy - 6, ex + 6, hy + 10], fill=INK); d.line([(ex - 14, hy - 18 - (ex - hx) // 40 * 0), (ex + 12, hy - 8)], fill=INK, width=4)
-    d.arc([hx + 8, hy + 26, hx + 44, hy + 46], 200, 340, fill=INK, width=4)
+    for sg in (-1, 1):                                                                                  # 腿 + 皮鞋
+        a_, b_ = (x + sg * 20, y - 200), (x + sg * 20 + sg * sw, y - 18)
+        cp(a_, b_, 40, INK); cp(a_, b_, 32, PNT)
+        d.rounded_rectangle([b_[0] - 12, b_[1] - 4, b_[0] + 50, b_[1] + 18], radius=10, fill=(40, 32, 38), outline=INK, width=3); d.ellipse([b_[0] + 20, b_[1], b_[0] + 40, b_[1] + 8], fill=(120, 110, 118))
+    d.rounded_rectangle([x - 74, y - 432, x + 74, y - 188], radius=46, fill=SUIT, outline=INK, width=5)       # 西装
+    d.ellipse([x + 6, y - 340, x + 96, y - 220], fill=SUIT, outline=INK, width=5); d.rectangle([x - 4, y - 336, x + 40, y - 224], fill=SUIT)   # 啤酒肚
+    d.polygon([(x - 6, y - 430), (x + 44, y - 430), (x + 24, y - 336)], fill=(255, 255, 255), outline=INK)  # 衬衫领口
+    d.polygon([(x - 8, y - 430), (x + 8, y - 430), (x + 30, y - 330), (x + 4, y - 300)], fill=SUIT_D, outline=INK); d.polygon([(x + 38, y - 430), (x + 54, y - 430), (x + 40, y - 320), (x + 20, y - 336)], fill=SUIT_D, outline=INK)   # 翻领
+    d.polygon([(x + 18, y - 424), (x + 32, y - 424), (x + 38, y - 340), (x + 26, y - 296), (x + 14, y - 340)], fill=(220, 60, 64), outline=INK)
+    for k in range(3): d.line([(x + 17 + k, y - 380 + k * 22), (x + 34 - k, y - 372 + k * 22)], fill=(255, 150, 150), width=3)             # 领带条纹
+    d.line([(x + 6, y - 430), (x + 12, y - 330)], fill=(60, 120, 220), width=4); d.line([(x + 44, y - 430), (x + 38, y - 330)], fill=(60, 120, 220), width=4)    # 工牌挂绳
+    d.rounded_rectangle([x - 10, y - 336, x + 30, y - 280], radius=6, fill=(255, 255, 255), outline=INK, width=3); d.rectangle([x - 4, y - 330, x + 12, y - 316], fill=(255, 190, 90)); d.line([(x - 4, y - 306), (x + 24, y - 306)], fill=INK, width=3)
+    d.polygon([(x - 52, y - 372), (x - 28, y - 372), (x - 30, y - 356), (x - 52, y - 356)], fill=(255, 255, 255), outline=INK)         # 胸袋巾
+    for sg, sw2 in ((-1, -sw), (1, sw)):                                                                # 摆臂：近侧拿公文包，远侧拿报表
+        a_, b_ = (x + sg * 70, y - 396), (x + sg * 74 + sw2 * .6, y - 262)
+        cp(a_, b_, 40, INK); cp(a_, b_, 32, SUIT_D); d.ellipse([b_[0] - 20, b_[1] - 8, b_[0] + 20, b_[1] + 12], fill=(255, 255, 255), outline=INK, width=3)
+        d.ellipse([b_[0] - 16, b_[1] + 4, b_[0] + 16, b_[1] + 34], fill=SK, outline=INK, width=3)
+        if sg == 1: d.rounded_rectangle([b_[0] - 40, b_[1] + 22, b_[0] + 40, b_[1] + 84], radius=8, fill=(150, 98, 70), outline=INK, width=4); d.rounded_rectangle([b_[0] - 12, b_[1] + 14, b_[0] + 12, b_[1] + 28], radius=5, outline=INK, width=4)
+        else: d.rectangle([b_[0] - 8, b_[1] + 18, b_[0] + 40, b_[1] + 74], fill=(255, 255, 255), outline=INK, width=3); d.text((b_[0] + 16, b_[1] + 46), "报表", font=font(18), fill=INK, anchor="mm")
+    hx, hy = x + 6, y - 496                                                                              # 头
+    d.ellipse([hx - 66, hy - 62, hx + 66, hy + 66], fill=SK, outline=INK, width=5); d.ellipse([hx - 74, hy - 10, hx - 50, hy + 22], fill=SK, outline=INK, width=4)   # 脸 + 耳
+    d.pieslice([hx - 70, hy - 66, hx - 10, hy + 30], 120, 250, fill=(150, 154, 172), outline=INK, width=4)                                      # 两侧灰发
+    for k in range(3): d.arc([hx - 40 + k * 20, hy - 76 + k * 3, hx + 24 + k * 20, hy - 30], 200, 340, fill=(150, 154, 172), width=4)               # 地中海梳发
+    d.ellipse([hx + 52, hy + 4, hx + 78, hy + 30], fill=SK_D, outline=INK, width=4)                       # 大鼻子
+    for ex, sg in ((hx + 12, -1), (hx + 46, 1)):
+        d.ellipse([ex - 17, hy - 12, ex + 17, hy + 22], fill=(255, 255, 255), outline=INK, width=4); d.ellipse([ex - 2, hy - 2, ex + 9, hy + 12], fill=INK)             # 圆框眼镜
+        d.line([(ex - 20, hy - 30 - sg * 8), (ex + 18, hy - 30 + sg * 8)] if sg == -1 else [(ex - 18, hy - 22), (ex + 20, hy - 38)], fill=INK, width=7)               # 怒眉
+    d.line([(hx + 29, hy + 4), (hx + 29, hy + 2)], fill=INK, width=4)
+    d.polygon([(hx + 30, hy + 30), (hx + 70, hy + 30), (hx + 66, hy + 44), (hx + 50, hy + 38), (hx + 32, hy + 46)], fill=(92, 70, 62), outline=INK)        # 八字胡
+    d.arc([hx + 28, hy + 48, hx + 60, hy + 66], 200, 340, fill=INK, width=4)
     tx, ty = x + 6, y - 590; d.rounded_rectangle([tx - 56, ty - 26, tx + 56, ty + 26], radius=16, fill=(220, 70, 70), outline=INK, width=4); d.text((tx, ty), "老板", font=font(34), fill=(255, 255, 255), anchor="mm")
-    g = g.resize((520, 910), Image.LANCZOS); cv = Image.new("RGBA", (W, H), (0, 0, 0, 0)); cv.paste(g, (int(X0 - 260), 1100 - 830)); im.alpha_composite(cv)
+    cv = Image.new("RGBA", (W, H), (0, 0, 0, 0)); cv.paste(g, (int(X0 - 200), 1100 - 640)); im.alpha_composite(cv)
 
 # ---------- 文字 / 版式 ----------
 def font(sz): return ImageFont.truetype(ZH, sz)
