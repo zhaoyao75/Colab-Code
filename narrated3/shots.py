@@ -230,7 +230,12 @@ def old_man(kind="shen"):
     E(180, 135, rx, ry, fill=skin, outline=line, width=6 * S)
     # 头发
     if shen:
-        d.polygon(P([(126, 112), (130, 70), (160, 56), (200, 56), (232, 70), (234, 112), (220, 90), (190, 80), (150, 88)]), fill=(224, 224, 230, 255), outline=line, width=4 * S)
+        outer = [(180 + (rx + 8) * (1 + 0.05 * math.sin(7 * t)) * math.cos(t), 133 + (ry + 10) * (1 + 0.04 * math.sin(7 * t)) * math.sin(t))
+                 for t in np.linspace(math.pi * 1.04, math.pi * 1.96, 56)]
+        inner = [(x, 98 + ((x - 180) / rx) ** 2 * 30) for x in range(180 + rx - 2, 180 - rx + 1, -4)]
+        d.polygon(P(outer + inner), fill=(226, 226, 232, 255), outline=line, width=4 * S)                        # 梳整齐的白发
+        for k in (-2, 0, 2):                                                                                         # 发丝纹理
+            L([(180 + k * 14, 96 + (k / 3.5) ** 2 * 26), (180 + k * 20, 74 + abs(k) * 5)], (190, 190, 202, 255), 3)
     else:
         d.polygon(P([(118, 122), (102, 86), (128, 94), (124, 58), (152, 78), (160, 44), (182, 72), (204, 44), (212, 78), (238, 58), (236, 94), (258, 86), (242, 122), (222, 98), (180, 88), (140, 98)]),
                   fill=white, outline=line, width=4 * S)
@@ -255,11 +260,12 @@ def old_man(kind="shen"):
     if shen:
         d.arc([150 * S, 160 * S, 210 * S, 200 * S], 20, 160, fill=line, width=5 * S)
     else:
-        d.polygon(P([(140, 176), (180, 164), (220, 176), (204, 184), (180, 176), (156, 184)]), fill=white, outline=line, width=4 * S)      # 胡子
-        E(180, 192, 30, 22, fill=(130, 40, 44, 255), outline=line, width=5 * S)                                                            # 张嘴大笑
-        E(180, 202, 18, 9, fill=(226, 104, 110, 255))
-        d.rectangle([156 * S, 174 * S, 204 * S, 184 * S], fill=white)
-        d.polygon(P([(152, 204), (208, 204), (194, 232), (180, 248), (166, 232)]), fill=white, outline=line, width=4 * S)
+        arc = [(180 + (rx + 3) * math.cos(t), 135 + (ry + 10) * math.sin(t)) for t in np.linspace(0.14 * math.pi, 0.86 * math.pi, 40)]
+        d.polygon(P(arc + [(140, 174), (180, 180), (220, 174)]), fill=white, outline=line, width=4 * S)         # 沿下颌的白胡子
+        d.polygon(P([(146, 176), (180, 166), (214, 176), (200, 186), (180, 178), (160, 186)]), fill=white, outline=line, width=3 * S)  # 八字须
+        E(180, 199, 24, 16, fill=(130, 40, 44, 255), outline=line, width=4 * S)                                  # 张嘴大笑
+        E(180, 207, 14, 7, fill=(226, 104, 110, 255))
+        d.rectangle([161 * S, 190 * S, 199 * S, 196 * S], fill=white)
     # 双手 + 笔
     for hx in (95, 265):
         E(hx, 386, 24, 20, fill=skin, outline=line, width=5 * S)
