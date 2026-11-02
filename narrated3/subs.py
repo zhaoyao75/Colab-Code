@@ -14,7 +14,7 @@ def clauses(zh):
     return [x for x in re.findall(r"[^，。；：！？]+[，。；：！？]?", zh) if x]
 
 
-def segments(cues, maxc=MAXC):
+def segments(cues, maxc=MAXC, hard=HARD, minc=MINC):
     out = []
     for c in cues:
         groups, cur = [], ""
@@ -28,9 +28,9 @@ def segments(cues, maxc=MAXC):
         i = 0
         while i < len(groups):                                   # 太短的碎片并入相邻的一条
             n = len(groups[i].rstrip(PUN))
-            if n < MINC and len(groups) > 1:
+            if n < minc and len(groups) > 1:
                 j = i + 1 if i + 1 < len(groups) else i - 1
-                if len((groups[min(i, j)] + groups[max(i, j)]).rstrip(PUN)) <= HARD:
+                if len((groups[min(i, j)] + groups[max(i, j)]).rstrip(PUN)) <= hard:
                     a, b = min(i, j), max(i, j)
                     groups[a:b + 1] = [groups[a] + groups[b]]
                     i = 0
@@ -45,8 +45,8 @@ def segments(cues, maxc=MAXC):
     return out
 
 
-def load(path="timings_v2.json"):
-    return segments(json.load(open(os.path.join(HERE, path), encoding="utf-8")))
+def load(path="timings_v2.json", **kw):
+    return segments(json.load(open(os.path.join(HERE, path), encoding="utf-8")), **kw)
 
 
 def ts(x):

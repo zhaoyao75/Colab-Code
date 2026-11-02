@@ -480,10 +480,11 @@ def shot4(sub_on=True):
     d.rectangle([610, 684, 680, 700], fill=(150, 100, 56, 255), outline=(60, 40, 30, 255), width=4)
     d.polygon([(680, 684), (736, 692), (680, 700)], fill=(200, 204, 210, 255), outline=(60, 40, 30, 255))
     d.polygon([(1250, 692), (1560, 692), (1580, 712), (1230, 712)], fill=CREAM, outline=(60, 40, 30, 255))
-    boy = bust(SD.boy_sprite("color", False), 0.7)
-    cl.paste(boy, 470, 700 - boy.height * 1.45 / 2 + 4, 1.45)
-    man = old_man_alt("shen", STYLE) if STYLE else old_man("shen")
-    cl.paste(man, 1420, 700 - man.height / 2 + 6, 1.0)
+    if "people" not in SKIP:
+        boy = bust(SD.boy_sprite("color", False), 0.7)
+        cl.paste(boy, 470, 700 - boy.height * 1.45 / 2 + 4, 1.45)
+        man = old_man_alt("shen", STYLE) if STYLE else old_man("shen")
+        cl.paste(man, 1420, 700 - man.height / 2 + 6, 1.0)
     def envelope(cx, cy, ang, s=1.0):
         e = Image.new("RGBA", (130, 90), (0, 0, 0, 0))
         ed = ImageDraw.Draw(e)
@@ -493,10 +494,11 @@ def shot4(sub_on=True):
             ed.rectangle([k + 4, 80, k + 14, 86], fill=(232, 50, 52, 255))
             ed.rectangle([k + 15, 80, k + 25, 86], fill=(60, 110, 200, 255))
         cl.paste(e, cx, cy, s, ang)
-    for k, t in enumerate(np.linspace(0.08, 0.92, 6)):
-        envelope(1180 - 420 * t, 640 - 330 * math.sin(math.pi * t), 18 - 36 * t, 0.9)
-    for k in range(6):
-        envelope(300 + k * 4, 668 - k * 14, (k % 3 - 1) * 4, 0.9)
+    if "env" not in SKIP:
+        for k, t in enumerate(np.linspace(0.08, 0.92, 6)):
+            envelope(1180 - 420 * t, 640 - 330 * math.sin(math.pi * t), 18 - 36 * t, 0.9)
+        for k in range(6):
+            envelope(300 + k * 4, 668 - k * 14, (k % 3 - 1) * 4, 0.9)
     cl.paste(R.seal("书信", 86), 1760, 170)
     return finish(la.render(), cl, 3, sub_on, seed=6)
 
@@ -528,20 +530,26 @@ def shot5(sub_on=True):
     d.line([(280, 560), (400, 470), (520, 560)], fill=(250, 240, 200, 255), width=7)
     d.rectangle([320, 520, 480, 580], outline=(250, 240, 200, 255), width=6)
     # 老师：高大的黑色剪影；少年：矮小、彩色、背着小包袱
-    teacher = SD.boy_sprite("sil", False)
-    cl.paste(teacher, 760, 540, 1.9)
-    kid = SD.boy_sprite("color")
-    cl.paste(kid, 400, 690, 0.9)
+    if "people" not in SKIP:
+        teacher = SD.boy_sprite("sil", False)
+        cl.paste(teacher, 760, 540, 1.9)
+        kid = SD.boy_sprite("color")
+        cl.paste(kid, 400, 690, 0.9)
     cl.paste(R.seal("讲台", 86), 1100, 700)
     return finish(la.render(), cl, 4, sub_on, seed=7)
 
 
 # ------------------------------------------------------------------ 镜 6 猫头鹰（夜色）
+BLOCK6 = ([(W, 280), (1650, 350), (1720, 520), (1600, 640), (1740, 800), (W, 870)], [(W, 160), (1800, 220), (1760, 330), (W, 400)])
+STARS6 = ((260, 150, 26), (520, 90, 30), (880, 130, 24), (1500, 120, 30), (180, 400, 22))
+
+
 def shot6(sub_on=True):
     la = LA(21, wash_all=(46, 64, 134, 246))
     la.arcs(1100, 230, 150, 1600, seed=5)
-    la.poly([(W, 280), (1650, 350), (1720, 520), (1600, 640), (1740, 800), (W, 870)], wash=(18, 22, 54, 255), outline=False)
-    la.poly([(W, 160), (1800, 220), (1760, 330), (W, 400)], wash=(18, 22, 54, 255), outline=False)
+    if "block" not in SKIP:
+        la.poly(BLOCK6[0], wash=(18, 22, 54, 255), outline=False)
+        la.poly(BLOCK6[1], wash=(18, 22, 54, 255), outline=False)
     base = la.render(ink=(250, 240, 210))
     cl = CL()
     d = cl.d
@@ -552,14 +560,18 @@ def shot6(sub_on=True):
     d.line([(1100, 765), (1300, 640), (1420, 610)], fill=(110, 72, 44, 255), width=24)
     for lx, ly in ((1300, 640), (1420, 610), (200, 770), (1000, 770)):
         d.ellipse([lx - 34, ly - 16, lx + 34, ly + 16], fill=(90, 170, 100, 255), outline=(30, 70, 40, 255), width=4)
-    owl = R.owl_sprite("open", "closed")
-    cl.paste(owl, 620, 520, 1.0)
-    for sx, sy, s in ((260, 150, 26), (520, 90, 30), (880, 130, 24), (1500, 120, 30), (180, 400, 22)):
+    if "owl" not in SKIP:
+        cl.paste(R.owl_sprite("open", "closed"), 620, 520, 1.0)
+    for sx, sy, s in (STARS6 if "stars" not in SKIP else []):
         star(d, sx, sy, s)
     return finish(base, cl, 5, sub_on, seed=8, halo=0)
 
 
 # ------------------------------------------------------------------ 镜 7 猴票
+SMALL7 = ((300, 260, -12), (1620, 250, 10), (270, 650, 8), (1650, 650, -9))
+STARS7 = ((600, 130, 30), (1330, 120, 34), (520, 820, 26), (1420, 820, 30), (960, 90, 24))
+
+
 def shot7(sub_on=True):
     la = LA(23)
     la.glow(960, 470, 900, (255, 214, 120), 150)
@@ -571,15 +583,28 @@ def shot7(sub_on=True):
     cl = CL()
     d = cl.d
     stamp = R.compose_monkey(*R.monkey_stamp())
-    for x, y, ang in ((300, 260, -12), (1620, 250, 10), (270, 650, 8), (1650, 650, -9)):
-        cl.paste(stamp, x, y, 0.36, ang)
-    cl.paste(stamp, 960, 470, 0.95)
-    for sx, sy, s in ((600, 130, 30), (1330, 120, 34), (520, 820, 26), (1420, 820, 30), (960, 90, 24)):
+    if "stamps" not in SKIP:
+        for x, y, ang in SMALL7:
+            cl.paste(stamp, x, y, 0.36, ang)
+        cl.paste(stamp, 960, 470, 0.95)
+    for sx, sy, s in (STARS7 if "stars" not in SKIP else []):
         star(d, sx, sy, s)
     return finish(la.render(), cl, 6, sub_on, seed=9)
 
 
 # ------------------------------------------------------------------ 镜 8 无愁河
+BUBBLES8 = ((850, 520, 16), (905, 470, 24), (975, 420, 34))
+
+
+def cloud8():
+    """云朵里的凤凰小景（回到镜 2），带羽化边缘的 900×506 图"""
+    mini = shot2(False).resize((900, 506), Image.LANCZOS).convert("RGBA")
+    mask = Image.new("L", mini.size, 0)
+    ImageDraw.Draw(mask).ellipse([20, 14, 880, 492], fill=255)
+    mini.putalpha(mask.filter(ImageFilter.GaussianBlur(10)))
+    return mini
+
+
 def shot8(sub_on=True):
     la = LA(29)
     la.rect(0, 0, W, 810, wash=(253, 240, 208, 210), outline=False)
@@ -590,19 +615,18 @@ def shot8(sub_on=True):
     la.line([(900, 720), (900, 570)], 6); la.poly([(850, 560), (950, 560), (928, 500), (872, 500)], wash=YELLOW, w=5)
     la.wd.polygon([(900, 505), (1020, 722), (780, 722)], fill=(255, 226, 120, 85))
     base = la.render()
-    mini = shot2(False).resize((900, 506), Image.LANCZOS).convert("RGBA")           # 云朵里的凤凰小景（回到镜 2）
-    mask = Image.new("L", mini.size, 0)
-    ImageDraw.Draw(mask).ellipse([20, 14, 880, 492], fill=255)
-    mini.putalpha(mask.filter(ImageFilter.GaussianBlur(10)))
-    tmp = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    tmp.paste(mini, (1390 - 450, 400 - 253))
-    base = Image.alpha_composite(base, tmp)
+    if "cloud" not in SKIP:
+        base = Image.alpha_composite(base, Image.new("RGBA", (W, H), (0, 0, 0, 0)))
+        tmp = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        tmp.paste(cloud8(), (1390 - 450, 400 - 253))
+        base = Image.alpha_composite(base, tmp)
     cl = CL()
     d = cl.d
     d.polygon([(620, 712), (900, 704), (920, 724), (600, 732)], fill=CREAM, outline=(60, 40, 30, 255))
-    man = old_man_alt("huang", STYLE) if STYLE else old_man("huang")
-    cl.paste(man, 560, 720 - man.height * 1.3 / 2 + 6, 1.3)
-    for (x, y, r_) in ((850, 520, 16), (905, 470, 24), (975, 420, 34)):             # 思绪泡泡
+    if "man" not in SKIP:
+        man = old_man_alt("huang", STYLE) if STYLE else old_man("huang")
+        cl.paste(man, 560, 720 - man.height * 1.3 / 2 + 6, 1.3)
+    for (x, y, r_) in (BUBBLES8 if "bubbles" not in SKIP else []):                  # 思绪泡泡
         d.ellipse([x - r_, y - r_, x + r_, y + r_], fill=CREAM, outline=(60, 40, 30, 255), width=5)
     mag = Image.new("RGBA", (190, 250), (0, 0, 0, 0))
     md = ImageDraw.Draw(mag)
@@ -610,13 +634,17 @@ def shot8(sub_on=True):
     md.text((95, 90), "收获", font=R.font(R.F_BRUSH, 74), fill=(255, 240, 220, 255), anchor="mm")
     md.rectangle([22, 160, 168, 172], fill=(255, 226, 120, 255))
     cl.paste(mag, 255, 650, 0.7, 8)
-    d.text((300, 250), "哈 哈 哈", font=R.font(R.F_FUN, 84), fill=(250, 140, 40, 255), anchor="mm", stroke_width=3, stroke_fill=(70, 44, 30, 255))
+    if "haha" not in SKIP:
+        d.text((300, 250), "哈 哈 哈", font=R.font(R.F_FUN, 84), fill=(250, 140, 40, 255), anchor="mm", stroke_width=3, stroke_fill=(70, 44, 30, 255))
     for sx, sy, s in ((120, 120, 28), (760, 110, 30)):
         star(d, sx, sy, s)
     return finish(base, cl, 7, sub_on, seed=10)
 
 
 # ------------------------------------------------------------------ 镜 9 结尾
+STARS9 = ((900, 160, 30), (1380, 140, 34), (700, 280, 24), (1750, 260, 28), (1090, 250, 22))
+
+
 def shot9(sub_on=True):
     la = LA(31)
     la.glow(960, 650, 1000, (255, 190, 110), 170)
@@ -636,12 +664,13 @@ def shot9(sub_on=True):
     d.line([(250, 770), (440, 690)], fill=(150, 100, 56, 255), width=10)
     bundle_crayon(cl, 330, 726, 52)
     # 猴子（去掉邮票底）和猫头鹰从水面浮现、眨眼
-    parts = R.monkey_stamp()
-    monkey = Image.alpha_composite(parts[2], parts[1])
-    monkey = monkey.crop(monkey.getbbox())
-    cl.paste(monkey, 1200, 480, 0.62)
-    cl.paste(R.owl_sprite("closed", "open"), 1580, 500, 0.62)
-    for sx, sy, s in ((900, 160, 30), (1380, 140, 34), (700, 280, 24), (1750, 260, 28), (1090, 250, 22)):
+    if "creatures" not in SKIP:
+        parts = R.monkey_stamp()
+        monkey = Image.alpha_composite(parts[2], parts[1])
+        monkey = monkey.crop(monkey.getbbox())
+        cl.paste(monkey, 1200, 480, 0.62)
+        cl.paste(R.owl_sprite("closed", "open"), 1580, 500, 0.62)
+    for sx, sy, s in (STARS9 if "stars" not in SKIP else []):
         star(d, sx, sy, s)
     return finish(base, cl, 8, sub_on, seed=11)
 

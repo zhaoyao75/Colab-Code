@@ -37,6 +37,11 @@ def ease_out(x):
     return 1 - (1 - x) ** 3
 
 
+def ease_back(x, k=1.7):
+    x = min(1.0, max(0.0, x)) - 1
+    return 1 + (k + 1) * x ** 3 + k * x ** 2
+
+
 def seg(t, a, b):
     return smooth((t - a) / (b - a))
 
@@ -73,9 +78,12 @@ def sprite(w, h, fn):
 
 class Actor:
     """fn(tl) -> dict(x, y, scale, angle, alpha) 或 None；x、y 是精灵中心在画面上的位置"""
-    def __init__(self, spr, fn, halo=4, boil=True, wobble=2.0):
+    def __init__(self, spr, fn, halo=4, boil=True, wobble=2.0, crayon=True):
         n = NVAR if boil else 1
-        self.vars = [crayon_rgba(spr, seed=11 + k * 7, wobble=wobble, halo=halo) for k in range(n)]
+        if crayon:
+            self.vars = [crayon_rgba(spr, seed=11 + k * 7, wobble=wobble, halo=halo) for k in range(n)]
+        else:
+            self.vars = [spr.convert("RGBA")]
         self.fn = fn
 
     def draw(self, canvas, tl, t):
@@ -305,13 +313,255 @@ def build_scene3():
     return Scene(base, actors, zoom=1.035, pan=(-1, 0))
 
 
+# ------------------------------------------------------------------ 镜 4：表叔沈从文
+def envelope_sprite():
+    def fn(d, S):
+        d.rectangle([4 * S, 4 * S, 126 * S, 86 * S], fill=SH.CREAM, outline=(60, 40, 30, 255), width=4 * S)
+        d.line([(4 * S, 4 * S), (65 * S, 50 * S), (126 * S, 4 * S)], fill=(60, 40, 30, 255), width=4 * S)
+        for k in range(0, 126, 22):
+            d.rectangle([(k + 4) * S, 80 * S, (k + 14) * S, 86 * S], fill=(232, 50, 52, 255))
+            d.rectangle([(k + 15) * S, 80 * S, (k + 25) * S, 86 * S], fill=(60, 110, 200, 255))
+    return sprite(130, 90, fn)
+
+
+def build_scene4():
+    SH.SKIP = {"people", "env"}
+    base = SH.shot4(False)
+    SH.SKIP = set()
+    boy = SH.bust(SD.boy_sprite("color", False), 0.7)
+    man = SH.old_man_alt("shen", SH.STYLE) if SH.STYLE else SH.old_man("shen")
+    boy_y = 700 - boy.height * 1.45 / 2 + 4
+    man_y = 700 - man.height / 2 + 6
+
+    def boy_fn(tl):                                                  # 少年低头刻木板
+        return dict(x=470, y=boy_y + 3 * abs(math.sin(tl * 4.2)), scale=1.45, angle=1.5 * math.sin(tl * 2.1), alpha=seg(tl, 0, 0.6))
+
+    def man_fn(tl):                                                  # 老先生写信
+        return dict(x=1420, y=man_y + 2.5 * math.sin(tl * 3.0), angle=0.8 * math.sin(tl * 1.5), alpha=seg(tl, 0.2, 0.8))
+    launches = [1.8, 3.4] + [5.5 + 0.85 * k for k in range(6)]
+    FLY = 2.0
+    env = envelope_sprite()
+
+    class Letters(Actor):
+        def __init__(self):
+            self.vars = [crayon_rgba(env, 21 + 7 * k, 1.5, halo=3) for k in range(NVAR)]
+
+        def draw(self, canvas, tl, t):
+            im0 = self.vars[int(t * BOIL) % NVAR]
+            for k, l0 in enumerate(launches):
+                p = (tl - l0) / FLY
+                if p < 0:
+                    continue
+                ex, ey = 310 + k * 4, 668 - k * 14
+                if p < 1:
+                    q = smooth(p)
+                    x, y = 1230 + (ex - 1230) * q, 660 + (ey - 660) * q - 300 * math.sin(math.pi * p)
+                    ang = 18 - 36 * q
+                else:
+                    x, y, ang = ex, ey, (k % 3 - 1) * 4
+                im = im0.resize((int(im0.width * 0.9), int(im0.height * 0.9)), Image.BICUBIC).rotate(ang, Image.BICUBIC, expand=True)
+                canvas.paste(im, (int(x - im.width / 2), int(y - im.height / 2)), im)
+    return Scene(base, [Actor(boy, boy_fn), Actor(man, man_fn), Letters()], zoom=1.03)
+
+
+# ------------------------------------------------------------------ 镜 5：北京
+def build_scene5():
+    SH.SKIP = {"people"}
+    base = SH.shot5(False)
+    SH.SKIP = set()
+    teacher = SD.boy_sprite("sil", False)
+    kid = SD.boy_sprite("color")
+
+    def teacher_fn(tl):                                              # 老师讲课：轻轻摇摆
+        return dict(x=760, y=540 + 3 * math.sin(tl * 2.2), scale=1.9, angle=1.6 * math.sin(tl * 1.3), alpha=seg(tl, 0, 0.7))
+
+    def kid_fn(tl):                                                  # 「心里的少年」从左边蹦进来
+        p = seg(tl, 4.2, 5.6)
+        if p <= 0:
+            return None
+        hop = 26 * abs(math.sin(math.pi * min(1.0, (tl - 4.2) / 1.4) * 3)) * (1 - p) if p < 1 else 0
+        bob = 4 * abs(math.sin(tl * 3.4)) if p >= 1 else 0
+        return dict(x=150 + 250 * p, y=690 - hop - bob, scale=0.9, angle=4 * math.sin(tl * 3.4), alpha=min(1.0, p * 3))
+    return Scene(base, [Actor(teacher, teacher_fn), Actor(kid, kid_fn)], zoom=1.03, pan=(-1, 0))
+
+
+# ------------------------------------------------------------------ 镜 6：猫头鹰
+def star_sprite(s=30):
+    def fn(d, S):
+        pts = [(s + (s if k % 2 == 0 else s * 0.42) * math.sin(k * math.pi / 5), s - (s if k % 2 == 0 else s * 0.42) * math.cos(k * math.pi / 5)) for k in range(10)]
+        d.polygon([(x * S, y * S) for x, y in pts], fill=(255, 214, 70, 255), outline=(70, 44, 30, 255))
+    return sprite(int(2 * s + 4), int(2 * s + 4), fn)
+
+
+def twinkle_actors(stars, ph0=0.0):
+    out = []
+    for k, (sx, sy, s) in enumerate(stars):
+        spr = star_sprite(s)
+
+        def fn(tl, sx=sx, sy=sy, k=k):
+            return dict(x=sx, y=sy, alpha=0.55 + 0.45 * math.sin(tl * 2.2 + k * 1.7 + ph0), scale=0.92 + 0.1 * math.sin(tl * 2.2 + k))
+        out.append(Actor(spr, fn, halo=0, boil=False))
+    return out
+
+
+def build_scene6():
+    SH.SKIP = {"block", "owl", "stars"}
+    base = SH.shot6(False)
+    SH.SKIP = set()
+    states = {"oc": R.owl_sprite("open", "closed"), "cc": R.owl_sprite("closed", "closed"), "co": R.owl_sprite("closed", "open")}
+
+    def state(tl):
+        for b0 in (1.6, 7.3, 12.4):
+            if b0 < tl < b0 + 0.22:
+                return "cc"
+        return "co" if 7.5 <= tl < 11.5 else "oc"
+
+    def mk(key):
+        def fn(tl):
+            if state(tl) != key:
+                return None
+            return dict(x=620, y=520 + 6 * math.sin(tl * 2.2), angle=3 * math.sin(tl * 1.3), alpha=seg(tl, 0, 0.6))
+        return Actor(states[key], fn, halo=0)
+    ox, oy, bw, bh = 1460, 120, 470, 780
+
+    def block_sprite():
+        def fn(d, S):
+            for poly in SH.BLOCK6:
+                d.polygon([((x - ox) * S, (y - oy) * S) for x, y in poly], fill=(18, 22, 54, 255))
+        return sprite(bw, bh, fn)
+
+    def block_fn(tl):                                               # 压力：「风波」从右边压过来，后来退去
+        a = seg(tl, 3.0, 5.0) - seg(tl, 5.6, 7.4)
+        if a <= 0.01:
+            return None
+        return dict(x=ox + bw / 2 + (1 - a) * 560 + 8 * math.sin(tl * 3) * a, y=oy + bh / 2)
+    actors = [mk("oc"), mk("cc"), mk("co"), Actor(block_sprite(), block_fn, halo=0)] + twinkle_actors(SH.STARS6)
+    return Scene(base, actors, zoom=1.035)
+
+
+# ------------------------------------------------------------------ 镜 7：猴票
+def build_scene7():
+    SH.SKIP = {"stamps", "stars"}
+    base = SH.shot7(False)
+    SH.SKIP = set()
+    stamp = R.compose_monkey(*R.monkey_stamp())
+
+    def main_fn(tl):
+        g = ease_back((tl - 0.4) / 1.0, 1.6)
+        if g <= 0.02:
+            return None
+        return dict(x=960, y=470 + 5 * math.sin(tl * 1.8), scale=0.95 * g * (1 + 0.012 * math.sin(tl * 2.4)), angle=2.2 * math.sin(tl * 1.3))
+    actors = [Actor(stamp, main_fn, halo=5)]
+    starts = [(-260, 220), (2180, 200), (-260, 760), (2180, 760)]
+    for k, ((tx, ty, ang), (sx, sy)) in enumerate(zip(SH.SMALL7, starts)):
+        def fn(tl, tx=tx, ty=ty, ang=ang, sx=sx, sy=sy, k=k):
+            p = ease_back((tl - (5.6 + 0.5 * k)) / 1.2, 1.2)
+            if p <= 0:
+                return None
+            return dict(x=sx + (tx - sx) * p, y=sy + (ty - sy) * p + 6 * math.sin(tl * 1.7 + k), scale=0.36, angle=ang + (1 - min(p, 1.0)) * 180 + 3 * math.sin(tl * 1.4 + k))
+        actors.append(Actor(stamp, fn, halo=4))
+    actors += twinkle_actors(SH.STARS7)
+    return Scene(base, actors, zoom=1.03)
+
+
+# ------------------------------------------------------------------ 镜 8：无愁河
+def build_scene8():
+    SH.SKIP = {"man", "bubbles", "haha", "cloud"}
+    base = SH.shot8(False)
+    SH.SKIP = set()
+    man = SH.old_man_alt("huang", SH.STYLE) if SH.STYLE else SH.old_man("huang")
+    man_y = 720 - man.height * 1.3 / 2 + 6
+
+    def man_fn(tl):                                                  # 写字，后半段哈哈大笑，抖得更厉害
+        laugh = seg(tl, 9.6, 10.2)
+        return dict(x=560, y=man_y + (2 + 7 * laugh) * math.sin(tl * (3 + 5 * laugh)), scale=1.3 * (1 + 0.02 * laugh * math.sin(tl * 8)),
+                    angle=(0.8 + 2.2 * laugh) * math.sin(tl * (2 + 4 * laugh)), alpha=seg(tl, 0, 0.6))
+
+    def cloud_fn(tl):
+        return dict(x=1390, y=400 + 6 * math.sin(tl * 1.1), alpha=seg(tl, 6.4, 7.8))
+    actors = [Actor(man, man_fn), Actor(SH.cloud8(), cloud_fn, crayon=False)]
+    for k, (bx, by, br) in enumerate(SH.BUBBLES8):
+        def bsp(br=br):
+            def fn(d, S):
+                d.ellipse([5 * S, 5 * S, (2 * br + 5) * S, (2 * br + 5) * S], fill=SH.CREAM, outline=(60, 40, 30, 255), width=5 * S)
+            return sprite(2 * br + 10, 2 * br + 10, fn)
+
+        def fn(tl, bx=bx, by=by, k=k):
+            p = seg(tl, 5.8 + 0.35 * k, 6.4 + 0.35 * k)
+            return dict(x=bx, y=by - 8 * (1 - p) + 3 * math.sin(tl * 2 + k), scale=0.5 + 0.5 * p, alpha=p * seg(7.8 - tl, 0, 0.3) if tl > 7.8 else p)
+        actors.append(Actor(bsp(), fn, halo=3))
+
+    def haha_sprite():
+        def fn(d, S):
+            d.text((210 * S, 65 * S), "哈 哈 哈", font=R.font(R.F_FUN, 84 * S), fill=(250, 140, 40, 255), anchor="mm", stroke_width=3 * S, stroke_fill=(70, 44, 30, 255))
+        return sprite(420, 130, fn)
+
+    def haha_fn(tl):
+        p = seg(tl, 9.6, 10.1)
+        if p <= 0:
+            return None
+        return dict(x=300, y=250 - 12 * abs(math.sin(tl * 5)), scale=(0.7 + 0.3 * p) * (1 + 0.06 * math.sin(tl * 7)), angle=4 * math.sin(tl * 4), alpha=p)
+    actors.append(Actor(haha_sprite(), haha_fn, halo=3))
+    actors += twinkle_actors(((120, 120, 28), (760, 110, 30)))
+    return Scene(base, actors, zoom=1.03, pan=(1, 0))
+
+
+# ------------------------------------------------------------------ 镜 9：结尾
+def build_scene9():
+    SH.SKIP = {"creatures", "stars"}
+    base = SH.shot9(False)
+    SH.SKIP = set()
+    parts = R.monkey_stamp()
+    monkey = Image.alpha_composite(parts[2], parts[1])
+    monkey = monkey.crop(monkey.getbbox())
+    monkey = monkey.resize((int(monkey.width * 0.62), int(monkey.height * 0.62)), Image.LANCZOS)
+    own = {k: R.owl_sprite(*v) for k, v in {"oc": ("closed", "open"), "cc": ("closed", "closed"), "co": ("open", "closed")}.items()}
+    own = {k: v.resize((int(v.width * 0.62), int(v.height * 0.62)), Image.LANCZOS) for k, v in own.items()}
+    T_M, T_O = 8.6, 9.4                                               # 对齐旁白「可他的猴子，他的猫头鹰……」
+
+    def rise(tl, t0, y_end):
+        p = ease_out((tl - t0) / 1.8)
+        return p, y_end + (1 - p) * 220
+
+    def monkey_fn(tl):
+        p, y = rise(tl, T_M, 480)
+        if p <= 0.01:
+            return None
+        wink = 1 if 12.0 < tl < 12.25 or 15.0 < tl < 15.25 else 0
+        return dict(x=1200, y=y + 6 * math.sin(tl * 1.9), alpha=p, angle=3 * math.sin(tl * 1.5))
+
+    def owl_state(tl):
+        return "cc" if (11.6 < tl < 11.85 or 14.6 < tl < 14.85) else ("co" if tl > 12.6 and tl < 14.4 else "oc")
+
+    def mk_owl(key):
+        def fn(tl):
+            p, y = rise(tl, T_O, 500)
+            if p <= 0.01 or owl_state(tl) != key:
+                return None
+            return dict(x=1580, y=y + 6 * math.sin(tl * 1.9 + 1), alpha=p, angle=-3 * math.sin(tl * 1.5))
+        return Actor(own[key], fn, halo=0)
+
+    def card():
+        im = R.paper(W, H, 53, base=(247, 240, 222), vig=False).convert("RGBA")
+        d = ImageDraw.Draw(im)
+        d.text((W / 2, 380), "黄永玉", font=R.font(R.F_BRUSH, 210), fill=(34, 30, 32, 255), anchor="mm")
+        d.text((W / 2, 545), "1924 — 2023", font=R.font(R.F_EN, 52), fill=(80, 70, 60, 255), anchor="mm")
+        d.text((W / 2, 670), "永远长不大的老头", font=R.font(R.F_BRUSH, 84), fill=(200, 38, 42, 255), anchor="mm")
+        d.text((W - 50, H - 50), "画面与配乐由代码生成，AI 配音", font=R.font(R.F_FUN, 28), fill=(130, 120, 110, 255), anchor="rs")
+        return im
+    actors = [Actor(monkey, monkey_fn, halo=4)] + [mk_owl(k) for k in own] + twinkle_actors(SH.STARS9)
+    actors.append(Actor(card(), lambda tl: dict(x=W / 2, y=H / 2, alpha=seg(tl, 17.2, 18.6)), crayon=False))
+    return Scene(base, actors, zoom=1.03, pan=(0, 1))
+
+
 # ------------------------------------------------------------------ 其余镜头：先用静帧占位
 def static_scene(i):
     fn = SH.SHOTS[i]
     return Scene(fn(False), [], zoom=1.03)
 
 
-BUILDERS = {0: build_scene1, 1: build_scene2, 2: build_scene3}
+BUILDERS = {0: build_scene1, 1: build_scene2, 2: build_scene3, 3: build_scene4, 4: build_scene5, 5: build_scene6,
+            6: build_scene7, 7: build_scene8, 8: build_scene9}
 SCENES = []
 SUBS = []
 
@@ -344,7 +594,7 @@ def scene_frame(i, t):
     return SCENES[i].frame(t - STARTS[i], ENDS[i] - STARTS[i], t)
 
 
-def render(t):
+def render(t, with_subs=True):
     n = len(SCENES)
     i = max(k for k in range(n) if STARTS[k] <= t)
     img = scene_frame(i, t)
@@ -354,7 +604,7 @@ def render(t):
         img = Image.blend(scene_frame(i - 1, t), img, smooth((t - (STARTS[i] - XF)) / (2 * XF)))
     if t < 0.5:
         img = Image.blend(Image.new("RGB", (W, H), (247, 240, 222)), img, t / 0.5)
-    for s0, s1, im, y in SUBS:
+    for s0, s1, im, y in (SUBS if with_subs else []):
         if s0 <= t <= s1:
             a = min(1.0, (t - s0) / 0.15, (s1 - t) / 0.15)
             if a < 0.99:
@@ -398,7 +648,7 @@ def make_video(t1, out, procs=4):
 if __name__ == "__main__":
     os.chdir(HERE)
     if len(sys.argv) > 1 and sys.argv[1] == "--still":
-        setup(4)
+        setup(9)
         os.makedirs("anim_stills", exist_ok=True)
         for a in sys.argv[2:]:
             render(float(a)).save(f"anim_stills/t{float(a):05.1f}.jpg", quality=90)
