@@ -89,7 +89,7 @@ def pose(t):
         b = body(SEAT, 0, 3 + 1.2 * math.sin(t * 6))
         for s in (-1, 1):
             legs[s] = sit_leg(b, s)
-            sh = b["sh"][s]; e, h = ik(sh, V(s * 14, DESK_H + 2 + 2.5 * math.sin(t * 17 + s * 1.5), 94), UARM, FARM, V(s * .5, -1, -.2)); arms[s] = (sh, e, h)
+            sh = b["sh"][s]; e, h = ik(sh, V(-10 if s == -1 else 34, DESK_H + 2 + 2.5 * math.sin(t * 17 + s * 1.5), 97), UARM, FARM, V(s * 1, -.8, -.3)); arms[s] = (sh, e, h)
         mood = "grin" if t > 2.3 else "smile"; turn = ease((t - 2.2) / .5) * 0.0
     elif name == "shrug":                # 耸肩 ×4（每次 1 秒）
         p = lt % 1.0; u = ease(math.sin(math.pi * p)); b = body(SEAT, 0, 2, 0, 20 * u)
