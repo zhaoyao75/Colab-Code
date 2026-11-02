@@ -196,8 +196,8 @@ def draw_coach(P, t, voice):
         add(max(dp(sh) + .6, dp(sh + hd) / 2 + .1), lambda sh=sh, el=el, f=f: (group([(sh, sh + (el - sh) * .42, 29)], shade(TOP, f))))   # 袖子始终盖在本侧手臂上
 
     def head():
-        hc = pr(b["head"]); cx, cy = X(hc); R = HEAD_R; ro = R * 1.22; ri = ro * .56; rnd = 30
-        rot = -90 + 5 * math.sin(2 * math.pi * t); T = 50 * SY_
+        hc = pr(b["head"]); cx, cy = X(hc); R = HEAD_R; cx += rr(24 * P["turn"]); ro = R * 1.22; ri = ro * .56; rnd = 30
+        rot = -90 + 5 * math.sin(2 * math.pi * t) + 14 * P["turn"]; T = 50 * math.sin(YAW + 0.75 * P["turn"])
         def star_at(off, col, extra):
             c0 = cx - rr(off)
             pts = [(c0 + (x - c0) * CY_, y) for x, y in star_pts(c0, cy, rr(ro - rnd / 2), rr(ri - rnd * .3), rot)]
@@ -209,11 +209,11 @@ def draw_coach(P, t, voice):
         star_at(0, OUT, 2 * OW * .6); star_at(0, HEADC, 0)
         # 高光（潮玩质感）
         d.ellipse([cx - rr(.62 * R), cy - rr(.52 * R), cx - rr(.22 * R), cy - rr(.30 * R)], fill=(255, 244, 190, 210)); d.ellipse([cx - rr(.74 * R), cy - rr(.28 * R), cx - rr(.66 * R), cy - rr(.20 * R)], fill=(255, 244, 190, 210))
-        fx, fy = cx + rr(.07 * R + .30 * R * P["turn"]), cy + rr(.12 * R); k = CY_
+        fx, fy = cx + rr(.07 * R + .34 * R * P["turn"]), cy + rr(.12 * R); k = CY_
         # 耳机（左侧星角）+ 麦克风
         tipx = cx + (-ro * .84 * math.cos(math.radians(18))) * S2 * k; tipy = cy - ro * .84 * math.sin(math.radians(18)) * S2
         tx, ty = tipx - rr(T * .6), tipy + rr(8)
-        d.ellipse([tx - rr(16), ty - rr(16), tx + rr(16), ty + rr(16)], fill=OUT); d.ellipse([tx - rr(12), ty - rr(12), tx + rr(12), ty + rr(12)], fill=(70, 72, 100)); d.ellipse([tx - rr(6.5), ty - rr(6.5), tx + rr(6.5), ty + rr(6.5)], fill=AICOL)
+        if P["turn"] > -0.4: d.ellipse([tx - rr(16), ty - rr(16), tx + rr(16), ty + rr(16)], fill=OUT); d.ellipse([tx - rr(12), ty - rr(12), tx + rr(12), ty + rr(12)], fill=(70, 72, 100)); d.ellipse([tx - rr(6.5), ty - rr(6.5), tx + rr(6.5), ty + rr(6.5)], fill=AICOL)
         blink = (t % 3.2) < 0.12
         for sgn in (-1, 1):
             ex = fx + sgn * rr(.30 * R * k * 1.15); ey = fy
@@ -222,7 +222,7 @@ def draw_coach(P, t, voice):
                 d.ellipse([ex - rr(8 * k), ey - rr(12), ex + rr(8 * k), ey + rr(12)], fill=INK); d.ellipse([ex - rr(1.5), ey - rr(9), ex + rr(4.5), ey - rr(2)], fill=(255, 255, 255))
             lift = -rr(3) if P["mood"] == "effort" else 0
             d.line([(ex - rr(9 * k), ey - rr(21) + rr(2) + lift * (-sgn)), (ex + rr(9 * k), ey - rr(23) + lift * sgn)], fill=INK, width=wi(3))
-            kx = min(fx + sgn * rr(.58 * R * k), cx + rr(.46 * R)); d.ellipse([kx - rr(13), fy + rr(.12 * R), kx + rr(13), fy + rr(.12 * R) + rr(17)], fill=(255, 130, 140, 190))
+            lim = rr(.44 * R - .06 * R * abs(P["turn"])); kx = min(max(fx + sgn * rr(.58 * R * k), cx - lim), cx + lim); d.ellipse([kx - rr(13), fy + rr(.12 * R), kx + rr(13), fy + rr(.12 * R) + rr(17)], fill=(255, 130, 140, 190))
         mxx, myy, mw = fx, fy + rr(.30 * R), rr(13)
         if voice > 0.05:
             o = rr(7 + min(voice * 22, 9)); d.ellipse([mxx - mw * .8, myy - rr(2), mxx + mw * .8, myy - rr(2) + o], fill=(190, 62, 80), outline=INK, width=wi(2.4))
