@@ -90,7 +90,7 @@ def pose(t):
         for s in (-1, 1):
             legs[s] = sit_leg(b, s)
             sh = b["sh"][s]; e, h = ik(sh, V(-10 if s == -1 else 34, DESK_H + 2 + 2.5 * math.sin(t * 17 + s * 1.5), 97), UARM, FARM, V(s * 1, -.8, -.3)); arms[s] = (sh, e, h)
-        mood = "grin" if t > 2.3 else "smile"; turn = ease((t - 2.2) / .5) * 0.0
+        mood = "grin" if t > 2.7 else "smile"; turn = 0.3 * min(ease((t - 1.7) / .35), ease((2.9 - t) / .35))      # 1.7-2.9 秒侧头瞟老板
     elif name == "shrug":                # 耸肩 ×4（每次 1 秒）
         p = lt % 1.0; u = ease(math.sin(math.pi * p)); b = body(SEAT, 0, 2, 0, 20 * u)
         for s in (-1, 1): legs[s] = sit_leg(b, s); arms[s] = lap_arm(b, s)
@@ -222,7 +222,7 @@ def draw_coach(P, t, voice):
                 d.ellipse([ex - rr(8 * k), ey - rr(12), ex + rr(8 * k), ey + rr(12)], fill=INK); d.ellipse([ex - rr(1.5), ey - rr(9), ex + rr(4.5), ey - rr(2)], fill=(255, 255, 255))
             lift = -rr(3) if P["mood"] == "effort" else 0
             d.line([(ex - rr(9 * k), ey - rr(21) + rr(2) + lift * (-sgn)), (ex + rr(9 * k), ey - rr(23) + lift * sgn)], fill=INK, width=wi(3))
-            kx = fx + sgn * rr(.58 * R * k); d.ellipse([kx - rr(13), fy + rr(.12 * R), kx + rr(13), fy + rr(.12 * R) + rr(17)], fill=(255, 130, 140, 190))
+            kx = min(fx + sgn * rr(.58 * R * k), cx + rr(.46 * R)); d.ellipse([kx - rr(13), fy + rr(.12 * R), kx + rr(13), fy + rr(.12 * R) + rr(17)], fill=(255, 130, 140, 190))
         mxx, myy, mw = fx, fy + rr(.30 * R), rr(13)
         if voice > 0.05:
             o = rr(7 + min(voice * 22, 9)); d.ellipse([mxx - mw * .8, myy - rr(2), mxx + mw * .8, myy - rr(2) + o], fill=(190, 62, 80), outline=INK, width=wi(2.4))
@@ -314,8 +314,8 @@ def background():
 
 def boss(im, t):                         # 老板：中年上司（秃顶+眼镜+八字胡+啤酒肚+领带+工牌），0.6-3.0 秒从背后走过
     if not 0.6 <= t <= 3.0: return
-    u = (t - 0.6) / 2.4; X0 = lerp(-200, 1280, u); ph = (t - 0.6) * 2 * math.pi * 1.6; x, y = 200, 640 - 6 * abs(math.sin(ph))
-    g = Image.new("RGBA", (400, 700), (0, 0, 0, 0)); d = ImageDraw.Draw(g); sw = 26 * math.sin(ph)
+    u = (t - 0.6) / 2.4; X0 = lerp(-200, 1280, u); ph = (t - 0.6) * 2 * math.pi * 1.6; x, y = 200, 700 - 6 * abs(math.sin(ph))
+    g = Image.new("RGBA", (400, 760), (0, 0, 0, 0)); d = ImageDraw.Draw(g); sw = 26 * math.sin(ph)
     SUIT, SUIT_D, PNT, SK, SK_D = (70, 78, 118), (54, 62, 100), (96, 100, 124), (255, 214, 176), (236, 176, 138)
     def cp(p, q, w, col):
         d.line([p, q], fill=col, width=int(w)); r = w / 2
@@ -351,7 +351,11 @@ def boss(im, t):                         # 老板：中年上司（秃顶+眼镜
     d.polygon([(hx + 30, hy + 30), (hx + 70, hy + 30), (hx + 66, hy + 44), (hx + 50, hy + 38), (hx + 32, hy + 46)], fill=(92, 70, 62), outline=INK)        # 八字胡
     d.arc([hx + 28, hy + 48, hx + 60, hy + 66], 200, 340, fill=INK, width=4)
     tx, ty = x + 6, y - 590; d.rounded_rectangle([tx - 56, ty - 26, tx + 56, ty + 26], radius=16, fill=(220, 70, 70), outline=INK, width=4); d.text((tx, ty), "老板", font=font(34), fill=(255, 255, 255), anchor="mm")
-    cv = Image.new("RGBA", (W, H), (0, 0, 0, 0)); cv.paste(g, (int(X0 - 200), 1100 - 640)); im.alpha_composite(cv)
+    if 1.5 <= t <= 2.9:                                                                                  # 老板头顶「？」气泡
+        sc = pop(1.5, t); bx, by, r = x + 112, y - 580, 34 * sc
+        d.ellipse([bx - r, by - r, bx + r, by + r], fill=(255, 255, 255), outline=INK, width=4); d.polygon([(bx - 22, by + r - 8), (bx - 40, by + r + 18), (bx - 6, by + r - 2)], fill=(255, 255, 255), outline=INK)
+        d.ellipse([bx - r + 4, by + r - 14, bx + 6, by + r], fill=(255, 255, 255)); d.text((bx, by), "?", font=font(int(52 * sc)), fill=(220, 60, 64), anchor="mm", stroke_width=2, stroke_fill=(220, 60, 64))
+    cv = Image.new("RGBA", (W, H), (0, 0, 0, 0)); cv.paste(g, (int(X0 - 200), 1100 - 700)); im.alpha_composite(cv)
 
 # ---------- 文字 / 版式 ----------
 def font(sz): return ImageFont.truetype(ZH, sz)
