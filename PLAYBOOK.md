@@ -243,3 +243,8 @@ python3 make_cover.py                                # 三张封面
 - 办公椅/桌子用 `S(x,y,z)` 把世界坐标投影到屏幕，`box3()` 画 3D 盒子轮廓；桌面只留右侧抽屉柜，腿部空间留给抬腿。
 - 路人「老板」先画在小图层再放大粘贴（避免 `alpha_composite` 不能用负偏移）。
 - 复现：`cd fitness_coach/ep2_office && python3 make_audio.py && python3 render.py --still 1.5 5 9.5 11.25 15 && python3 render.py`。
+- **等后台渲染别用「文件出现」判断完成**：ffmpeg 合并时 mp4 会先出现（moov 还没写完，ffprobe 报 `moov atom not found`）；要等 `render.py` 进程退出，或看 `.tmp/render.log` 出现 `done`。
+- 封面标题 y 放在 9:16 的 340~520 才不会被 3:4 裁切（裁 y 240~1680，顶部要留 ~100px）。
+- 路人/配角可在竖版画布上画好，再 `crop + resize` 贴进 4:3 横封面，省得重画。
+- 侧头用脸整体横移，腮红要限制 `min(kx, cx+0.46R)`，否则会伸出星星边缘。
+- 做「关键时刻」封面：挑钩子最强的那一秒（本支是 2.35 秒：老板路过+小燃瞟他+问号气泡）。
