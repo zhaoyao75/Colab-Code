@@ -8,3 +8,5 @@ video/.segs_v.txt
 fitness_coach/.models/
 fitness_coach/.tmp/
 fitness_coach/*.wav
+fitness_coach/ep2_office/.tmp/
+fitness_coach/ep2_office/*.wav
