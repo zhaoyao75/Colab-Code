@@ -246,3 +246,12 @@ cd video && python3 race.py --douyin       # 竖版 720×1280，再 ffmpeg scale
 - [ ] 成品检查：时长、关键帧、音画同步；超过 50MB 的做压缩版
 - [ ] 发布材料：文案字数实测、时间轴按成片算、AI 声明、封面尺寸
 - [ ] 手册更新、`.gitignore` 干净、commit + push
+
+---
+
+## 9. 带旁白的 16 秒竖版短片《后悔按钮》（`narrated4/`）
+
+- 流水线：`tts.py`（edge-tts 云健，沙箱需 `pip install edge-tts`，CA 指向 `/root/.ccr/ca-bundle.crt`、传 `proxy=$HTTPS_PROXY`，已写在脚本里）→ `music.py`（纯 numpy 钢琴+铺底+滴答，16 秒）→ `mix.py`（旁白时音乐压低，-14 LUFS）→ `shots.py`（frame(t)，黑白极简 1080×1920）→ `render.py`（4 进程 480 帧约 80 秒，合成 mp4）。
+- 剧本时间点集中在 `script.json` 的 `starts` 和 `shots.py` 顶部 `T_*`；画面事件（按下、回溯、熄灭）都对着音乐/旁白的时间点。
+- 16 秒的片子渲染很便宜（约 1.5 分钟），可以先出静帧联系表，再直接出成片让用户一并确认。
+- 字幕放在画面 y≈1330，避开抖音底部文案区；胶片颗粒会让码率翻 10 倍（23MB → crf25 后 1.6MB），分享版用 crf 25。
