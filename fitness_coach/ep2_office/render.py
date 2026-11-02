@@ -312,10 +312,12 @@ def background():
     if "o" not in _bgc: _bgc["o"] = bg_office().convert("RGB")
     return _bgc["o"].copy()
 
-def boss(im, t):                         # 老板：中年上司（秃顶+眼镜+八字胡+啤酒肚+领带+工牌），0.6-3.0 秒从背后走过
-    if not 0.6 <= t <= 3.0: return
-    u = (t - 0.6) / 2.4; X0 = lerp(-200, 1280, u); ph = (t - 0.6) * 2 * math.pi * 1.6; x, y = 200, 700 - 6 * abs(math.sin(ph))
-    g = Image.new("RGBA", (400, 760), (0, 0, 0, 0)); d = ImageDraw.Draw(g); sw = 26 * math.sin(ph)
+def boss_x(t): return lerp(-110, 1250, t / 3.0)        # 老板慢慢走过：约 450px/秒，3 秒走完
+
+def boss(im, t):                         # 老板：中年上司（秃顶+眼镜+八字胡+啤酒肚+领带+工牌），0-3.0 秒慢慢从背后走过
+    if not 0 <= t <= 3.0: return
+    X0 = boss_x(t); ph = t * 2 * math.pi * 1.1; x, y = 200, 700 - 6 * abs(math.sin(ph))
+    g = Image.new("RGBA", (400, 760), (0, 0, 0, 0)); d = ImageDraw.Draw(g); sw = 22 * math.sin(ph)
     SUIT, SUIT_D, PNT, SK, SK_D = (70, 78, 118), (54, 62, 100), (96, 100, 124), (255, 214, 176), (236, 176, 138)
     def cp(p, q, w, col):
         d.line([p, q], fill=col, width=int(w)); r = w / 2

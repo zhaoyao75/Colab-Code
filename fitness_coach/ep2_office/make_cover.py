@@ -1,6 +1,6 @@
 """
 第二支（办公室不出汗）抖音封面：cover_9x16.jpg（1080x1920）、cover_3x4.jpg（1080x1440，取 9:16 的 y 240~1680）、
-cover_4x3.jpg（1440x1080，横版重新构图：标题在左、老板居中、小燃在右）。取 2.35 秒：老板路过+小燃瞟他+问号气泡。
+cover_4x3.jpg（1440x1080，横版重新构图：标题在左、老板居中、小燃在右）。取 2.25 秒：老板路过+小燃瞟他+问号气泡。
 运行：cd fitness_coach/ep2_office && python3 make_cover.py
 """
 import math, os
@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 import render as rd
 
 HERE = os.path.dirname(os.path.abspath(__file__)); W, H = rd.W, rd.H
-T = 2.35
+T = 2.25
 
 
 def nameplate(dr, cx, ny0):
@@ -70,7 +70,7 @@ def cover_4x3():
         im.alpha_composite(rd.draw_coach(rd.pose(T), T, 0.3), (0, 0))
     finally: rd.CX, rd.GROUND, rd.K, rd.LAY = old
     cv = Image.new("RGBA", (W, H), (0, 0, 0, 0)); rd.boss(cv, T)                         # 老板：在竖版画布上画好，再裁剪缩放贴到横版
-    X0 = rd.lerp(-200, 1280, (T - 0.6) / 2.4); bs = cv.crop((int(X0 - 230), 440, int(X0 + 230), 1110)); bs = bs.resize((int(bs.width * .8), int(bs.height * .8)), Image.LANCZOS)
+    X0 = rd.boss_x(T); bs = cv.crop((int(X0 - 230), 440, int(X0 + 230), 1110)); bs = bs.resize((int(bs.width * .8), int(bs.height * .8)), Image.LANCZOS)
     im.alpha_composite(bs, (790 - bs.width // 2, 700 - bs.height + 20))
     ov = Image.new("RGBA", (Wl, Hl), (0, 0, 0, 0)); dr = ImageDraw.Draw(ov)
     rd.stext(dr, (370, 250), "老板路过", 160, rd.YEL, stroke=11)
