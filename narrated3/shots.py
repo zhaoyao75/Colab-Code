@@ -273,6 +273,7 @@ def old_man(kind="shen"):
     return R.fin(im)
 
 
+SKIP = set()       # 动画用：不画这些元素（由 animate.py 做成可动的角色）
 STYLE = "line"      # 老人画法：line 蜡笔简笔画（采用）；None 旧的多边形画法；sil、back 已弃用
 
 
@@ -412,18 +413,24 @@ def shot2(sub_on=True):
     for rr in (65, 35):
         d.ellipse([1450 - rr, 250 - rr, 1450 + rr, 250 + rr], outline=(235, 110, 40, 255), width=6)
     # 纸船 + 小刻刀（伏笔）
-    bx, by = 640, 850
-    d.polygon([(bx - 110, by), (bx + 110, by), (bx + 70, by + 46), (bx - 70, by + 46)], fill=CREAM, outline=(60, 40, 30, 255))
-    d.polygon([(bx - 100, by + 8), (bx + 100, by + 8), (bx + 92, by + 22), (bx - 92, by + 22)], fill=(232, 50, 52, 255))
-    d.rectangle([bx - 20, by - 16, bx + 40, by - 2], fill=(150, 100, 56, 255), outline=(60, 40, 30, 255), width=3)
-    d.polygon([(bx + 40, by - 16), (bx + 96, by - 8), (bx + 40, by - 2)], fill=(200, 204, 210, 255), outline=(60, 40, 30, 255))
-    for k, (sx, sy) in enumerate(((1000, 160), (1180, 120), (1320, 190), (300, 200))):
-        d.line([(sx - 16, sy), (sx, sy - 12), (sx + 16, sy)], fill=(40, 34, 44, 255), width=5)
+    if "boat" not in SKIP:
+        bx, by = 640, 850
+        d.polygon([(bx - 110, by), (bx + 110, by), (bx + 70, by + 46), (bx - 70, by + 46)], fill=CREAM, outline=(60, 40, 30, 255))
+        d.polygon([(bx - 100, by + 8), (bx + 100, by + 8), (bx + 92, by + 22), (bx - 92, by + 22)], fill=(232, 50, 52, 255))
+        d.rectangle([bx - 20, by - 16, bx + 40, by - 2], fill=(150, 100, 56, 255), outline=(60, 40, 30, 255), width=3)
+        d.polygon([(bx + 40, by - 16), (bx + 96, by - 8), (bx + 40, by - 2)], fill=(200, 204, 210, 255), outline=(60, 40, 30, 255))
+    if "birds" not in SKIP:
+        for k, (sx, sy) in enumerate(((1000, 160), (1180, 120), (1320, 190), (300, 200))):
+            d.line([(sx - 16, sy), (sx, sy - 12), (sx + 16, sy)], fill=(40, 34, 44, 255), width=5)
     cl.paste(R.seal("凤凰", 96), 1780, 170)
     return finish(la.render(), cl, 1, sub_on, seed=4)
 
 
 # ------------------------------------------------------------------ 镜 3 出走
+ROUTE3 = [(140, 760), (420, 715), (700, 765), (960, 715), (1220, 755), (1420, 705), (1590, 690)]
+SAILS3 = ((420, 560), (1500, 520))
+
+
 def shot3(sub_on=True):
     la = LA(13)
     la.glow(1500, 230, 900, (255, 226, 130), 140)
@@ -438,16 +445,18 @@ def shot3(sub_on=True):
     cl = CL()
     d = cl.d
     d.ellipse([1500 - 95, 230 - 95, 1500 + 95, 230 + 95], fill=(255, 190, 50, 255), outline=(70, 44, 30, 255), width=7)
-    route = [(140, 760), (420, 715), (700, 765), (960, 715), (1220, 755), (1420, 705), (1590, 690)]
-    dashed(d, route, (232, 50, 52, 255), 10)
-    boy = SD.boy_sprite("sil")
-    bx, by, bs = 1650, 540, 0.95
-    cl.paste(boy, bx, by, bs)
-    hx, hy = SD.boy_bundle_pos(bx, by, bs)
-    bundle_crayon(cl, hx, hy, 40)
+    route = ROUTE3
+    if "route" not in SKIP:
+        dashed(d, route, (232, 50, 52, 255), 10)
+    if "boy" not in SKIP:
+        boy = SD.boy_sprite("sil")
+        bx, by, bs = 1650, 540, 0.95
+        cl.paste(boy, bx, by, bs)
+        hx, hy = SD.boy_bundle_pos(bx, by, bs)
+        bundle_crayon(cl, hx, hy, 40)
     for k, (sx, sy, s) in enumerate(((300, 120, 30), (760, 90, 26), (1130, 160, 28))):
         star(d, sx, sy, s)
-    for bxx, byy in ((420, 560), (1500, 520)):                                   # 小帆船
+    for bxx, byy in (SAILS3 if "sails" not in SKIP else []):                    # 小帆船
         d.polygon([(bxx - 50, byy), (bxx + 50, byy), (bxx + 30, byy + 24), (bxx - 30, byy + 24)], fill=CREAM, outline=(60, 40, 30, 255))
         d.polygon([(bxx, byy - 8), (bxx, byy - 70), (bxx + 40, byy - 10)], fill=(232, 50, 52, 255), outline=(60, 40, 30, 255))
     return finish(la.render(), cl, 2, sub_on, seed=5)

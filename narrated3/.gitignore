@@ -5,3 +5,6 @@
 .mix_raw.wav
 mix_v2.wav
 .tts_cache*/
+.seg_a*.mp4
+.segs_a.txt
+anim_stills/
