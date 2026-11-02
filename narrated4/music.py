@@ -52,47 +52,49 @@ def lp(x, fc):
 L = np.zeros(N); Rr = np.zeros(N)
 dry = np.zeros(N)
 
-# ---- 铺底 ----
-for m, t0, d in ((45, 0, 5.6), (41, 4.0, 4.4), (45, 7.6, 3.2)):
+# ---- 铺底 ----（对齐 shots.py：6.95 按下，7.12–8.2 倒带，8.2 站台，10.5 熄灭，12.1 回房间）
+for m, t0, d in ((45, 0, 5.2), (41, 3.6, 3.8), (45, 7.0, 3.6)):
     place(dry, pad(m, d, 0.16), t0)
 place(dry, pad(57, 4.0, 0.07), 0.5)
-place(dry, pad(48, 4.5, 0.12), 8.0)           # C3 沉下去
-place(dry, pad(52, 3.7, 0.08), 12.3)          # E3 悬着
+place(dry, pad(48, 3.0, 0.12), 8.2)           # 站台：C3 沉下去
+place(dry, pad(52, 3.9, 0.08), 12.1)          # E3 悬着
 
 # ---- 钢琴 ----
-for t0, m, v in ((0.6, 64, .8), (1.6, 69, .8), (2.6, 72, .85), (3.4, 71, .7),
-                 (4.6, 72, .8), (5.9 - 0.2, 65, .0), (8.6, 67, .55), (9.4, 60, .5)):
-    if v: place(dry, piano(m, 4, v), t0)
-# 上升扫频（倒带前的吸气）
-n = int((5.3 - 3.8) * SR)
+for t0, m, v in ((0.8, 64, .8), (1.8, 69, .8), (2.8, 72, .85), (3.7, 71, .7), (4.8, 72, .75), (5.8, 69, .6),
+                 (8.6, 67, .55), (9.4, 60, .5)):
+    place(dry, piano(m, 4, v), t0)
+# 上升扫频（按下前的吸气）
+n = int((6.95 - 5.2) * SR)
 x = rng.normal(0, 1, n)
-sw = lp(x, 3000) * np.linspace(0, 1, n) ** 3 * 0.18
-place(dry, sw, 3.8)
+place(dry, lp(x, 3000) * np.linspace(0, 1, n) ** 3 * 0.18, 5.2)
 # 按下：低频重击 + 亮泛音
 tt = np.arange(int(1.6 * SR)) / SR
-thud = np.sin(2 * np.pi * (48 + 60 * np.exp(-tt * 18)) * tt) * np.exp(-tt * 3.2) * 0.9
-place(dry, thud, 5.3)
-place(dry, piano(81, 3.5, .5), 5.3)
-place(dry, piano(88, 3.5, .35), 5.34)
-# 下行琶音（倒带），间隔逐渐变慢
-notes = [84, 81, 79, 76, 74, 72, 69]
-ts = np.cumsum([0] + list(np.linspace(0.15, 0.32, len(notes) - 1)))
-ts = 5.45 + ts / ts[-1] * (7.2 - 5.45 - 0.0)
+place(dry, np.sin(2 * np.pi * (48 + 60 * np.exp(-tt * 18)) * tt) * np.exp(-tt * 3.2) * 0.9, 6.95)
+place(dry, piano(81, 3.5, .5), 6.95)
+place(dry, piano(88, 3.5, .35), 6.99)
+# 倒带：下行琶音，间隔逐渐变慢，每个闪回一个音
+notes = [88, 84, 81, 79, 76, 74, 72, 69]
+ts = np.cumsum([0] + list(np.linspace(0.1, 0.2, len(notes) - 1)))
+ts = 7.12 + ts / ts[-1] * 1.0
 for t0, m in zip(ts, notes):
     place(dry, piano(m, 3.0, .55), t0)
-place(dry, piano(57, 4, .6), 7.2)
-place(dry, piano(69, 4, .7), 7.2)
-# ---- 滴答（到 10.35 骤停） ----
-for t0 in np.arange(0.5, 10.35, 0.5):
-    if abs(t0 - 5.5) < 0.01: continue
+place(dry, piano(57, 4, .6), 8.2)
+place(dry, piano(69, 4, .6), 8.2)
+# 雨声：8.2 起渐入，10.5 骤停
+n = int((10.5 - 8.0) * SR)
+r_ = lp(rng.normal(0, 1, n), 6500) - lp(rng.normal(0, 1, n), 1200)
+env = np.minimum(1, np.arange(n) / (0.8 * SR))
+place(dry, r_ * env * 0.05, 8.0)
+# ---- 滴答（到 10.5 骤停） ----
+for t0 in np.arange(0.5, 10.5, 0.5):
+    if abs(t0 - 7.0) < 0.01: continue
     k = np.arange(int(0.05 * SR)) / SR
     tick = lp(rng.normal(0, 1, len(k)), 4500) * np.exp(-k * 140) * (0.10 if int(t0 * 2) % 2 == 0 else 0.06)
     place(dry, tick, t0)
 # ---- 熄灭：下滑音 ----
 k = np.arange(int(1.8 * SR)) / SR
 f = 220 * np.exp(-k * 1.1)
-fall = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-k * 2.2) * 0.35 * np.minimum(1, k / 0.02)
-place(dry, fall, 10.35)
+place(dry, np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-k * 2.2) * 0.35 * np.minimum(1, k / 0.02), 10.5)
 # ---- 问句：悬着的 E4（不解决） ----
 place(dry, piano(64, 4, .85), 12.4)
 place(dry, piano(71, 4, .35), 12.9)
