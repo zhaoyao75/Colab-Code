@@ -17,8 +17,12 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from scipy.ndimage import gaussian_filter, zoom
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-DOUYIN = "--douyin" in sys.argv          # 抖音版：竖版 + 从起跑灯亮起处（场景 5.6 秒）开始，总长仍 128 秒（尾声延长）
-START_OFF = 5.6 if DOUYIN else 0.0
+TEASER = "--teaser" in sys.argv         # 16 秒抖音预告片：按拍点剪，画面取自完整版的几个时刻，音乐取 89.6–105.6 秒连续一段
+DOUYIN = "--douyin" in sys.argv or TEASER          # 抖音版：竖版 + 从起跑灯亮起处（场景 5.6 秒）开始，总长仍 128 秒（尾声延长）
+START_OFF = 5.6 if DOUYIN and not TEASER else 0.0
+# 预告片分镜（场景时间, 时长）：起跑灯 → 灯灭起步 → REDLINE 座舱特写 → 高潮超车；视频 9.6 秒处硬切，对上音乐的上升音效
+TEASER_SEGS = [(6.4, 9.6), (99.2, 6.4)]
+TEASER_AUDIO0 = 89.6                  # 音乐窗口起点（小节线），灯灭正好落在第 2 小节，座舱特写对上上升音效
 PORTRAIT = "--portrait" in sys.argv or DOUYIN      # 抖音竖版：720x1280（最后用 ffmpeg 升到 1080x1920）
 OW, OH = (720, 1280) if PORTRAIT else (1280, 720)   # 输出分辨率
 SS = 1.0                      # 环境超采样倍数
@@ -803,6 +807,8 @@ def hud_layer(t):
     for te, ps in POS_EVENTS:
         if t >= te:
             pos, t_ev = ps, te
+    if TEASER:
+        return None
     if t < (START_OFF + 4.4 if DOUYIN else 5.4):          # 抖音版：标题淡出后再出名次
         return None
     im = Image.new("RGBA", (OW, OH), (0, 0, 0, 0))
@@ -821,6 +827,8 @@ def hud_layer(t):
 
 def title_alpha(t, total):
     """片头标题在起跑灯亮起前淡出；结尾冲线后出现"""
+    if TEASER:                                                     # 预告片的字幕由后期叠加（video/teaser_text.py）
+        return 0.0
     if DOUYIN:                                                     # 视频一开始就是起跑灯：标题 0.1–4.2 秒
         tv = t - START_OFF
         return float(smooth(tv, 0.1, 0.6) * (1 - smooth(tv, 3.4, 4.2)) + smooth(t, 123.0, 124.6))
@@ -944,7 +952,16 @@ T0, DUR = 0.0, TOTAL
 
 def render_frame(i):
     t = T0 + i / FPS + START_OFF                         # 场景时间（抖音版比成片时间晚 5.6 秒）
-    img = frame(t, LAYERS, TOTAL, float(PULSE[min(int(t * FPS), len(PULSE) - 1)])).astype(np.float32)
+    pt = t
+    if TEASER:                                           # 预告片：成片时间 → 分镜片段 → 场景时间；闪光脉冲取自实际播放的音乐窗口
+        vt, base = i / FPS, 0.0
+        for s0, dur in TEASER_SEGS:
+            if vt < base + dur - 1e-9:
+                t = s0 + (vt - base)
+                break
+            base += dur
+        pt = TEASER_AUDIO0 + i / FPS
+    img = frame(t, LAYERS, TOTAL, float(PULSE[min(int(pt * FPS), len(PULSE) - 1)])).astype(np.float32)
     fade_in = FPS * (0.1 if DOUYIN else 0.5)
     fade = min(1.0, (i + 1) / fade_in, (DUR * FPS - i) / (FPS * (3.0 if DUR == TOTAL else 0.6)))
     return (img * max(0.0, fade)).astype(np.uint8)
@@ -983,6 +1000,9 @@ def main():
             print("saved race_still_%s%g.png" % (pre, t))
         return
     out = os.path.join(HERE, "redline_douyin_720.mp4" if DOUYIN else ("redline_portrait.mp4" if PORTRAIT else "redline.mp4"))
+    if TEASER:
+        DUR = float(sum(d_ for _, d_ in TEASER_SEGS))
+        out = os.path.join(HERE, "redline_teaser_720.mp4")
     if "--demo" in sys.argv:            # --demo 起始秒 时长
         k = sys.argv.index("--demo")
         T0, DUR = float(sys.argv[k + 1]), float(sys.argv[k + 2])
@@ -990,7 +1010,7 @@ def main():
     PULSE = audio_pulse(int((TOTAL + START_OFF + 1) * FPS) + 1)
     nf = int(round(DUR * FPS))
     workers = os.cpu_count() or 4
-    tag = ("demo" if "--demo" in sys.argv else "full") + ("_pd" if DOUYIN else ("_p" if PORTRAIT else ""))
+    tag = ("teaser" if TEASER else ("demo" if "--demo" in sys.argv else "full")) + ("_pd" if DOUYIN else ("_p" if PORTRAIT else ""))
     CH = 120
     jobs = [(k, i0, min(nf, i0 + CH), tag) for k, i0 in enumerate(range(0, nf, CH))]
     done = sum(os.path.exists(os.path.join(HERE, f".seg_{tag}_{k:03d}.mp4")) for k, *_ in jobs)
@@ -1001,8 +1021,10 @@ def main():
     with open(lst, "w") as fh:
         fh.writelines(f"file '{x}'\n" for x in segs)
     afade = f"afade=t=in:d=0.3,afade=t=out:st={DUR - 0.6}:d=0.6" if DUR < TOTAL else ("afade=t=in:d=0.15" if DOUYIN else "")
+    if TEASER:
+        afade = f"afade=t=in:d=0.03,afade=t=out:st={DUR - 0.5}:d=0.5"           # 开头那一下镲要保住
     subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", lst,
-                    "-ss", str(T0 + START_OFF), "-i", AUDIO, "-map", "0:v", "-map", "1:a", "-c:v", "copy"]
+                    "-ss", str(TEASER_AUDIO0 if TEASER else T0 + START_OFF), "-i", AUDIO, "-map", "0:v", "-map", "1:a", "-c:v", "copy"]
                    + (["-af", afade] if afade else [])
                    + ["-c:a", "aac", "-b:a", "192k", "-t", str(DUR), "-movflags", "+faststart", out], check=True)
     for x in segs + [lst]:

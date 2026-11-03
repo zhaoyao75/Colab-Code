@@ -3,3 +3,6 @@ video/.trace_cache.npz
 video/.seg_*
 video/.segs.txt
 __pycache__/
+video/fonts/*.otf
+video/fonts/*.ttf
+video/redline_teaser_720.mp4
