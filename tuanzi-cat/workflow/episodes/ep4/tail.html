@@ -1,0 +1,111 @@
+const capv=(id,minD=0.8,tail=0.35)=>{const v=TL[id];return [v.at-0.05,Math.min(Math.max(v.end+tail,v.at+minD),TL._card)];};
+const caps=[
+ [...capv('hook',1.6),'它们在哭，我在看。',215,78,'#fff6e3'],
+ [...capv('three',0.8,0.05),'三号，不行。',330,110,'#fff6e3'],
+ [...capv('two',0.8,0.1),'二号，要追上了。',330,92,'#fff6e3'],
+ [...capv('merge',1.8),'合并了。算一伙的。',330,84,'#ffd66b'],
+ [...capv('end'),'都输了，散会。',330,104,'#ffd66b']];
+const MW=[[7.9,.5,'喵～']];
+const CX=540,CY=1330,RS=2.4,MT=5.5,OX=[120,960],OY=[520,1330];
+const ease2=x=>x*x;
+function dropSVG(x,y,s,a){return `<g transform="translate(${x} ${y}) scale(${s})" opacity="${a}"><path d="M0 -34 Q22 -2 18 14 A18 18 0 1 1 -18 14 Q-22 -2 0 -34Z" fill="#bfe3ff" fill-opacity=".82" stroke="#6fa8dc" stroke-width="4" stroke-linejoin="round"/><ellipse cx="-7" cy="8" rx="5" ry="8" fill="#fff" opacity=".9" transform="rotate(20 -7 8)"/></g>`;}
+function tagSVG(x,y,n,a){return `<g transform="translate(${x} ${y}) scale(1.4)" opacity="${a}"><circle r="20" fill="#fff6e3" stroke="${INK}" stroke-width="4"/><text text-anchor="middle" y="9" font-size="26" fill="${INK}">${n}</text></g>`;}
+const HOLE=`M${OX[0]} ${OY[0]} H${OX[1]} V${OY[1]} H${OX[0]} Z`;
+function R(t){
+ $('shelf').setAttribute('display','none');$('chair').setAttribute('transform','translate(-3000 0)');$('glow').innerHTML='';$('door').innerHTML='';
+ const o={x:CX,y:CY,sx:1,sy:1,rot:0,eye:'half',dx:0,dy:-4,mouth:'n',blush:0,tail:Math.sin(t*3)*4,fishMouth:false,fishSq:0,shs:0,shy:F,phi:0,pw:0};
+ o.sy=1+0.012*Math.sin(t*4);
+ let fx='',back='',camC=[540,940],Z=1.1;
+ // ---- race geometry ----
+ const u=seg(t,RS,MT);
+ const y1=650+450*(1-(1-u)*(1-u)), x1=800;
+ const y2=620+480*Math.pow(u,1.3), x2=L(868,806,Math.pow(u,3));
+ const y3=700+420*seg(t,RS,8.7), x3=335;   // no.3 just drops slowly
+ const slide=sm2=>sm2*sm2;
+ const y3f=t<8.7?y3:L(y3,1300,slide(seg(t,8.7,9.6)));
+ const ym=L(1100,1290,sm(seg(t,MT,7.0)));
+ const yavg=t<MT?(y1+y2)/2:ym;
+ // ---- gaze / pose ----
+ if(t>0.62&&t<0.76)o.eye='z';
+ if(t>=2.4&&t<3.4){o.dx=-22;o.dy=2;}
+ if(t>=3.4&&t<MT){o.dx=22;o.dy=Math.max(-6,Math.min(10,(yavg-900)/40));}
+ if(t>=3.95&&t<MT){o.eye='w';o.rot=1.5;o.sy*=1.02;}
+ if(t>=MT&&t<MT+0.4){o.eye='dot';o.dx=18;o.dy=6;}
+ if(t>=MT+0.4&&t<7.7){o.dx=14;o.dy=6;}
+ if(t>=7.7&&t<8.5){o.dx=-24;o.dy=-6;}
+ if(t>=8.5){o.dx=0;o.dy=-4;}
+ if(t>=9.3){o.eye='z';o.rot=3*Math.sin((t-9.3)*14)*(1-seg(t,10.1,10.4));}
+ if(t<1.95){const k=eo(seg(t,1.4,1.95));Z=L(3.0,1.1,k);camC=[L(CX,540,k),L(1120,940,k)];}
+ // ---- owner (inside the room, seen through the window) ----
+ const glance=sm(seg(t,7.7,7.95))*(1-sm(seg(t,8.9,9.2)));
+ if(!window.NOARM)back+=`<g transform="translate(250 ${CY}) rotate(${-6*glance})"><rect x="-70" y="-560" width="140" height="420" rx="60" fill="#6b3a7d"/><circle cx="${-6*glance}" cy="-610" r="62" fill="#6b3a7d"/><rect x="-60" y="-150" width="46" height="150" rx="14" fill="#4a2660"/><rect x="14" y="-150" width="46" height="150" rx="14" fill="#4a2660"/>
+  <path d="M-55 -470 Q-115 -440 -120 -380" fill="none" stroke="#6b3a7d" stroke-width="46" stroke-linecap="round"/><rect x="-142" y="-440" width="42" height="74" rx="8" fill="#a7c7e7" stroke="${INK}" stroke-width="4"/></g>`;
+ // curtains
+ back+=`<path d="M${OX[0]} ${OY[0]} H${OX[0]+62} Q${OX[0]+78} 800 ${OX[0]+56} 1050 Q${OX[0]+70} 1220 ${OX[0]+60} ${OY[1]} H${OX[0]} Z" fill="#c9a6e8" stroke="${INK}" stroke-width="5"/>
+  <path d="M${OX[1]} ${OY[0]} H${OX[1]-62} Q${OX[1]-78} 800 ${OX[1]-56} 1050 Q${OX[1]-70} 1220 ${OX[1]-60} ${OY[1]} H${OX[1]} Z" fill="#c9a6e8" stroke="${INK}" stroke-width="5"/>`;
+ // exterior wall (with the window cut out) + rain outside
+ back+=`<defs><clipPath id="ext"><path clip-rule="evenodd" d="M-1500 -1500 H2580 V2850 H-1500 Z ${HOLE}"/></clipPath><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#7f8fc0"/><stop offset="1" stop-color="#a3b3df"/></linearGradient></defs>
+  <path fill-rule="evenodd" fill="url(#sky)" d="M-1500 -1500 H2580 V2850 H-1500 Z ${HOLE}"/>
+  <g clip-path="url(#ext)" stroke="#e3e9ff" stroke-linecap="round" stroke-width="4">${Array.from({length:70},(_,i)=>{const x=((i*173)%1500)-200,y=((t*1100+i*131)%1900)-250;return `<path d="M${x} ${y} l-14 52" opacity="${.35+(i%4)*.12}"/>`}).join('')}</g>`;
+ // window frame + sill
+ back+=`<rect x="${OX[0]-26}" y="${OY[0]-26}" width="${OX[1]-OX[0]+52}" height="${OY[1]-OY[0]+52}" rx="22" fill="none" stroke="${INK}" stroke-width="64"/><rect x="${OX[0]-26}" y="${OY[0]-26}" width="${OX[1]-OX[0]+52}" height="${OY[1]-OY[0]+52}" rx="22" fill="none" stroke="#fff6e3" stroke-width="50"/>
+  <rect x="${OX[0]-70}" y="${OY[1]+34}" width="${OX[1]-OX[0]+140}" height="44" rx="14" fill="#fff6e3" stroke="${INK}" stroke-width="6"/>`;
+ // meow bubble
+ MW.forEach(([a,dd,txt])=>{if(t>=a&&t<a+dd+0.25){const uu=(t-a)/(dd+0.25);if(t<a+dd){o.mouth='big';}
+  const pop=eo(seg(t,a,a+0.12));const bx=o.x+190,by=o.y-330-uu*40;
+  fx+=`<g transform="translate(${bx} ${by}) rotate(${-8+Math.sin(t*20)*3}) scale(${pop*(1+0.1*Math.sin(Math.PI*uu))})" opacity="${1-seg(uu,0.7,1)}"><text text-anchor="middle" font-size="76" fill="#fff6e3" stroke="${INK}" stroke-width="14" stroke-linejoin="round" paint-order="stroke">${txt}</text></g>`;}});
+ drawCat(o);
+ $('fishW').innerHTML=back;
+ // ---- glass layer in front of the cat ----
+ const clip=`<clipPath id="win"><path d="${HOLE}"/></clipPath>`;
+ let gl=`<defs>${clip}</defs><g clip-path="url(#win)"><rect x="${OX[0]}" y="${OY[0]}" width="${OX[1]-OX[0]}" height="${OY[1]-OY[0]}" fill="#cfe3ff" opacity=".10"/>
+  <path d="M200 520 L330 520 L170 1330 L120 1330Z" fill="#fff" opacity=".10"/><path d="M780 520 L840 520 L700 1330 L660 1330Z" fill="#fff" opacity=".08"/>`;
+ // small static drops on the glass
+ for(let i=0;i<26;i++){const x=OX[0]+30+rnd(i*3+1)*(OX[1]-OX[0]-60),y=OY[0]+30+rnd(i*3+2)*(OY[1]-OY[0]-120),r=.22+rnd(i*3+3)*.28;gl+=dropSVG(x,y,r,.55);}
+ // dense drops at 7.4+ then all slide down
+ for(let i=0;i<18;i++){const t0=7.35+i*0.06,gr=seg(t,t0,t0+.25);if(gr<=0)continue;
+  const x=OX[0]+50+rnd(i*7+11)*(OX[1]-OX[0]-100),y0=OY[0]+60+rnd(i*7+12)*520,s0=.45+rnd(i*7+13)*.45;
+  const st=8.7+(i%5)*.05,yy=t<st?y0:L(y0,1320,slide(seg(t,st,9.7)));gl+=dropSVG(x,yy,s0*gr,.95);}
+ // the three racers + merged drop
+ const a0=seg(t,2.0,2.4);
+ if(t<8.7||true){
+  if(t<MT){gl+=dropSVG(x1,y1,1.7,a0)+dropSVG(x2,y2,1.7,a0);}
+  else gl+=dropSVG(806,ym,2.4,1);
+  gl+=dropSVG(x3,y3f,1.7,a0);
+  // tags
+  if(t<5.9){const ta=a0*(1-seg(t,MT+.1,5.9));gl+=tagSVG(x1,y1-92,1,ta)+tagSVG(x2,y2-92,2,ta)+tagSVG(x3,y3-92,3,a0*(1-seg(t,3.6,4.0)));}
+  // wet trails
+  gl+=`<path d="M${x1} 650 L${x1} ${Math.min(y1,1100)}" stroke="#bfe3ff" stroke-width="5" opacity=".35" stroke-linecap="round"/>`;
+  gl+=`<path d="M${x3} 700 L${x3} ${y3}" stroke="#bfe3ff" stroke-width="5" opacity=".35" stroke-linecap="round"/>`;
+ }
+ gl+=`</g>`;
+ // "?" above the owner when it looks back
+ if(t>=7.75&&t<8.9){const q=Math.sin(Math.PI*seg(t,7.75,8.9));gl+=`<g transform="translate(240 ${600-10*q}) scale(${q})"><text text-anchor="middle" font-size="90" fill="#fff6e3" stroke="${INK}" stroke-width="14" stroke-linejoin="round" paint-order="stroke">?</text></g>`;}
+ $('fx').innerHTML=fx+gl;
+ $('cam').setAttribute('transform',`translate(540 960) scale(${Z}) translate(${-camC[0]} ${-camC[1]})`);
+ let h='';
+ caps.forEach(([a,b,tx_,y,sz,col])=>{if(t>=a&&t<b){const uu=eo(seg(t,a,a+0.25));const sc=0.6+0.4*uu+0.12*Math.sin(Math.PI*seg(t,a,a+0.3));
+  h+=`<g transform="translate(540 ${y}) scale(${sc})" opacity="${Math.min(1,uu*2)*(1-seg(t,b-0.12,b))}"><text text-anchor="middle" y="${sz*0.07}" font-size="${sz}" fill="${INK}" opacity=".35" stroke="${INK}" stroke-width="${sz/6}" stroke-linejoin="round">${tx_}</text><text text-anchor="middle" font-size="${sz}" fill="${col}" stroke="${INK}" stroke-width="${sz/6}" stroke-linejoin="round" paint-order="stroke">${tx_}</text></g>`;}});
+ if(t>=TL._card){const uu=eo(seg(t,TL._card,TL._card+.4)),u2=eo(seg(t,TL._card+.1,TL._card+.5));
+  h+=`<rect width="1080" height="1920" fill="#3b2040" opacity="${0.5*uu}"/>`;
+  const pop=0.88+0.12*u2;
+  h+=`<g transform="translate(540 650) scale(${pop})" opacity="${u2}">
+   <rect x="-396" y="-286" width="800" height="596" rx="56" fill="#3b2040" opacity=".35"/>
+   <rect x="-400" y="-296" width="800" height="596" rx="56" fill="#fff6e3" stroke="${INK}" stroke-width="9"/>
+   <rect x="-368" y="-264" width="736" height="532" rx="38" fill="none" stroke="#ffa8cb" stroke-width="4" stroke-dasharray="3 14" stroke-linecap="round"/>
+   <g transform="translate(0 -214)"><rect x="-206" y="-34" width="412" height="68" rx="34" fill="#ffd66b" stroke="${INK}" stroke-width="5"/><text text-anchor="middle" y="14" font-size="38" fill="${INK}">团子猫日常 · 第4集</text></g>
+   <g transform="translate(0 -112)"><path d="M-330 -14 H-170 M170 -14 H330" stroke="${INK}" stroke-width="4" stroke-linecap="round" opacity=".55"/><text text-anchor="middle" font-size="54" fill="#d9527a" stroke="#fff6e3" stroke-width="10" stroke-linejoin="round" paint-order="stroke">下集预告</text></g>
+   <g transform="translate(0 28)"><text text-anchor="middle" x="6" y="6" font-size="116" fill="#ffa8cb">团子猫开快递</text><text text-anchor="middle" font-size="116" fill="${INK}" stroke="#fff6e3" stroke-width="11" stroke-linejoin="round" paint-order="stroke">团子猫开快递</text></g>
+   <g transform="translate(0 190) scale(.8)">
+    <path d="M-60 -64 L-36 -112 L-6 -72 M60 -64 L36 -112 L6 -72" fill="#fff3dc" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M-150 -66 L-190 -104 L-70 -84 Z M150 -66 L190 -104 L70 -84 Z" fill="#b98757" stroke="${INK}" stroke-width="5" stroke-linejoin="round"/>
+    <rect x="-150" y="-70" width="300" height="140" rx="8" fill="#d4a674" stroke="${INK}" stroke-width="6"/><rect x="-26" y="-70" width="52" height="140" fill="#e8cfa0" opacity=".9"/>
+    <rect x="50" y="-20" width="84" height="56" rx="4" fill="#fff6e3" stroke="${INK}" stroke-width="3"/><path d="M62 -2 H122 M62 12 H108 M62 26 H116" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>
+   </g>
+  </g>`;
+  [[-470,-250,24,0],[480,-210,18,1.7],[-455,120,20,3.1],[470,190,28,4.4],[-420,330,14,2.3],[430,-40,15,5.2]].forEach(([dx,dy,r,ph])=>{const fl=Math.sin(t*2.6+ph)*10;
+   h+=`<g transform="translate(${540+dx*0.92} ${650+dy+fl})" opacity="${u2*0.9}"><circle r="${r*1.4}" fill="#cfe9ff" fill-opacity=".6" stroke="#7fb8e6" stroke-width="3"/><circle cx="${-r*0.45}" cy="${-r*0.45}" r="${r*0.26}" fill="#fff" opacity=".85"/></g>`;});}
+ if(t<0.1)h+=`<rect width="1080" height="1920" fill="#fff6e3" opacity="${0.6*(1-t/0.1)}"/>`;
+ $('hud').innerHTML=h;
+}
+</script></body></html>

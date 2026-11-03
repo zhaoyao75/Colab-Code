@@ -1,0 +1,81 @@
+<html><head><meta charset="utf-8"><style>@font-face{font-family:KuaiLe;src:url(fonts/ZCOOLKuaiLe-Regular.ttf)}</style></head><body style="margin:0;background:#000"><svg id="s" width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg" font-family="KuaiLe, WenQuanYi Zen Hei">
+<defs><linearGradient id="wg" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="1350"><stop offset="0" stop-color="#fbc6d9"/><stop offset="1" stop-color="#f29dbb"/></linearGradient><linearGradient id="fg" gradientUnits="userSpaceOnUse" x1="0" y1="1350" x2="0" y2="1920"><stop offset="0" stop-color="#8a4f96"/><stop offset="1" stop-color="#5e2f6b"/></linearGradient><radialGradient id="vg" cx="50%" cy="48%" r="75%"><stop offset="0.55" stop-color="#3b2040" stop-opacity="0"/><stop offset="1" stop-color="#3b2040" stop-opacity=".28"/></radialGradient></defs>
+<g id="cam">
+ <rect x="-1500" width="4080" height="2850" y="-1500" fill="url(#wg)"/>
+ <g id="dots" fill="#ffd8ec"></g>
+ <rect x="-1500" y="1350" width="4080" height="1500" fill="url(#fg)"/>
+ <rect x="-1500" y="1338" width="4080" height="14" fill="#e6c86e"/>
+ <rect x="-1500" y="1470" width="4080" height="210" fill="#c7302b"/><rect x="-1500" y="1488" width="4080" height="174" fill="none" stroke="#e6c86e" stroke-width="4"/><rect x="-1500" y="1470" width="4080" height="210" fill="none" stroke="#e6c86e" stroke-width="10"/>
+ <g id="door"></g>
+ <g id="shelf"><path d="M600 814 L600 872 L652 814 Z" fill="#86b0d6" stroke="#3b2040" stroke-width="5" stroke-linejoin="round"/><path d="M958 814 L1010 872 L1010 814 Z" fill="#86b0d6" stroke="#3b2040" stroke-width="5" stroke-linejoin="round"/>
+ <rect x="560" y="780" width="490" height="34" rx="10" fill="#a9cbea" stroke="#3b2040" stroke-width="6"/>
+ <ellipse cx="820" cy="776" rx="92" ry="13" fill="#fff3dc" stroke="#3b2040" stroke-width="5"/></g>
+ <g id="glow"></g><g id="fishW"></g>
+ <g id="chair"><rect x="-78" y="-162" width="18" height="162" rx="6" fill="#784283" stroke="#3b2040" stroke-width="5"/><rect x="60" y="-162" width="18" height="162" rx="6" fill="#784283" stroke="#3b2040" stroke-width="5"/>
+ <rect x="-90" y="-380" width="24" height="222" rx="10" fill="#784283" stroke="#3b2040" stroke-width="5"/>
+ <rect x="-92" y="-190" width="184" height="34" rx="12" fill="#c7362a" stroke="#3b2040" stroke-width="6"/></g>
+ <ellipse id="sh" cx="0" cy="0" rx="190" ry="14" fill="#000" opacity=".12"/>
+ <g id="cat">
+  <g id="tail"><path d="M985 830 Q1010 740 1060 700 Q1130 690 1125 770 Q1110 870 985 915 Z" fill="#fff3dc" stroke="#3b2040" stroke-width="12" stroke-linejoin="round"/></g>
+  <path d="M415 440 L440 290 Q445 283 455 288 L560 355 Q625 345 690 355 L800 285 Q810 280 818 290 L838 440 Q930 560 990 800 Q1005 960 880 990 Q760 1005 620 1005 Q450 1005 345 985 Q245 940 248 830 Q270 560 415 440 Z" fill="#fff3dc" stroke="#3b2040" stroke-width="12" stroke-linejoin="round"/>
+  <path d="M445 415 L463 325 L520 375 Z" fill="#f28ca8"/><path d="M730 375 L790 325 L805 415 Z" fill="#f28ca8"/>
+  <g stroke="#3b2040" stroke-width="9" fill="none" stroke-linecap="round">
+   <path d="M350 545 Q390 545 415 560"/><path d="M342 592 Q385 585 413 585"/><path d="M365 635 Q390 615 415 607"/>
+   <path d="M835 545 Q880 545 905 555"/><path d="M838 592 Q880 585 908 595"/><path d="M845 625 Q870 612 885 635"/>
+   <path d="M487 800 Q500 880 560 865 Q595 840 570 772"/><path d="M665 855 Q670 780 690 770 Q740 830 760 805"/>
+     </g><g id="paws"></g>
+  <g id="face"></g><g id="hat"></g>
+ </g>
+ <g id="fx"></g>
+</g>
+<rect width="1080" height="1920" fill="url(#vg)"/>
+<g id="hud"></g>
+</svg>
+<script>
+const $=id=>document.getElementById(id);
+const cl=x=>Math.max(0,Math.min(1,x)),L=(a,b,t)=>a+(b-a)*t,sm=t=>t*t*(3-2*t),eo=t=>1-Math.pow(1-t,3);
+const seg=(t,a,b)=>cl((t-a)/(b-a));
+const INK='#3b2040',F=1350,S=0.5;
+let d='';for(let y=40;y<1350;y+=120)for(let x=(y/120%2)*60+30;x<1080;x+=120)d+=`<circle cx="${x}" cy="${y}" r="9"/>`;$('dots').innerHTML=d;
+function cake(sc,rot){return `<g transform="rotate(${rot||0}) scale(${sc})"><path d="M-55 0 L55 0 L42 -60 L-42 -60 Z" fill="#a9cbea" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/><path d="M-22 -2 L-17 -58 M0 -2 L0 -58 M22 -2 L17 -58" stroke="${INK}" stroke-width="3" opacity=".5"/>
+<ellipse cx="0" cy="-66" rx="58" ry="22" fill="#ffa8cb" stroke="${INK}" stroke-width="6"/><ellipse cx="0" cy="-92" rx="40" ry="20" fill="#ffc2db" stroke="${INK}" stroke-width="6"/><ellipse cx="0" cy="-114" rx="22" ry="14" fill="#ffe0ec" stroke="${INK}" stroke-width="6"/><circle cx="0" cy="-136" r="13" fill="#e5282a" stroke="${INK}" stroke-width="5"/></g>`;}
+const heart=(x,y,s,o,c)=>`<path transform="translate(${x} ${y}) scale(${s})" d="M0 12 C-30 -8 -14 -28 0 -14 C14 -28 30 -8 0 12Z" fill="${c||'#ff6f9a'}" stroke="${INK}" stroke-width="2.5" opacity="${o}"/>`;
+const star=(x,y,s,o,c)=>`<path transform="translate(${x} ${y}) scale(${s})" d="M0 -30 L7 -7 L30 0 L7 7 L0 30 L-7 7 L-30 0 L-7 -7Z" fill="${c||'#ffe79a'}" stroke="${INK}" stroke-width="2" opacity="${o}"/>`;
+function fishSVG(sc,rot){return `<g transform="rotate(${rot}) scale(${sc})"><path d="M-40 0 L-78 -22 Q-68 0 -78 22 Z" fill="#d99a2b" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/><ellipse rx="46" ry="27" fill="#f4c452" stroke="${INK}" stroke-width="6"/><path d="M-32 11 Q0 23 36 11" fill="none" stroke="${INK}" stroke-width="3.5" stroke-dasharray="7 6" stroke-linecap="round"/><path d="M-6 -20 Q8 0 -6 20" fill="none" stroke="${INK}" stroke-width="4" opacity=".5"/><circle cx="26" cy="-7" r="8.5" fill="#fff3dc" stroke="${INK}" stroke-width="3"/><path d="M22 -11 L30 -3 M30 -11 L22 -3" stroke="${INK}" stroke-width="2.6" stroke-linecap="round"/></g>`;}
+function realFishSVG(sc,rot){return `<g transform="rotate(${rot}) scale(${sc})"><path d="M-52 0 L-106 -36 Q-92 0 -106 36 Z" fill="#e8822a" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/><path d="M-12 -38 Q10 -68 36 -40 Z" fill="#e8822a" stroke="${INK}" stroke-width="5" stroke-linejoin="round"/><ellipse rx="64" ry="39" fill="#f5a94a" stroke="${INK}" stroke-width="6"/><path d="M-50 14 Q0 42 58 14 Q0 28 -50 14Z" fill="#ffe0a8"/><path d="M-24 -16 q10 9 0 20 M-4 -20 q10 9 0 22 M16 -16 q10 9 0 20" fill="none" stroke="${INK}" stroke-width="3.5" opacity=".35" stroke-linecap="round"/><ellipse cx="-10" cy="-24" rx="24" ry="6" fill="#fff" opacity=".6" transform="rotate(-12)"/><circle cx="40" cy="-8" r="9" fill="#fff" stroke="${INK}" stroke-width="4"/><circle cx="42" cy="-8" r="4.5" fill="${INK}"/><path d="M56 6 Q61 11 54 15" fill="none" stroke="${INK}" stroke-width="3.5" stroke-linecap="round"/></g>`;}
+function rnd(n){const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x);}
+function scatter(t,a,b,n,seed,Z,camC,cx,cy){let h='';const cols=['#ff6f9a','#ffa8cb','#e5405e','#ff8db6','#f78fb0'];
+ for(let i=0;i<n;i++){const r=k=>rnd(seed*13+i*7+k);const ts=a+r(1)*(b-a),dur=1.0+r(2)*1.0;if(t<ts||t>ts+dur)continue;const u=(t-ts)/dur;
+  const x=cx+(r(3)-0.5)*380+Math.sin(u*5+r(4)*6)*18,wy=cy-u*(150+r(5)*170)-r(6)*40;
+  const sy=(wy-camC[1])*Z+960;const vis=Math.max(0,Math.min(1,(sy-520)/100));
+  const al=Math.min(1,u*6)*(1-u*u)*vis*0.95;if(al<=0.01)continue;
+  const sc=(0.9+r(7)*1.3)*(0.6+0.4*Math.min(1,u*5));
+  h+=`<g transform="translate(${x} ${wy}) rotate(${(r(8)-0.5)*50})">`+heart(0,0,sc*1.6,al,cols[Math.floor(r(9)*cols.length)])+`</g>`;}
+ return h;}
+function eye(x,y,m,dx,dy){const hl=(a,b,r)=>`<circle cx="${x+a+dx}" cy="${y+b+dy}" r="${r}" fill="#fff"/>`;
+ if(m=='n')return `<ellipse cx="${x+dx}" cy="${y+dy}" rx="31" ry="39" fill="#2a1530"/>`+hl(-7,-20,9);
+ if(m=='w')return `<ellipse cx="${x+dx}" cy="${y+dy}" rx="39" ry="50" fill="#2a1530"/>`+hl(-9,-26,12);
+ if(m=='dot')return `<ellipse cx="${x}" cy="${y}" rx="40" ry="48" fill="#fff" stroke="${INK}" stroke-width="7"/><circle cx="${x+dx*.3}" cy="${y+dy*.3}" r="10" fill="#2a1530"/>`;
+ if(m=='half')return `<ellipse cx="${x+dx}" cy="${y+dy}" rx="33" ry="41" fill="#2a1530"/>`+hl(-7,-12,8)+`<path d="M${x-40} ${y-52} L${x+40} ${y-52} L${x+40} ${y-4} Q${x} ${y-14} ${x-40} ${y-4} Z" fill="#fff3dc"/><path d="M${x-38} ${y-4} Q${x} ${y-14} ${x+38} ${y-4}" stroke="${INK}" stroke-width="8" fill="none" stroke-linecap="round"/>`;
+ if(m=='c')return `<path d="M${x-34} ${y+10} Q${x} ${y-34} ${x+34} ${y+10}" stroke="${INK}" stroke-width="11" fill="none" stroke-linecap="round"/>`;
+ if(m=='z')return `<path d="M${x-32} ${y-4} Q${x} ${y+14} ${x+32} ${y-4}" stroke="${INK}" stroke-width="10" fill="none" stroke-linecap="round"/>`;
+ if(m=='sp')return `<ellipse cx="${x+dx}" cy="${y+dy}" rx="44" ry="54" fill="#2a1530"/>`+hl(-14,-26,16)+hl(14,10,9)+hl(-4,24,5);}
+function mouth(m){const st=`fill="none" stroke="${INK}" stroke-width="9" stroke-linecap="round"`;
+ if(m=='n')return `<path d="M577 600 Q580 625 600 622 Q620 620 624 600 Q628 622 650 622 Q672 620 672 600" ${st}/>`;
+ if(m=='o')return `<ellipse cx="624" cy="618" rx="15" ry="19" fill="#c0504d" stroke="${INK}" stroke-width="7"/>`;
+ if(m=='big')return `<path d="M572 598 Q624 676 676 598 Z" fill="#d9625f" stroke="${INK}" stroke-width="9" stroke-linejoin="round"/><path d="M600 640 Q624 622 648 640 Q624 664 600 640Z" fill="#f59a9a"/>`;
+ if(m=='w')return `<path d="M572 614 q13 -16 26 0 t26 0 t26 0 t26 0" ${st}/>`;}
+const nose=`<path d="M603 565 L645 565 L624 588 Z" fill="#f28ca8"/>`;
+function drawCat(o){
+ let pws='';[[478,0],[762,0.5]].forEach(([cx0,off])=>{let u=(((o.phi||0)+off)%1+1)%1,dx,lift=0;
+  if(u<0.6)dx=75-150*u/0.6;else{const v=(u-0.6)/0.4;dx=-75+150*v;lift=Math.sin(Math.PI*v)*52;}
+  const pw=o.pw||0;dx*=pw;lift*=pw;
+  pws+=`<g transform="translate(${cx0+dx} ${988-lift}) rotate(${-lift*0.3})"><ellipse rx="56" ry="30" fill="#fff3dc" stroke="${INK}" stroke-width="12"/><path d="M-14 2 L-16 22 M14 2 L16 22" stroke="${INK}" stroke-width="9" stroke-linecap="round" fill="none"/></g>`;});
+ $('paws').innerHTML=pws;
+ $('face').innerHTML=eye(517,540,o.eye,o.dx,o.dy)+eye(738,540,o.eye,o.dx,o.dy)+nose+mouth(o.mouth)+
+  `<ellipse cx="455" cy="610" rx="38" ry="20" fill="#f58fa8" opacity="${o.blush}"/><ellipse cx="800" cy="610" rx="38" ry="20" fill="#f58fa8" opacity="${o.blush}"/>`;
+ $('hat').innerHTML=o.fishMouth?`<g transform="translate(634 640) scale(${1.5*(1+0.25*(o.fishSq||0))} ${1.5*(1-0.32*(o.fishSq||0))})">${fishSVG(1,0)}</g>`:'';
+ $('tail').setAttribute('transform',`rotate(${o.tail} 985 850)`);
+ $('cat').setAttribute('transform',`translate(${o.x} ${o.y}) rotate(${o.rot}) scale(${S*o.sx} ${S*o.sy}) translate(-620 -1000)`);
+ $('sh').setAttribute('cx',o.x);$('sh').setAttribute('cy',o.shy);$('sh').setAttribute('rx',190*o.shs);
+}

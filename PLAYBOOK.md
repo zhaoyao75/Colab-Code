@@ -246,3 +246,14 @@ cd video && python3 race.py --douyin       # 竖版 720×1280，再 ffmpeg scale
 - [ ] 成品检查：时长、关键帧、音画同步；超过 50MB 的做压缩版
 - [ ] 发布材料：文案字数实测、时间轴按成片算、AI 声明、封面尺寸
 - [ ] 手册更新、`.gitignore` 干净、commit + push
+
+---
+
+## 9. 《团子猫日常》（`tuanzi-cat/`）
+
+- 12 秒竖屏猫咪动画系列。第1、2集素材在 `tuanzi-cat/scene|audio|scripts|episodes`，第3、4集及工作流在 `tuanzi-cat/workflow/`。
+- **一键生成一集**：`cd tuanzi-cat/workflow && ./build.sh ep4`（配音排布 → 一致性检查 → 渲染 → 配乐混音 → 合成 → 封面 → 交付包 → 质检，约 50 秒）。依赖 ffmpeg、numpy、edge-tts、node + playwright。
+- 新开一集：复制 `episodes/ep4`，改 `episode.json`、`tail.html`、`audio.py`。
+- 完整经验（用户偏好、台词口味、技术坑、第5集待办）见 `tuanzi-cat/经验总结_第3-4集与工作流.md`，规格与第1、2集偏好见 `tuanzi-cat/README_经验总结与第3集交接.md`。
+- 关键坑：edge-tts 要让 certifi 指向代理 CA（不关 TLS 校验）；GitHub zip 下载被拒，只能用 raw 单文件；loudnorm 必须两遍才到 -14 LUFS；台词要口语、有笑点，动画里“不动”的东西必须有观众看得懂的原因。
+- 成片声音只有用户能听：交付时必须说明“没听过声音”，猫叫（ESC-50，CC BY-NC）与合成配音商用需自行确认。
