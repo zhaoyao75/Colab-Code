@@ -36,6 +36,11 @@ if os.path.isdir(dl):
         t=open(f"{dl}/{copy[0]}",encoding='utf8').read()
         for s in cfg.get('copy_must_include',[]): chk(s in t, f"发布文案含「{s}」")
         chk(f"第{no}集" in t, f"发布文案含「第{no}集」")
+        ft=os.path.join(os.path.dirname(os.path.abspath(src)),'..','common','fixed_tags.txt')
+        ft=os.path.normpath(ft)
+        if os.path.exists(ft):
+            fixed=open(ft,encoding='utf8').read().strip(); m=re.search(r"## 话题\n(.*?)\n\n##",t,re.S)
+            chk(bool(m) and m.group(1).strip()==fixed, f"发布文案话题固定为：{fixed}")
     else: chk(False,"缺少发布文案")
 bad=0
 for ok,m in res:

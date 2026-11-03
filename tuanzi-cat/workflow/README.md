@@ -35,3 +35,4 @@ ffmpeg、python3（numpy、edge-tts、certifi）、node + playwright、能访问
 - 经验总结见 `../经验总结_第3-4集与工作流.md`，第1、2集那份是 `tuanzi-cat/README_经验总结与第3集交接.md`。
 - 交付检查项里「禁用旧词」`banned` 每集都要更新（第4集加了「全体」「落选」）。
 - 目前已有 ep3、ep4 两集；第5集《团子猫开快递》待做。
+- 固定话题标签：`common/fixed_tags.txt`（#宠物动画 #猫咪动画 #原创动画 #萌宠 #云吸猫）。`pack` 会把它写进每集的发布文案「话题」一栏，`check` 会校验；要改标签只改这一个文件。

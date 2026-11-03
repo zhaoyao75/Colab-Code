@@ -52,6 +52,13 @@ if has pack; then echo "[pack] 交付包"
     cp "$OUT/covers/cover_${a}_2x.png" "$P/第${NO}集_封面_${n}_2x.png"
     ffmpeg -v error -y -i "$OUT/covers/cover_${a}_2x.png" -vf scale=iw/2:ih/2 "$P/第${NO}集_封面_${n}.png"; done
   [ -f "$SRC/发布文案.md" ] && cp "$SRC/发布文案.md" "$P/第${NO}集_发布文案.md"
+  if [ -f "$P/第${NO}集_发布文案.md" ] && [ -f "$C/fixed_tags.txt" ]; then   # 固定话题标签（common/fixed_tags.txt）
+    python3 -I - "$P/第${NO}集_发布文案.md" "$C/fixed_tags.txt" <<'P'
+import re,sys
+f,t=sys.argv[1:3];tags=open(t,encoding='utf8').read().strip();s=open(f,encoding='utf8').read()
+s=re.sub(r"(## 话题\n).*?(\n\n##)",lambda m:m.group(1)+tags+m.group(2),s,flags=re.S);open(f,'w',encoding='utf8').write(s)
+P
+  fi
   echo "  交付目录: $P"
 fi
 
