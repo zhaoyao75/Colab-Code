@@ -1,8 +1,31 @@
 # 16 秒预告片 · 抖音发布材料
 
 成片：`video/redline_teaser.mp4`（1080×1920，16.00 秒，31MB，9:16，带音乐和呼啸音效）。网络慢可先看 `publish/redline_teaser_preview.mp4`（2MB，低画质，仅用来看节奏）。
-封面：`publish/cover_teaser_9x16.png`（1080×1920，F1 RACING + PURE MUSIC，已去掉 Claude 标志）。
+封面：3:4 / 4:3 见第 0 节；另有 `publish/cover_teaser_9x16.png`（9:16 备用）。
 合集：加入「F1 Racing · Pure Music」，合集封面 `publish/cover_collection_1x1.png`，合集简介 `publish/collection_intro.md`。
+
+---
+
+## 0. 抖音发布页字段（标准格式，直接复制）
+
+**作品描述**（18 字，限 30 字）
+```
+灯灭，转速冲上红线🏁 F1赛车纯音乐
+```
+
+**作品简介**（157 字，限 200 字）
+```
+F1 Racing · Pure Music｜原创 F1 赛车风格纯音乐，旋律好记、节奏紧凑，配全程由代码生成的赛车动画：转速冲进红区、并排超车、赛道边呼啸而过、挥白旗冲向终点。无人声，戴耳机更燃。完整版收录在合集「F1 Racing · Pure Music」。内容由 AI 辅助创作，画面、车队与数据均为虚构。
+```
+
+**话题**（5 个）
+```
+#F1 #赛车 #纯音乐 #原创音乐 #AI生成
+```
+
+**封面**：`publish/cover_f1racing_3x4.png`（3:4，1080×1440）和 `publish/cover_f1racing_4x3.png`（4:3，1440×1080）。
+
+> 假设：「作品描述 30 字」按不含话题统计；如果平台把话题算进去，描述需压到 20 字以内（当前 18 字，已经符合）。
 
 ---
 
