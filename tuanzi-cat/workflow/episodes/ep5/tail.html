@@ -1,0 +1,86 @@
+const capv=(id,minD=0.8,tail=0.35)=>{const v=TL[id];return [v.at-0.05,Math.min(Math.max(v.end+tail,v.at+minD),TL._card)];};
+const caps=[
+ [...capv('hook',1.0),'下单了。',215,130,'#fff6e3'],
+ [2.9,4.4,'主人：我没买啊？',330,76,'#e7d3ff'],
+ [...capv('buy',1.0),'我买的。',330,120,'#ffd66b'],
+ [...capv('end',1.2),'还有三个。',330,120,'#ffd66b']];
+const MW=[[8.2,.55,'喵～']];
+const CX=820;
+// [drop time, centre x, bottom y, width, height]
+const BOXES=[[2.9,470,F,200,150],[4.5,330,F,190,150],[4.9,470,F-150,180,140],[5.25,330,F-150,170,130],[5.6,470,F-290,160,130],[5.9,330,F-280,150,120],[6.2,190,F,210,150],[6.5,470,F-420,150,110],[9.2,330,F-400,160,120]];
+function boxSVG(cx,b,w,h,i){const c=i%2?'#c99a68':'#d4a674';return `<g transform="translate(${cx} ${b})"><rect x="${-w/2}" y="${-h}" width="${w}" height="${h}" rx="6" fill="${c}" stroke="${INK}" stroke-width="6"/><rect x="${-w*.08}" y="${-h}" width="${w*.16}" height="${h}" fill="#e8cfa0" opacity=".9"/><rect x="${w*.14}" y="${-h*.62}" width="${w*.3}" height="${h*.3}" rx="3" fill="#fff6e3" stroke="${INK}" stroke-width="3"/><path d="M${w*.18} ${-h*.5} h${w*.22}" stroke="${INK}" stroke-width="3" stroke-linecap="round"/></g>`;}
+function phoneSVG(w,h,screen){return `<rect x="${-w/2}" y="${-h/2}" width="${w}" height="${h}" rx="16" fill="${INK}"/><rect x="${-w/2+8}" y="${-h/2+8}" width="${w-16}" height="${h-16}" rx="10" fill="#dff0ff"/>${screen}`;}
+function pawSVG(x,y){return `<g transform="translate(${x} ${y})"><circle r="30" fill="#fff3dc" stroke="${INK}" stroke-width="7"/><path d="M-9 4 L-10 18 M9 4 L10 18" stroke="${INK}" stroke-width="5" stroke-linecap="round"/></g>`;}
+function R(t){
+ $('shelf').setAttribute('display','none');$('chair').setAttribute('transform','translate(-3000 0)');$('glow').innerHTML='';
+ const o={x:CX,y:F,sx:1,sy:1,rot:0,eye:'half',dx:0,dy:-4,mouth:'n',blush:0,tail:Math.sin(t*3)*4,fishMouth:false,fishSq:0,shs:1,shy:F,phi:0,pw:0};
+ o.sy=1+0.012*Math.sin(t*4);
+ let fx='',back='',camC=[540,960],Z=1;
+ // gaze
+ if(t>0.62&&t<0.76)o.eye='z';
+ if(t>=1.95&&t<6.6){o.dx=-14;o.dy=-2;}
+ if(t>=6.6&&t<8.8){o.dx=-24;o.dy=-6;}
+ if(t>=9.4&&t<9.7)o.eye='z';
+ if(t<1.95){const k=eo(seg(t,1.4,1.95));Z=L(3.0,1,k);camC=[L(CX,540,k),L(1120,960,k)];}
+ // owner in the doorway (same set-up as ep2/3)
+ const tilt=-6*sm(seg(t,4.5,4.8)),sweat=(t>=5.3&&t<9.9);
+ {const x0=40,x1=330,y0=640;
+  let dh=`<rect x="${x0-14}" y="${y0-14}" width="${x1-x0+28}" height="${F-y0+14}" rx="10" fill="#784283" stroke="${INK}" stroke-width="6"/><rect x="${x0}" y="${y0}" width="${x1-x0}" height="${F-y0}" fill="#ffe9b8"/>`;
+  dh+=`<g transform="translate(185 ${F}) rotate(${tilt})"><rect x="-70" y="-560" width="140" height="420" rx="60" fill="#6b3a7d"/><circle cx="0" cy="-610" r="62" fill="#6b3a7d"/><rect x="-60" y="-150" width="46" height="150" rx="14" fill="#4a2660"/><rect x="14" y="-150" width="46" height="150" rx="14" fill="#4a2660"/></g>`;
+  dh+=`<path d="M${x0} ${y0} L${x0+52} ${y0+30} L${x0+52} ${F-30} L${x0} ${F} Z" fill="#c7362a" stroke="${INK}" stroke-width="6"/><circle cx="${x0+42}" cy="1000" r="10" fill="#e6c86e" stroke="${INK}" stroke-width="3"/>`;
+  $('door').innerHTML=dh;}
+ // boxes: drop in one by one (doorbell), in front of the door, behind the cat
+ BOXES.forEach(([t0,cx,b,w,h],i)=>{if(window.NOBOX2&&i>=window.NOBOX2)return;const u=seg(t,t0,t0+0.3);if(u<=0)return;
+  const y=b-(1-eo(u))*900,sq=1-0.08*Math.sin(Math.PI*seg(t,t0+0.3,t0+0.5));
+  back+=`<g transform="translate(${cx} ${y}) scale(1 ${sq}) translate(${-cx} ${-y})">${boxSVG(cx,y,w,h,i)}</g>`;
+  if(i<6){const bu=seg(t,t0-0.05,t0+0.45);if(bu>0&&bu<1)fx+=`<g transform="translate(330 ${590-bu*40})" opacity="${1-bu}"><text text-anchor="middle" font-size="60" fill="#fff6e3" stroke="${INK}" stroke-width="11" stroke-linejoin="round" paint-order="stroke">叮咚</text></g>`;}});
+ // meow bubble
+ MW.forEach(([a,dd,txt])=>{if(t>=a&&t<a+dd+0.25){const uu=(t-a)/(dd+0.25);if(t<a+dd){o.mouth='big';}
+  const pop=eo(seg(t,a,a+0.12));const bx=o.x+190,by=o.y-330-uu*40;
+  fx+=`<g transform="translate(${bx} ${by}) rotate(${-8+Math.sin(t*20)*3}) scale(${pop*(1+0.1*Math.sin(Math.PI*uu))})" opacity="${1-seg(uu,0.7,1)}"><text text-anchor="middle" font-size="76" fill="#fff6e3" stroke="${INK}" stroke-width="14" stroke-linejoin="round" paint-order="stroke">${txt}</text></g>`;}});
+ drawCat(o);
+ // the cat's own front legs are the two line-drawn arms on its belly (no extra limbs):
+ // hide them and redraw them holding / tapping the phone
+ const armEls=document.querySelectorAll('#cat > g[stroke-width="9"] > path');
+ armEls.forEach((e,k)=>{if(k>=6)e.setAttribute('display','none');});
+ $('fishW').innerHTML=back;
+ const UX=ux=>o.x+(ux-620)*0.5, UY=uy=>o.y+(uy-1000)*0.5*o.sy;
+ const TAPS=[0.6,4.9,5.6,9.5];
+ let press=0;TAPS.forEach(a=>{press=Math.max(press,Math.sin(Math.PI*seg(t,a-0.15,a+0.1)));});
+ const paid=t>=0.62;
+ const big=eo(seg(t,6.6,6.85))*(1-sm(seg(t,9.0,9.3)));          // "我买的": turns the screen to the camera
+ const phx=L(UX(600),UX(620),big),phy=L(UY(850),UY(885),big),phs=L(1,1.6,big),phr=L(-8,-3,big);
+ let scr;
+ if(big>0.5)scr=`<text text-anchor="middle" y="-18" font-size="20" fill="#2f9e5f">已付款</text><text text-anchor="middle" y="20" font-size="36" fill="#2f9e5f">✓</text><text text-anchor="middle" y="48" font-size="14" fill="${INK}">共 9 件</text>`;
+ else if(paid)scr=`<text text-anchor="middle" y="6" font-size="17" fill="#2f9e5f">已付款 ✓</text>`;
+ else scr=`<rect x="-36" y="-13" width="72" height="26" rx="9" fill="#ff7fa8" stroke="${INK}" stroke-width="2.5"/><text text-anchor="middle" y="6" font-size="15" fill="#fff">确认支付</text>`;
+ const pad=(x,y,k)=>`<g transform="translate(${x} ${y}) scale(${k})"><ellipse rx="24" ry="18" fill="#fff3dc" stroke="${INK}" stroke-width="5"/><path d="M-7 2 L-8 14 M7 2 L8 14" stroke="${INK}" stroke-width="4" stroke-linecap="round"/></g>`;
+ const grip=(s)=>`<path d="M${s*66} -20 Q${s*74} 10 ${s*50} 30" fill="none" stroke="${INK}" stroke-width="${5/phs}" stroke-linecap="round"/>`+pad(s*46,38,1/phs);
+ fx+=`<g transform="translate(${phx} ${phy}) rotate(${phr}) scale(${phs})"><rect x="-50" y="-74" width="100" height="148" rx="14" fill="${INK}"/><rect x="-43" y="-66" width="86" height="132" rx="9" fill="#dff0ff"/>${scr}${grip(-1)}${big>0.02?`<g opacity="${big}">${grip(1)}</g>`:''}</g>`;
+ // right arm: from the right side of the belly to the screen (taps), as a line like the original arms
+ if(big<0.98){const bx=UX(765),by=UY(865),tx=phx+2+(1-press)*24,ty=phy+4-(1-press)*30;
+  fx+=`<g opacity="${1-big}"><path d="M${bx} ${by} Q${UX(800)} ${UY(780)} ${tx} ${ty}" fill="none" stroke="${INK}" stroke-width="5" stroke-linecap="round"/>${pad(tx,ty,1)}</g>`;}
+ if(sweat&&!window.NOARM)fx+=`<g transform="translate(285 ${700+4*Math.sin(t*6)})"><path d="M0 -34 Q18 -4 0 10 Q-18 -4 0 -34Z" fill="#a7c7e7" stroke="${INK}" stroke-width="4"/></g>`;
+ $('fx').innerHTML=fx;
+ $('cam').setAttribute('transform',`translate(540 960) scale(${Z}) translate(${-camC[0]} ${-camC[1]})`);
+ let h='';
+ caps.forEach(([a,b,tx_,y,sz,col])=>{if(t>=a&&t<b){const uu=eo(seg(t,a,a+0.25));const sc=0.6+0.4*uu+0.12*Math.sin(Math.PI*seg(t,a,a+0.3));
+  h+=`<g transform="translate(540 ${y}) scale(${sc})" opacity="${Math.min(1,uu*2)*(1-seg(t,b-0.12,b))}"><text text-anchor="middle" y="${sz*0.07}" font-size="${sz}" fill="${INK}" opacity=".35" stroke="${INK}" stroke-width="${sz/6}" stroke-linejoin="round">${tx_}</text><text text-anchor="middle" font-size="${sz}" fill="${col}" stroke="${INK}" stroke-width="${sz/6}" stroke-linejoin="round" paint-order="stroke">${tx_}</text></g>`;}});
+ if(t>=TL._card){const uu=eo(seg(t,TL._card,TL._card+.4)),u2=eo(seg(t,TL._card+.1,TL._card+.5));
+  h+=`<rect width="1080" height="1920" fill="#3b2040" opacity="${0.5*uu}"/>`;
+  const pop=0.88+0.12*u2;
+  h+=`<g transform="translate(540 650) scale(${pop})" opacity="${u2}">
+   <rect x="-396" y="-286" width="800" height="596" rx="56" fill="#3b2040" opacity=".35"/>
+   <rect x="-400" y="-296" width="800" height="596" rx="56" fill="#fff6e3" stroke="${INK}" stroke-width="9"/>
+   <rect x="-368" y="-264" width="736" height="532" rx="38" fill="none" stroke="#ffa8cb" stroke-width="4" stroke-dasharray="3 14" stroke-linecap="round"/>
+   <g transform="translate(0 -214)"><rect x="-206" y="-34" width="412" height="68" rx="34" fill="#ffd66b" stroke="${INK}" stroke-width="5"/><text text-anchor="middle" y="14" font-size="38" fill="${INK}">团子猫日常 · 第5集</text></g>
+   <g transform="translate(0 -112)"><path d="M-330 -14 H-170 M170 -14 H330" stroke="${INK}" stroke-width="4" stroke-linecap="round" opacity=".55"/><text text-anchor="middle" font-size="54" fill="#d9527a" stroke="#fff6e3" stroke-width="10" stroke-linejoin="round" paint-order="stroke">下集预告</text></g>
+   <g transform="translate(0 28)"><text text-anchor="middle" x="6" y="6" font-size="104" fill="#ffa8cb">团子猫无限套娃</text><text text-anchor="middle" font-size="104" fill="${INK}" stroke="#fff6e3" stroke-width="10" stroke-linejoin="round" paint-order="stroke">团子猫无限套娃</text></g>
+   <g transform="translate(0 196)"><rect x="-150" y="-52" width="300" height="104" rx="10" fill="#d4a674" stroke="${INK}" stroke-width="6"/><rect x="-100" y="-34" width="200" height="68" rx="8" fill="#e2b886" stroke="${INK}" stroke-width="5"/><rect x="-56" y="-20" width="112" height="40" rx="6" fill="#efcb9f" stroke="${INK}" stroke-width="4"/><rect x="-24" y="-10" width="48" height="20" rx="4" fill="#fff6e3" stroke="${INK}" stroke-width="3"/></g>
+  </g>`;
+  [[-470,-250,24,0],[480,-210,18,1.7],[-455,120,20,3.1],[470,190,28,4.4],[-420,330,14,2.3],[430,-40,15,5.2]].forEach(([dx,dy,r,ph])=>{const fl=Math.sin(t*2.6+ph)*10;
+   h+=`<g transform="translate(${540+dx*0.92} ${650+dy+fl})" opacity="${u2*0.9}"><circle r="${r*1.4}" fill="#cfe9ff" fill-opacity=".6" stroke="#7fb8e6" stroke-width="3"/><circle cx="${-r*0.45}" cy="${-r*0.45}" r="${r*0.26}" fill="#fff" opacity=".85"/></g>`;});}
+ if(t<0.1)h+=`<rect width="1080" height="1920" fill="#fff6e3" opacity="${0.6*(1-t/0.1)}"/>`;
+ $('hud').innerHTML=h;
+}
+</script></body></html>

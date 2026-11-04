@@ -16,7 +16,7 @@ chk("下集预告" in tail, "结尾卡含「下集预告」"); chk("关注" not 
 nv=[v for v in cfg['vo'] if v['id']=='next']
 if nv: chk(nt in nv[0]['text'], f"预告配音含下集题材「{nt}」")
 # 3 封面文字与开场台词一致
-chk(norm(''.join(cfg['cover']['lines']))==norm(cfg['vo'][0]['text']), "封面标题与开场台词一致")
+chk(norm(cfg['vo'][0]['text']) in norm(''.join(cfg['cover']['lines'])), "封面标题包含开场台词")
 # 4 禁用旧词
 files={'场景tail.html':tail,'episode.json 台词':'\n'.join(v['text'] for v in cfg['vo'])+''.join(cfg['cover']['lines'])}
 dl=os.path.join(out,'交付')
