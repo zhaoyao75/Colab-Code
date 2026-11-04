@@ -29,13 +29,15 @@ TEASER_SEGS = [(100.8, 3.2),      # 1–2 座舱 REDLINE（钩子）→ 1.6 秒�
                (118.4, 3.2),      # 8–9 终点直道：红车并排、挥白旗、门架逼近，121.6 冲线那一刻正好是 14.4 秒的重击
                (1000.0, 1.6)]     # 10 赛道边呼啸（橙车 + 红车）→ WIN
 TEASER_AUDIO0 = 100.8                 # 音乐窗口起点：开头是上升音效，1.6 秒处高潮重击，14.4 秒处尾声的大镲 + 重击
-PORTRAIT = "--portrait" in sys.argv or DOUYIN      # 抖音竖版：720x1280（最后用 ffmpeg 升到 1080x1920）
-OW, OH = (720, 1280) if PORTRAIT else (1280, 720)   # 输出分辨率
+COVER = "--cover" in sys.argv            # 封面静帧：不画名次、片名、Claude 标志
+SIZE = tuple(int(v_) for v_ in sys.argv[sys.argv.index("--size") + 1].split("x")) if "--size" in sys.argv else None   # 例如 --size 1440x1080
+PORTRAIT = "--portrait" in sys.argv or DOUYIN or bool(SIZE and SIZE[1] > SIZE[0])      # 抖音竖版：720x1280（最后用 ffmpeg 升到 1080x1920）
+OW, OH = SIZE or ((720, 1280) if PORTRAIT else (1280, 720))   # 输出分辨率
 SS = 1.0                      # 环境超采样倍数
 RW, RH = int(OW * SS), int(OH * SS)
 FPS = 30
 AUDIO = os.path.join(HERE, "..", "music", "redline_douyin.mp3" if DOUYIN else "redline.mp3")
-LETTER = 0 if PORTRAIT else 88   # 横版：2.39:1 宽银幕黑边（像素）；竖版不加
+LETTER = 0 if (PORTRAIT or SIZE) else 88   # 横版：2.39:1 宽银幕黑边（像素）；竖版不加
 
 # 相机 / 场景（单位：米）
 HC = 2.3 if PORTRAIT else 1.75   # 相机高度（竖版抬高，让车落到画面中下部）
@@ -805,6 +807,8 @@ def overlay_layers():
     lf = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 21)
     dl.text((cx + 22, cy - 13), "Claude", font=lf, fill=(235, 230, 222, 255))
     to_np = lambda im: np.asarray(im).astype(np.float32) / 255
+    if COVER:
+        return to_np(title) * 0, to_np(logo) * 0
     return to_np(title), to_np(logo)
 
 
@@ -812,6 +816,8 @@ POS_EVENTS = [(25.6, 5), (51.2, 4), (64.0, 3), (102.4, 2), (107.2, 1)]   # 每�
 
 
 def hud_layer(t):
+    if COVER:
+        return None
     """竖版名次显示：P6 → P1，每次超车数字弹一下并变橙；冲线后显示 WINNER"""
     pos, t_ev = 6, -99.0
     for te, ps in POS_EVENTS:
@@ -1211,7 +1217,7 @@ def main():
     LAYERS = overlay_layers()
     if "--still" in sys.argv:
         ts = [float(x) for x in sys.argv[sys.argv.index("--still") + 1:] if not x.startswith("--")]
-        pre = "p" if PORTRAIT else ""
+        pre = ("cover%dx%d_" % (OW, OH)) if COVER else ("p" if PORTRAIT else "")
         for t in ts:
             Image.fromarray(frame(t, LAYERS)).save(os.path.join(HERE, "race_still_%s%g.png" % (pre, t)))
             print("saved race_still_%s%g.png" % (pre, t))
