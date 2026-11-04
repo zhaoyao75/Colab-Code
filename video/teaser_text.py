@@ -21,8 +21,9 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 HERE = os.path.dirname(os.path.abspath(__file__))
 FD = os.path.join(HERE, "fonts")
 W, H, FPS = 1080, 1920, 30
-SRC = os.path.join(HERE, "redline_teaser_720.mp4")
-OUT = os.path.join(HERE, "redline_teaser.mp4")
+_arg = lambda n, d: sys.argv[sys.argv.index(n) + 1] if n in sys.argv else d
+SRC = os.path.join(HERE, _arg("--src", "redline_teaser_720.mp4"))      # 黄昏版：--src redline_dusk_720.mp4 --out redline_dusk.mp4
+OUT = os.path.join(HERE, _arg("--out", "redline_teaser.mp4"))
 
 IVORY, GOLD, RED = (246, 241, 232), (236, 176, 128), (255, 104, 72)
 
