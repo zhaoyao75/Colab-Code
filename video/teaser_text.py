@@ -1,18 +1,15 @@
 """
-《红线》16 秒抖音预告片 —— 高级感字幕后期（1080×1920）
+《红线》16 秒抖音预告片 —— 极简字幕后期（1080×1920）
+全程不放字幕，只保留两处：开头的 F1 RACING（粗斜体，从左滑入）和结尾的 WIN（粗斜体，弹入）。
+
 输入：redline_teaser_720.mp4（race.py --teaser 渲出，已带音乐）
 输出：redline_teaser.mp4
 
-排版风格（「高级感」字幕的通用做法）：
-  · 细体宋体大字（思源宋体 ExtraLight/Light），笔画极细、对比强
-  · 很宽的字距，少量文字，大量留白
-  · 英文副标用细斜体衬线（Cormorant Garamond），暖金色
-  · 逐字淡入 + 轻微上浮，退场整体淡出；加一点柔和光晕和阴影，保证压在亮处也看得清
-  · 关键字（红线）用暖红点缀，其余象牙白
-
-字体不入库，先运行 fonts/get_fonts.sh 下载（SIL OFL 许可，可商用）。
-运行：python3 teaser_text.py                 # 完整编码
-     python3 teaser_text.py --still 1 3.6 11  # 只出指定时刻的静帧（秒）预览
+字体：Barlow Condensed Black Italic（默认，F1 转播风格的窄体粗斜体）；--font racing 用 Racing Sans One，
+     --font montserrat 用 Montserrat Black Italic。字体不入库，先运行 fonts/get_fonts.sh 下载（SIL OFL，可商用）。
+运行：python3 -I teaser_text.py                                  # 完整编码
+     python3 -I teaser_text.py --still 1 14.5                     # 取预告片底片的指定时刻（秒）预览
+     python3 -I teaser_text.py --still 1 14.5 --base 底帧.png     # 用一张 PNG 当底帧预览
 """
 import os
 import subprocess
@@ -51,12 +48,13 @@ def blur(m, r):
     return np.asarray(Image.fromarray((np.clip(m, 0, 1) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(r))).astype(np.float32) / 255
 
 
-def make_sprite(mask, color, glow_r, glow_a=0.30, shadow_dy=0, shadow_r=0, shadow_a=0.5):
+def make_sprite(mask, color, glow_r, glow_a=0.30, shadow_dy=0, shadow_r=0, shadow_a=0.5, glow_color=None):
     """mask：0–1 的字形；返回预乘 RGBA（float32）：阴影 → 光晕 → 字形"""
     col = np.array(color, np.float32) / 255
     sa = blur(np.roll(mask, shadow_dy, axis=0), shadow_r) * shadow_a if shadow_r else np.zeros_like(mask)
     ga = blur(mask, glow_r) * glow_a if glow_r else np.zeros_like(mask)
-    rgb = ga[..., None] * col + 0.0 * (1 - ga)[..., None]               # 阴影是黑色，rgb 为 0
+    gcol = col if glow_color is None else np.array(glow_color, np.float32) / 255
+    rgb = ga[..., None] * gcol                                           # 阴影是黑色，rgb 为 0
     a = ga + sa * (1 - ga)
     rgb = mask[..., None] * col + rgb * (1 - mask)[..., None]
     a = mask + a * (1 - mask)
@@ -71,9 +69,9 @@ class Item:
 class Element:
     """一组文字：逐字淡入上浮，整体在 t_out0–t_out1 淡出"""
 
-    def __init__(self, items, t_out0=None, t_out1=None, stagger=0.07, rise=26, fade=0.55):
+    def __init__(self, items, t_out0=None, t_out1=None, stagger=0.07, rise=26, fade=0.55, slide=0):
         self.items, self.t_out0, self.t_out1 = items, t_out0, t_out1
-        self.stagger, self.rise, self.fade = stagger, rise, fade
+        self.stagger, self.rise, self.fade, self.slide = stagger, rise, fade, slide
 
     def draw(self, fr, t):
         out = 1.0 if self.t_out0 is None else 1 - smooth(t, self.t_out0, self.t_out1)
@@ -85,7 +83,7 @@ class Element:
             if a <= 0.002:
                 continue
             h, w = it.sp.shape[:2]
-            x0, y0 = it.x, it.y + int((1 - e) * self.rise)
+            x0, y0 = it.x + int((1 - e) ** 2 * self.slide), it.y + int((1 - e) * self.rise)
             xa, ya, xb, yb = max(0, x0), max(0, y0), min(W, x0 + w), min(H, y0 + h)
             if xb <= xa or yb <= ya:
                 continue
@@ -96,7 +94,7 @@ class Element:
 
 
 def text_element(txt, fnt, color, cx, cy, tracking, t_in, t_out0=None, t_out1=None, stagger=0.07, vertical=False,
-                 glow_r=None, glow_a=0.30, rise=26, fade=0.55):
+                 glow_r=None, glow_a=0.30, rise=26, fade=0.55, slide=0, glow_color=None):
     """cx, cy：整行（或竖排整列）的中心。tracking：字距（像素）。"""
     size = fnt.size
     pad = int(size * 0.45)
@@ -120,9 +118,9 @@ def text_element(txt, fnt, color, cx, cy, tracking, t_in, t_out0=None, t_out1=No
         im = Image.new("L", (cw, chh), 0)
         ImageDraw.Draw(im).text((cw / 2, chh / 2), ch, font=fnt, fill=255, anchor="mm")
         sp = make_sprite(np.asarray(im).astype(np.float32) / 255, color, glow_r, glow_a,
-                         shadow_dy=int(size * 0.03), shadow_r=size * 0.04)
+                         shadow_dy=int(size * 0.03), shadow_r=size * 0.04, glow_color=glow_color)
         items.append(Item(sp, px - cw / 2, py - chh / 2, t_in + i * stagger))
-    return Element(items, t_out0, t_out1, stagger, rise, fade)
+    return Element(items, t_out0, t_out1, stagger, rise, fade, slide)
 
 
 def rule_element(cx, cy, length, t_in, t_out0=None, t_out1=None, color=GOLD, thick=3):
@@ -133,7 +131,65 @@ def rule_element(cx, cy, length, t_in, t_out0=None, t_out1=None, color=GOLD, thi
     return Element([Item(sp, cx - length / 2 - pad, cy - thick / 2 - pad, t_in)], t_out0, t_out1, rise=0, fade=0.6)
 
 
-def build():
+class PopElement:
+    """整体弹入：从放大 1.6 倍收回到原尺寸并淡入（WIN）；每帧按当前尺寸重画字形，只在前 0.3 秒需要"""
+
+    def __init__(self, txt, fname, base_size, color, cx, cy, tracking, t_in, t_out0, t_out1, glow_color=None, wght=None):
+        self.a = (txt, fname, base_size, color, cx, cy, tracking, glow_color, wght)
+        self.t_in, self.t_out0, self.t_out1 = t_in, t_out0, t_out1
+        self.cache = {}
+
+    def _el(self, scale):
+        key = round(scale, 2)
+        if key not in self.cache:
+            txt, fname, size, color, cx, cy, trk, gc, wg = self.a
+            self.cache[key] = text_element(txt, font(fname, size * key, wg), color, cx, cy, trk * key, -99.0, stagger=0,
+                                           glow_r=size * key * 0.07, glow_a=0.45, rise=0, fade=0.001, glow_color=gc)
+        return self.cache[key]
+
+    def draw(self, fr, t):
+        tau = t - self.t_in
+        if tau < 0:
+            return
+        out = 1 - smooth(t, self.t_out0, self.t_out1)
+        if out <= 0.002:
+            return
+        scale = 1 + 0.6 * (1 - ease(tau / 0.3))
+        el = self._el(scale)
+        a = ease(tau / 0.12) * out
+        saved = [(it.sp) for it in el.items]
+        for it in el.items:
+            it.sp = it.sp * np.array([a, a, a, a], np.float32)           # 预乘 RGBA，整体乘透明度
+        el.draw(fr, 1e9)
+        for it, sp in zip(el.items, saved):
+            it.sp = sp
+
+
+FONTS = {"barlow": "BarlowCondensed-BlackItalic.ttf", "racing": "RacingSansOne-Regular.ttf", "montserrat": "Montserrat-Italic.ttf"}
+
+
+def build(variant="barlow"):
+    fname = FONTS[variant]
+    wg = 900 if variant == "montserrat" else None
+    size = {"barlow": 250, "racing": 190, "montserrat": 170}[variant]
+    wsize = {"barlow": 470, "racing": 330, "montserrat": 330}[variant]
+    trk = {"barlow": 8, "racing": 6, "montserrat": 4}[variant]
+    f = font(fname, size, wg)
+    # 开头：F1（红）+ RACING（白），整行居中，从左滑入，灯灭（3.2 秒）前淡出
+    sp_w = f.getlength(" ")
+    w1, w2 = f.getlength("F1") + trk, sum(f.getlength(c) + trk for c in "RACING") - trk
+    total = w1 + sp_w + trk + w2
+    x0 = 540 - total / 2
+    E = [text_element("F1", f, (255, 66, 44), x0 + (f.getlength("F1") + trk) / 2 - trk / 2, 520, trk, 0.15, 2.9, 3.3,
+                      stagger=0.05, glow_r=size * 0.05, glow_a=0.35, rise=0, fade=0.45, slide=-120),
+         text_element("RACING", f, (250, 248, 244), x0 + w1 + sp_w + trk + w2 / 2, 520, trk, 0.3, 2.9, 3.3,
+                      stagger=0.05, glow_r=size * 0.05, glow_a=0.35, rise=0, fade=0.45, slide=-120)]
+    # 结尾：WIN，13.6 秒（超过对手之后）弹入，停到结束，最后 0.5 秒随画面淡出
+    E.append(PopElement("WIN", fname, wsize, (255, 255, 255), 540, 700, trk, 13.6, 15.5, 16.0, glow_color=(255, 70, 40), wght=wg))
+    return E
+
+
+def build_old():
     serif_xl = font("NotoSerifSC-ExtraLight.otf", 300)
     serif_l = font("NotoSerifSC-Light.otf", 44)
     serif_v = font("NotoSerifSC-Light.otf", 68)
@@ -169,19 +225,34 @@ def decode(path, scale=True):
     return subprocess.Popen(cmd, stdout=subprocess.PIPE)
 
 
+def arg(name, default=None):
+    return sys.argv[sys.argv.index(name) + 1] if name in sys.argv else default
+
+
 def main():
-    els = build()
+    variant = arg("--font", "barlow")
+    els = build(variant)
     if "--still" in sys.argv:
-        ts = [float(x) for x in sys.argv[sys.argv.index("--still") + 1:]]
-        for t in ts:
-            p = subprocess.run(["ffmpeg", "-loglevel", "error", "-ss", str(t), "-i", SRC, "-frames:v", "1", "-vf",
-                                f"scale={W}:{H}:flags=lanczos", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
-                               capture_output=True, check=True)
-            fr = np.frombuffer(p.stdout, np.uint8).reshape(H, W, 3).copy()
+        k = sys.argv.index("--still") + 1
+        ts = []
+        while k < len(sys.argv) and not sys.argv[k].startswith("--"):
+            ts.append(float(sys.argv[k]))
+            k += 1
+        bases = arg("--base")
+        for n, t in enumerate(ts):
+            if bases:
+                bp = bases.split(",")[min(n, len(bases.split(",")) - 1)]
+                fr = np.asarray(Image.open(bp).convert("RGB").resize((W, H), Image.LANCZOS)).copy()
+            else:
+                p = subprocess.run(["ffmpeg", "-loglevel", "error", "-ss", str(t), "-i", SRC, "-frames:v", "1", "-vf",
+                                    f"scale={W}:{H}:flags=lanczos", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+                                   capture_output=True, check=True)
+                fr = np.frombuffer(p.stdout, np.uint8).reshape(H, W, 3).copy()
             for e in els:
                 e.draw(fr, t)
-            Image.fromarray(fr).save(os.path.join(HERE, "teaser_still_%g.png" % t))
-            print("saved teaser_still_%g.png" % t)
+            name = os.path.join(arg("--outdir", HERE), "teaser_still_%s_%g.png" % (variant, t))
+            Image.fromarray(fr).save(name)
+            print("saved", name)
         return
     dec = decode(SRC)
     enc = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS),
