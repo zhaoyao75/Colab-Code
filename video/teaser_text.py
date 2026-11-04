@@ -172,7 +172,7 @@ def build(variant="barlow"):
     fname = FONTS[variant]
     wg = 900 if variant == "montserrat" else None
     size = {"barlow": 250, "racing": 190, "montserrat": 170}[variant]
-    wsize = {"barlow": 470, "racing": 330, "montserrat": 330}[variant]
+    wsize = {"barlow": 340, "racing": 260, "montserrat": 260}[variant]
     trk = {"barlow": 8, "racing": 6, "montserrat": 4}[variant]
     f = font(fname, size, wg)
     # 开头：F1（红）+ RACING（白），整行居中，从左滑入，灯灭（3.2 秒）前淡出
