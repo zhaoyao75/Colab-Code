@@ -17,6 +17,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 from scipy.ndimage import gaussian_filter, zoom
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+DUSK = "--dusk" in sys.argv             # 黄昏版：落日在赛道尽头、逆光剪影、暖色雾和路面反光
 TEASER = "--teaser" in sys.argv         # 16 秒抖音预告片：按拍点剪，画面取自完整版的几个时刻，音乐取 89.6–105.6 秒连续一段
 DOUYIN = "--douyin" in sys.argv or TEASER          # 抖音版：竖版 + 从起跑灯亮起处（场景 5.6 秒）开始，总长仍 128 秒（尾声延长）
 START_OFF = 5.6 if DOUYIN and not TEASER else 0.0
@@ -28,6 +29,16 @@ TEASER_SEGS = [(100.8, 3.2),      # 1–2 座舱 REDLINE（钩子）→ 1.6 秒�
                (10.5, 3.2),       # 7 加速冲刺闪回：起步后车速已约 30 米/秒，一路加速、穿过灯架（不放静止的发车格，否则前后高速镜头之间会「突然慢下来」）
                (118.4, 3.2),      # 8–9 终点直道：红车并排、挥白旗、门架逼近，121.6 冲线那一刻正好是 14.4 秒的重击
                (1000.0, 1.6)]     # 10 赛道边呼啸（橙车 + 红车）→ WIN
+TEASER_SEGS_DUSK = [(108.8, 1.6),   # 1 冲向落日的逆光剪影追拍（钩子）+ F1 RACING
+                    (102.4, 1.6),   # 2 1.6 秒高潮重击：超车 #1（黄车）
+                    (2000.15, 0.8), # 3 赛道边呼啸 #1（落日在防护网后面）
+                    (104.8, 3.2),   # 4–5 追拍逼近 → 超车 #2（绿车，6.4 秒）
+                    (100.8, 1.6),   # 6 座舱 REDLINE（halo 外是晚霞）
+                    (10.6, 2.4),    # 7 加速穿过灯架，灯架是落日前的剪影
+                    (118.4, 3.2),   # 8 终点直道：红车并排、挥白旗、门架逼近，14.4 秒重击
+                    (1000.0, 1.6)]  # 9 赛道边呼啸 #2 → WIN
+if DUSK:
+    TEASER_SEGS = TEASER_SEGS_DUSK
 TEASER_AUDIO0 = 100.8                 # 音乐窗口起点：开头是上升音效，1.6 秒处高潮重击，14.4 秒处尾声的大镲 + 重击
 COVER = "--cover" in sys.argv            # 封面静帧：不画名次、片名、Claude 标志
 SIZE = tuple(int(v_) for v_ in sys.argv[sys.argv.index("--size") + 1].split("x")) if "--size" in sys.argv else None   # 例如 --size 1440x1080
@@ -158,6 +169,9 @@ def sky(dx, dy, heading):
     top = np.array([0.004, 0.006, 0.016])
     mid = np.array([0.012, 0.016, 0.04])
     hor = np.array([0.07, 0.06, 0.09])     # 城市光晕
+    if DUSK:                               # 黄昏：地平线橙 → 粉紫 → 深蓝紫
+        top, mid, hor = np.array([0.07, 0.07, 0.19]), np.array([0.45, 0.18, 0.26]), np.array([1.0, 0.46, 0.17])
+        h = np.clip(dy * 1.1, 0, 1)                                 # 晚霞的渐变拉得更高
     c = np.where(h[..., None] < 0.18, hor + (mid - hor) * (h[..., None] / 0.18),
                  mid + (top - mid) * np.clip((h[..., None] - 0.18) / 0.6, 0, 1) ** 0.7)
     c = c * (0.85 + 0.15 * np.exp(-((dx + 0.15) / 0.5) ** 2))[..., None]
@@ -166,7 +180,14 @@ def sky(dx, dy, heading):
     sy = np.floor(dy * 1100).astype(np.int64)
     hsh = (np.sin(sx * 12.9898 + sy * 78.233) * 43758.5453) % 1
     star = (hsh > 0.9965) & (dy > 0.06)
-    c = c + (star * ((hsh - 0.9965) / 0.0035) ** 2)[..., None] * np.array([0.8, 0.85, 1.0]) * 1.2
+    if not DUSK:
+        c = c + (star * ((hsh - 0.9965) / 0.0035) ** 2)[..., None] * np.array([0.8, 0.85, 1.0]) * 1.2
+    else:                                  # 落日：固定在视野正前方偏右一点，正好落在赛道尽头
+        sa = np.arctan(dx) * 180
+        rs = np.hypot((sa - 8) / 180, dy - 0.05)
+        c = c + (np.exp(-rs / 0.05) * 0.9)[..., None] * np.array([1.0, 0.5, 0.2]) + (np.exp(-rs / 0.25) * 0.6)[..., None] * np.array([0.5, 0.22, 0.1])
+        c = c + (np.exp(-((dy - 0.05) / 0.004) ** 2) * np.exp(-np.abs(sa - 8) / 180 / 0.5) * 0.7)[..., None] * np.array([1.0, 0.6, 0.45])  # 横向光晕
+        c = np.where((rs < 0.03)[..., None], np.array([2.4, 1.6, 0.85]), c)
     # 城市天际线
     ang = np.arctan(dx) * 180 + heading
     cell = np.floor(ang / 2.3)
@@ -177,6 +198,8 @@ def sky(dx, dy, heading):
     win = ((np.floor(ang * 9) % 2 == 0) & (np.floor(dy * 420) % 3 == 0)
            & ((np.sin(np.floor(ang * 9) * 3.1 + np.floor(dy * 420) * 7.7) * 999 % 1) > 0.35))
     bcol = np.array([0.012, 0.012, 0.02]) + win[..., None] * np.array([0.95, 0.7, 0.4]) * 0.6
+    if DUSK:                               # 天际线变成逆光剪影，只有零星亮灯
+        bcol = np.array([0.06, 0.03, 0.045]) + win[..., None] * np.array([0.95, 0.7, 0.4]) * 0.18
     c = np.where(bld[..., None], bcol, c)
     return c
 
@@ -248,7 +271,7 @@ def env_shade(G, phase):
     tex = TEX[(np.floor(u * 30).astype(np.int64) % 512), (np.floor(s * 6).astype(np.int64) % 512)]
     spk = SPECK[(np.floor(u * 60).astype(np.int64) % 512), (np.floor(s * 12).astype(np.int64) % 512)]
     detail = np.exp(-z / 30)
-    asphalt = 0.085 + 0.012 * tex * detail + 0.05 * spk * detail
+    asphalt = (0.085 + 0.012 * tex * detail + 0.05 * spk * detail) * (1.5 if DUSK else 1.0)
     col = asphalt[:, None] * C(1.0, 1.0, 1.05)
     groove = np.exp(-((au - 0.85) / 0.35) ** 2) * 0.35          # 磨胎痕
     col *= (1 - groove * 0.5)[:, None]
@@ -272,9 +295,14 @@ def env_shade(G, phase):
     runoff = au >= ROAD + KERB
     col = np.where(runoff[:, None], col * 0.8 + C(0.0, 0.015, 0.03), col)
     L = lamp_light(u, s)                                        # 灯光 + 掠射反光
-    col = col * (0.22 + 2.6 * L)[:, None] + G["fres"][:, None] * C(0.1, 0.12, 0.18) * 0.45
-    fog = G["fog"]
-    col = col * fog + C(0.05, 0.05, 0.07) * (1 - fog)
+    if DUSK:                                                    # 天光更亮、灯光作用小；路面掠射反光映出夕阳
+        col = col * (0.6 + 1.1 * L)[:, None] + G["fres"][:, None] * C(1.0, 0.5, 0.22) * 0.8
+        fog = G["fog"]
+        col = col * fog + C(0.62, 0.3, 0.17) * (1 - fog)
+    else:
+        col = col * (0.22 + 2.6 * L)[:, None] + G["fres"][:, None] * C(0.1, 0.12, 0.18) * 0.45
+        fog = G["fog"]
+        col = col * fog + C(0.05, 0.05, 0.07) * (1 - fog)
     img[G["gi"]] = col
 
     # ---- 护墙 / 防护网 / 灯柱
@@ -289,8 +317,12 @@ def env_shade(G, phase):
     band = (yw > 0.42) & (yw < 0.6) & (panel != 1)
     wall_c = np.where(band[:, None], wall_c * 0.4 + 0.55, wall_c)
     Lw = lamp_light(np.full_like(tw, WALL - 1.5) * side, sw)
-    wall_c = wall_c * (0.12 + 0.55 * Lw)[:, None]
-    wall_c = wall_c * fogw + C(0.05, 0.05, 0.07) * (1 - fogw)
+    if DUSK:
+        wall_c = wall_c * (0.35 + 0.35 * Lw)[:, None] * C(1.05, 0.85, 0.75)
+        wall_c = wall_c * fogw + C(0.62, 0.3, 0.17) * (1 - fogw)
+    else:
+        wall_c = wall_c * (0.12 + 0.55 * Lw)[:, None]
+        wall_c = wall_c * fogw + C(0.05, 0.05, 0.07) * (1 - fogw)
     is_wall = yw <= WALL_H
     w = np.where(is_wall[:, None], wall_c, w)
     led = (yw > WALL_H - 0.06) & (yw <= WALL_H) & ((sw % 3) < 1.2)
@@ -457,7 +489,11 @@ def car_patch(zc, xc, base, flash=0.0, sway=0.0, bounce=0.0):
     arr[..., :3] *= np.clip(1.2 - 0.45 * yr, 0.6, 1.25)[..., None]
     al = arr[..., 3]
     edge = np.clip(al - np.roll(al, 2 * S, axis=0), 0, 1)
-    arr[..., :3] += edge[..., None] * np.array([0.35, 0.3, 0.25])
+    if DUSK:
+        arr[..., :3] *= 0.6
+        arr[..., :3] += edge[..., None] * np.array([1.1, 0.6, 0.25])
+    else:
+        arr[..., :3] += edge[..., None] * np.array([0.35, 0.3, 0.25])
     # 尾灯
     gl = Image.new("L", (W, H), 0)
     ImageDraw.Draw(gl).rectangle([P(-0.07, 0.38, -0.1), P(0.07, 0.32, -0.1)], fill=255)
@@ -951,6 +987,8 @@ def _driveby_bg():
     lamp_x = 130.0
     glow = np.exp(-(((xx - lamp_x) / 260) ** 2) - (((yy - 700) / 260) ** 2)).astype(np.float32)   # 灯柱在地面的光斑
     col = col * (1 + 3.0 * glow[..., None]) + glow[..., None] * np.array([0.10, 0.07, 0.04], np.float32)
+    if DUSK:
+        col = col * 1.6 + np.array([0.07, 0.035, 0.018], np.float32) + (np.clip(1 - (dd - 1) / 25, 0, 1) ** 2 * 0)[..., None]
     img = np.where(ground[..., None], col, img)
     # 对岸：防护网、广告墙、LED 灯带（离机位 17 米）
     Dw = 17.0
@@ -1217,7 +1255,7 @@ def main():
     LAYERS = overlay_layers()
     if "--still" in sys.argv:
         ts = [float(x) for x in sys.argv[sys.argv.index("--still") + 1:] if not x.startswith("--")]
-        pre = ("cover%dx%d_" % (OW, OH)) if COVER else ("p" if PORTRAIT else "")
+        pre = ("cover%dx%d_" % (OW, OH)) if COVER else (("dusk_" if DUSK else "") + ("p" if PORTRAIT else ""))
         for t in ts:
             Image.fromarray(frame(t, LAYERS)).save(os.path.join(HERE, "race_still_%s%g.png" % (pre, t)))
             print("saved race_still_%s%g.png" % (pre, t))
@@ -1225,7 +1263,7 @@ def main():
     out = os.path.join(HERE, "redline_douyin_720.mp4" if DOUYIN else ("redline_portrait.mp4" if PORTRAIT else "redline.mp4"))
     if TEASER:
         DUR = float(sum(d_ for _, d_ in TEASER_SEGS))
-        out = os.path.join(HERE, "redline_teaser_720.mp4")
+        out = os.path.join(HERE, "redline_dusk_720.mp4" if DUSK else "redline_teaser_720.mp4")
     if "--demo" in sys.argv:            # --demo 起始秒 时长
         k = sys.argv.index("--demo")
         T0, DUR = float(sys.argv[k + 1]), float(sys.argv[k + 2])
@@ -1233,7 +1271,7 @@ def main():
     PULSE = audio_pulse(int((TOTAL + START_OFF + 1) * FPS) + 1)
     nf = int(round(DUR * FPS))
     workers = os.cpu_count() or 4
-    tag = ("teaser" if TEASER else ("demo" if "--demo" in sys.argv else "full")) + ("_pd" if DOUYIN else ("_p" if PORTRAIT else ""))
+    tag = ("dusk" if DUSK else "") + ("teaser" if TEASER else ("demo" if "--demo" in sys.argv else "full")) + ("_pd" if DOUYIN else ("_p" if PORTRAIT else ""))
     CH = 120
     jobs = [(k, i0, min(nf, i0 + CH), tag) for k, i0 in enumerate(range(0, nf, CH))]
     done = sum(os.path.exists(os.path.join(HERE, f".seg_{tag}_{k:03d}.mp4")) for k, *_ in jobs)
