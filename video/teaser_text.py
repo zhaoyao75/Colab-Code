@@ -175,17 +175,17 @@ def build(variant="barlow"):
     wsize = {"barlow": 340, "racing": 260, "montserrat": 260}[variant]
     trk = {"barlow": 8, "racing": 6, "montserrat": 4}[variant]
     f = font(fname, size, wg)
-    # 开头：F1（红）+ RACING（白），整行居中，从左滑入，灯灭（3.2 秒）前淡出
+    # 开头：F1（红）+ RACING（白），整行居中，从左快速滑入（钩子镜头里 0.05 秒就出现），1.6 秒高潮重击前淡出
     sp_w = f.getlength(" ")
     w1, w2 = f.getlength("F1") + trk, sum(f.getlength(c) + trk for c in "RACING") - trk
     total = w1 + sp_w + trk + w2
     x0 = 540 - total / 2
-    E = [text_element("F1", f, (255, 66, 44), x0 + (f.getlength("F1") + trk) / 2 - trk / 2, 520, trk, 0.15, 2.9, 3.3,
-                      stagger=0.05, glow_r=size * 0.05, glow_a=0.35, rise=0, fade=0.45, slide=-120),
-         text_element("RACING", f, (250, 248, 244), x0 + w1 + sp_w + trk + w2 / 2, 520, trk, 0.3, 2.9, 3.3,
-                      stagger=0.05, glow_r=size * 0.05, glow_a=0.35, rise=0, fade=0.45, slide=-120)]
-    # 结尾：WIN，15.25 秒（赛道边分镜里两辆车都冲出画面之后）弹入，停到结束，最后 0.4 秒随画面淡出
-    E.append(PopElement("WIN", fname, wsize, (255, 255, 255), 540, 640, trk, 15.25, 15.6, 16.0, glow_color=(255, 70, 40), wght=wg))
+    E = [text_element("F1", f, (255, 66, 44), x0 + (f.getlength("F1") + trk) / 2 - trk / 2, 520, trk, 0.05, 1.35, 1.65,
+                      stagger=0.04, glow_r=size * 0.05, glow_a=0.35, rise=0, fade=0.3, slide=-160),
+         text_element("RACING", f, (250, 248, 244), x0 + w1 + sp_w + trk + w2 / 2, 520, trk, 0.12, 1.35, 1.65,
+                      stagger=0.04, glow_r=size * 0.05, glow_a=0.35, rise=0, fade=0.3, slide=-160)]
+    # 结尾：WIN，15.1 秒（赛道边分镜里两辆车都冲出画面之后）弹入，压在大镲重击的余音上，停到结束，最后 0.4 秒随画面淡出
+    E.append(PopElement("WIN", fname, wsize, (255, 255, 255), 540, 640, trk, 15.1, 15.6, 16.0, glow_color=(255, 70, 40), wght=wg))
     return E
 
 

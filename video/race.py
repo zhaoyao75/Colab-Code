@@ -21,8 +21,13 @@ TEASER = "--teaser" in sys.argv         # 16 秒抖音预告片：按拍点剪�
 DOUYIN = "--douyin" in sys.argv or TEASER          # 抖音版：竖版 + 从起跑灯亮起处（场景 5.6 秒）开始，总长仍 128 秒（尾声延长）
 START_OFF = 5.6 if DOUYIN and not TEASER else 0.0
 # 预告片分镜（场景时间, 时长）：起跑灯 → 灯灭起步 → REDLINE 座舱特写 → 高潮超车；视频 9.6 秒处硬切，对上音乐的上升音效
-TEASER_SEGS = [(6.4, 9.6), (99.2, 4.8), (1000.0, 1.6)]
-TEASER_AUDIO0 = 89.6                  # 音乐窗口起点（小节线），灯灭正好落在第 2 小节，座舱特写对上上升音效
+TEASER_SEGS = [(100.8, 3.2),      # 1–2 座舱 REDLINE（钩子）→ 1.6 秒处高潮重击 + 超车 #1
+               (2000.15, 0.8),    # 3 赛道边呼啸（橙车 + 黄车），插在 104.0–104.8 秒之间
+               (104.8, 3.2),      # 4–5 追拍冲刺 → 超车 #2（连续）
+               (101.6, 0.8),      # 6 座舱回闪
+               (115.2, 6.4),      # 7–9 终点直道：红车并排、挥白旗、门架逼近，121.6 冲线那一刻正好是 14.4 秒的重击
+               (1000.0, 1.6)]     # 10 赛道边呼啸（橙车 + 红车）→ WIN
+TEASER_AUDIO0 = 100.8                 # 音乐窗口起点：开头是上升音效，1.6 秒处高潮重击，14.4 秒处尾声的大镲 + 重击
 PORTRAIT = "--portrait" in sys.argv or DOUYIN      # 抖音竖版：720x1280（最后用 ffmpeg 升到 1080x1920）
 OW, OH = (720, 1280) if PORTRAIT else (1280, 720)   # 输出分辨率
 SS = 1.0                      # 环境超采样倍数
@@ -978,14 +983,15 @@ def _driveby_bg():
     return _DB_CACHE["bg"]
 
 
-def driveby_frame(lt):
+def driveby_frame(lt, pair=0):
     """lt：分镜内的秒数。固定机位，橙车（lt≈0.30–0.47）和红色追车（晚 0.18 秒）从左闯入、从右冲出，强烈运动模糊"""
     bg, y0, f, HCb = _driveby_bg()
     img = bg.copy()
     gy = y0 + HCb * DB_KS                                                      # 车轮接地线
     rr = np.random.default_rng(int(lt * 1000) + 5)
     shake = 0.0
-    for dl_, col, helm in ((0.0, ORANGE, (245, 210, 55)), (DB_GAP, (215, 30, 35), (240, 240, 245))):
+    second = ((215, 30, 35), (240, 240, 245)) if pair == 0 else ((240, 205, 20), (245, 245, 250))     # 追车颜色：0 红车，1 黄车
+    for dl_, col, helm in ((0.0, ORANGE, (245, 210, 55)), (DB_GAP, *second)):
         if ("car", col) not in _DB_CACHE:
             sp2 = side_car_sprite(col, helm)
             small = np.stack([np.asarray(Image.fromarray(sp2[..., c]).resize((sp2.shape[1] // 2, sp2.shape[0] // 2), Image.LANCZOS)) for c in range(4)], axis=2)
@@ -1100,7 +1106,7 @@ def frame(t, layers, total=128.0, pulse=0.0):
     title, logo = layers
     r = np.random.default_rng(int(t * 1000))
     v = speed_at(t)
-    img = driveby_frame(t - DRIVEBY_T) if t >= DRIVEBY_T else (dash_frame(t) if DASH_T0 <= t < DASH_T1 else _exterior(t, pulse))
+    img = (driveby_frame(t - 2000.0, 1) if t >= 2000.0 else driveby_frame(t - DRIVEBY_T, 0)) if t >= DRIVEBY_T else (dash_frame(t) if DASH_T0 <= t < DASH_T1 else _exterior(t, pulse))
     if DASH_T1 <= t < DASH_T1 + 0.3:                               # 切回赛道的那一拍：白闪
         img = img + 0.6 * (1 - (t - DASH_T1) / 0.3)
     # 泛光
