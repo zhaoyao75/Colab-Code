@@ -184,8 +184,8 @@ def build(variant="barlow"):
                       stagger=0.05, glow_r=size * 0.05, glow_a=0.35, rise=0, fade=0.45, slide=-120),
          text_element("RACING", f, (250, 248, 244), x0 + w1 + sp_w + trk + w2 / 2, 520, trk, 0.3, 2.9, 3.3,
                       stagger=0.05, glow_r=size * 0.05, glow_a=0.35, rise=0, fade=0.45, slide=-120)]
-    # 结尾：WIN，13.6 秒（超过对手之后）弹入，停到结束，最后 0.5 秒随画面淡出
-    E.append(PopElement("WIN", fname, wsize, (255, 255, 255), 540, 700, trk, 13.6, 15.5, 16.0, glow_color=(255, 70, 40), wght=wg))
+    # 结尾：WIN，15.25 秒（赛道边分镜里两辆车都冲出画面之后）弹入，停到结束，最后 0.4 秒随画面淡出
+    E.append(PopElement("WIN", fname, wsize, (255, 255, 255), 540, 640, trk, 15.25, 15.6, 16.0, glow_color=(255, 70, 40), wght=wg))
     return E
 
 
@@ -255,9 +255,15 @@ def main():
             print("saved", name)
         return
     dec = decode(SRC)
+    sfx = os.path.join(HERE, ".driveby_sfx.wav")
+    sys.path.insert(0, HERE)
+    import driveby_sfx
+    driveby_sfx.make(sfx)
     enc = subprocess.Popen(["ffmpeg", "-y", "-loglevel", "error", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS),
-                            "-i", "-", "-i", SRC, "-map", "0:v", "-map", "1:a", "-c:v", "libx264", "-preset", "slow", "-crf", "17",
-                            "-pix_fmt", "yuv420p", "-c:a", "copy", "-movflags", "+faststart", OUT], stdin=subprocess.PIPE)
+                            "-i", "-", "-i", SRC, "-i", sfx,
+                            "-filter_complex", "[1:a][2:a]amix=inputs=2:duration=first:normalize=0[aout]",
+                            "-map", "0:v", "-map", "[aout]", "-c:v", "libx264", "-preset", "slow", "-crf", "17",
+                            "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k", "-t", "16", "-movflags", "+faststart", OUT], stdin=subprocess.PIPE)
     i, n = 0, W * H * 3
     while True:
         buf = dec.stdout.read(n)

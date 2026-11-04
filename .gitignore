@@ -6,3 +6,4 @@ __pycache__/
 video/fonts/*.otf
 video/fonts/*.ttf
 video/redline_teaser_720.mp4
+video/.driveby_sfx.wav

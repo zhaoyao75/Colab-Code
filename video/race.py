@@ -21,7 +21,7 @@ TEASER = "--teaser" in sys.argv         # 16 秒抖音预告片：按拍点剪�
 DOUYIN = "--douyin" in sys.argv or TEASER          # 抖音版：竖版 + 从起跑灯亮起处（场景 5.6 秒）开始，总长仍 128 秒（尾声延长）
 START_OFF = 5.6 if DOUYIN and not TEASER else 0.0
 # 预告片分镜（场景时间, 时长）：起跑灯 → 灯灭起步 → REDLINE 座舱特写 → 高潮超车；视频 9.6 秒处硬切，对上音乐的上升音效
-TEASER_SEGS = [(6.4, 9.6), (99.2, 6.4)]
+TEASER_SEGS = [(6.4, 9.6), (99.2, 4.8), (1000.0, 1.6)]
 TEASER_AUDIO0 = 89.6                  # 音乐窗口起点（小节线），灯灭正好落在第 2 小节，座舱特写对上上升音效
 PORTRAIT = "--portrait" in sys.argv or DOUYIN      # 抖音竖版：720x1280（最后用 ffmpeg 升到 1080x1920）
 OW, OH = (720, 1280) if PORTRAIT else (1280, 720)   # 输出分辨率
@@ -839,6 +839,212 @@ def title_alpha(t, total):
 _VIG = None
 
 
+# ------------------------------------------------------------------ 赛道边「呼啸而过」分镜（侧面机位，从左闯入、从右冲出）
+DRIVEBY_T = 1000.0                    # 场景时间 >= 1000 表示进入这个分镜（t - 1000 = 分镜内的秒数）
+DB_KS = 208.0                         # 车所在车道处的 像素/米（机位离车道约 3 米，车很大，一次只能看到一部分车身）
+DB_V = 12000.0                        # 车速（像素/秒，约 58 米/秒；一辆车约 0.16 秒闯过画面）
+DB_T0 = 0.30                          # 第一辆车的车心从画面外 -450px 起算的时刻
+DB_GAP = 0.18                         # 追车晚多久
+
+
+def side_car_sprite(base, helmet=(245, 210, 55)):
+    """赛车侧面剪影（车头朝右），超采样 2 倍。返回预乘 RGBA float32（高 1.4 米、宽 5.8 米的画布）"""
+    ppm = DB_KS * 2
+    Wc, Hc = int(5.8 * ppm), int(1.4 * ppm)
+    im = Image.new("RGBA", (Wc, Hc), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+    X = lambda x_: (x_ + 0.1) * ppm
+    Y = lambda y_: Hc - (y_ + 0.1) * ppm
+    poly = lambda pts, fill: d.polygon([(X(a), Y(b)) for a, b in pts], fill=fill)
+    OR = tuple(base) + (255,)
+    OR_T = tuple(min(255, int(c * 1.25)) for c in base) + (255,)
+    OR_D = tuple(int(c * 0.6) for c in base) + (255,)
+    DK, DK2 = (14, 14, 18, 255), (30, 30, 36, 255)
+
+    def wheel(cx_, cy_, r_):
+        d.ellipse([X(cx_ - r_), Y(cy_ + r_), X(cx_ + r_), Y(cy_ - r_)], fill=(14, 14, 16, 255))
+        d.ellipse([X(cx_ - r_ * 0.84), Y(cy_ + r_ * 0.84), X(cx_ + r_ * 0.84), Y(cy_ - r_ * 0.84)], outline=(46, 46, 52, 255), width=int(0.012 * ppm))
+        d.arc([X(cx_ - r_ * 0.9), Y(cy_ + r_ * 0.9), X(cx_ + r_ * 0.9), Y(cy_ - r_ * 0.9)], 200, 330, fill=(215, 180, 40, 255), width=int(0.02 * ppm))
+        d.ellipse([X(cx_ - r_ * 0.58), Y(cy_ + r_ * 0.58), X(cx_ + r_ * 0.58), Y(cy_ - r_ * 0.58)], fill=(58, 58, 66, 255), outline=(90, 90, 100, 255), width=int(0.01 * ppm))
+        for k_ in range(5):                                         # 轮辐
+            a_ = k_ * 2 * np.pi / 5 + 0.3
+            d.line([(X(cx_), Y(cy_)), (X(cx_ + 0.55 * r_ * np.cos(a_)), Y(cy_ + 0.55 * r_ * np.sin(a_)))], fill=(30, 30, 34, 255), width=int(0.025 * ppm))
+        d.ellipse([X(cx_ - 0.1 * r_), Y(cy_ + 0.1 * r_), X(cx_ + 0.1 * r_), Y(cy_ - 0.1 * r_)], fill=(170, 170, 176, 255))
+
+    # 悬挂（在轮子后面）
+    d.line([(X(1.1), Y(0.36)), (X(1.7), Y(0.30))], fill=DK2, width=int(0.035 * ppm))
+    d.line([(X(4.1), Y(0.34)), (X(3.5), Y(0.34))], fill=DK2, width=int(0.035 * ppm))
+    # 地板 / 扩散器
+    poly([(0.45, 0.12), (0.6, 0.04), (4.55, 0.04), (4.65, 0.15), (0.5, 0.2)], DK)
+    # 车身主体
+    poly([(0.5, 0.18), (0.45, 0.55), (0.9, 0.64), (1.5, 0.82), (2.1, 1.04), (2.55, 0.9), (3.0, 0.66), (3.5, 0.6),
+          (4.3, 0.44), (5.0, 0.28), (5.35, 0.2), (5.3, 0.14), (4.6, 0.14), (4.5, 0.18)], OR)
+    poly([(1.4, 0.18), (1.5, 0.62), (3.2, 0.55), (3.35, 0.42), (3.3, 0.18)], OR_D)               # 侧箱（暗面）
+    poly([(3.05, 0.28), (3.38, 0.34), (3.38, 0.52), (3.05, 0.52)], DK)                         # 侧箱进气口
+    poly([(0.9, 0.64), (1.5, 0.82), (2.1, 1.04), (2.22, 1.0), (1.56, 0.78), (0.96, 0.6)], OR_T)  # 发动机盖高光
+    poly([(0.55, 0.40), (3.0, 0.48), (3.0, 0.53), (0.55, 0.45)], (240, 240, 244, 255))         # 涂装白线
+    poly([(2.55, 0.9), (3.0, 0.66), (3.45, 0.62), (3.2, 0.8), (2.8, 0.92)], (4, 4, 6, 255))    # 座舱
+    d.ellipse([X(2.71), Y(1.07), X(2.99), Y(0.79)], fill=tuple(helmet) + (255,))                  # 头盔
+    poly([(2.86, 0.99), (3.0, 0.97), (3.0, 0.88), (2.88, 0.88)], (18, 18, 24, 255))            # 面罩
+    d.line([(X(3.5), Y(0.62)), (X(3.25), Y(0.9)), (X(2.9), Y(1.08)), (X(2.45), Y(0.98)), (X(2.3), Y(0.88))],
+           fill=(78, 80, 88, 255), width=int(0.05 * ppm))                                         # halo
+    # 前翼
+    poly([(4.85, 0.11), (5.55, 0.11), (5.55, 0.2), (4.9, 0.2)], (20, 20, 24, 255))
+    poly([(5.3, 0.08), (5.6, 0.08), (5.6, 0.36), (5.3, 0.3)], OR_D)
+    # 尾翼
+    poly([(0.55, 0.5), (0.63, 0.5), (0.5, 0.9), (0.42, 0.9)], DK)
+    poly([(0.0, 0.92), (0.78, 0.92), (0.78, 1.02), (0.0, 1.02)], (24, 24, 28, 255))
+    poly([(0.0, 0.62), (0.8, 0.7), (0.8, 1.1), (0.0, 1.1)], OR)
+    poly([(0.0, 1.04), (0.8, 1.04), (0.8, 1.1), (0.0, 1.1)], OR_T)
+    # 车轮（压在车身上）
+    wheel(1.05, 0.36, 0.36)
+    wheel(4.15, 0.33, 0.33)
+    d.line([(X(0.5), Y(0.58)), (X(4.3), Y(0.46))], fill=OR_T, width=int(0.012 * ppm))              # 上缘高光
+    sp = np.asarray(im).astype(np.float32) / 255
+    sp[..., :3] *= sp[..., 3:4]
+    return sp
+
+
+_DB_CACHE = {}
+
+
+def _driveby_bg():
+    """赛道边的固定背景：夜空 + 城市灯光、防护网、广告墙、灯柱、对岸路面、前景红白路肩（虚化）"""
+    if "bg" in _DB_CACHE:
+        return _DB_CACHE["bg"]
+    f = OW / 2 / np.tan(np.radians(FOV / 2))
+    y0 = OH * 0.45
+    yy, xx = np.mgrid[0:OH, 0:OW].astype(np.float32)
+    dx = (xx + 0.5 - OW / 2) / f
+    dy = (y0 - (yy + 0.5)) / f
+    img = sky(dx.ravel(), np.maximum(dy, 0).ravel(), 0.0).reshape(OH, OW, 3).astype(np.float32) * 0.9
+    r_ = np.random.default_rng(21)
+    HCb = 1.0                                                                     # 机位高度（米）
+    ground = yy > y0 + 1
+    dd = np.where(ground, HCb * f / np.maximum(yy + 0.5 - y0, 1), 1e4)             # 地面点离机位的横向距离（米）
+    wx = dx * dd                                                                   # 沿赛道方向的位置（米）
+    tex = (r_.standard_normal((OH, OW)).astype(np.float32))
+    asph = 0.05 + 0.012 * gaussian_filter(tex, 1.2) * 6 * np.clip(1 / (dd * 0.2 + 0.4), 0, 1)
+    col = np.repeat(asph[..., None], 3, axis=2) * np.array([1.0, 1.0, 1.06], np.float32)
+    kerb = (dd > 1.2) & (dd < 2.2)
+    stripe = (np.floor((wx + 40) / 1.6) % 2)[..., None]
+    kc = stripe * np.array([0.30, 0.30, 0.30], np.float32) + (1 - stripe) * np.array([0.32, 0.03, 0.025], np.float32)
+    col = np.where(kerb[..., None], kc, col)
+    edge = (dd > 4.3) & (dd < 4.5)
+    col = np.where(edge[..., None], np.array([0.5, 0.5, 0.48], np.float32), col)
+    lamp_x = 130.0
+    glow = np.exp(-(((xx - lamp_x) / 260) ** 2) - (((yy - 700) / 260) ** 2)).astype(np.float32)   # 灯柱在地面的光斑
+    col = col * (1 + 3.0 * glow[..., None]) + glow[..., None] * np.array([0.10, 0.07, 0.04], np.float32)
+    img = np.where(ground[..., None], col, img)
+    # 对岸：防护网、广告墙、LED 灯带（离机位 17 米）
+    Dw = 17.0
+    y_wall_b, y_wall_t = y0 + HCb * f / Dw, y0 - (1.0 - HCb) * f / Dw
+    y_fence_t = y0 - (4.6 - HCb) * f / Dw
+    wall = (yy >= y_wall_t) & (yy <= y_wall_b)
+    pidx = (np.floor((dx * Dw + 200) / 14) % 4).astype(int)
+    pal = np.array([[0.55, 0.22, 0.07], [0.45, 0.45, 0.43], [0.04, 0.04, 0.05], [0.05, 0.2, 0.24]], np.float32)
+    wc = pal[pidx] * (0.5 + 1.8 * glow[..., None])
+    img = np.where(wall[..., None], wc, img)
+    led = (yy >= y_wall_t - 3) & (yy < y_wall_t)
+    img = np.where(led[..., None], np.array([1.4, 0.45, 0.18], np.float32), img)
+    fence = (yy >= y_fence_t) & (yy < y_wall_t - 3)
+    mesh = (np.abs(((dx * Dw * 1.3) % 1) - 0.5) < 0.05) | (np.abs((((y0 - yy) / f * Dw * 1.3) % 1) - 0.5) < 0.05)
+    img = np.where(fence[..., None], img + mesh[..., None] * np.array([0.10, 0.10, 0.11], np.float32) * (0.4 + glow[..., None] * 3), img)
+    # 灯柱 + 灯头 + 光晕
+    lx0 = int(lamp_x)
+    img[int(y0 - 9.5 * f / Dw + 20):int(y_wall_b), lx0 - 3:lx0 + 3] = np.array([0.05, 0.05, 0.06], np.float32)
+    ytop = int(y0 - (10 - HCb) * f / Dw)
+    img[ytop:ytop + 14, lx0 - 34:lx0 + 34] = np.array([3.4, 3.2, 2.8], np.float32)
+    lam = np.exp(-(((xx - lamp_x) / 120) ** 2) - (((yy - ytop) / 90) ** 2)).astype(np.float32)
+    img += lam[..., None] * np.array([0.5, 0.42, 0.3], np.float32)
+    for lx_, ly_ in ((lx0, ytop + 7), (570, ytop + 40)):                      # 变形镜头的横向光晕
+        fl = np.exp(-(((yy - ly_) / 4.0) ** 2) - (np.abs(xx - lx_) / 330.0) ** 1.3).astype(np.float32)
+        img += fl[..., None] * np.array([0.55, 0.7, 1.2], np.float32)
+    img[int(ytop + 40):int(y_wall_b), 567:573] = np.array([0.05, 0.05, 0.06], np.float32)
+    img[int(ytop + 34):int(ytop + 46), 548:592] = np.array([2.6, 2.5, 2.3], np.float32)
+    # 城市远景的光点（虚化的圆斑）
+    for _ in range(26):
+        bx, by, br = r_.uniform(0, OW), r_.uniform(y0 - 150, y0 - 20), r_.uniform(4, 11)
+        c_ = np.array([1.0, 0.7, 0.35], np.float32) * r_.uniform(0.25, 0.7)
+        m_ = np.exp(-(((xx - bx) ** 2 + (yy - by) ** 2) / (2 * br * br))).astype(np.float32)
+        img += m_[..., None] * c_
+    # 景深：前景（路肩和近处路面）强虚化，对岸轻微虚化
+    near = np.clip((yy - 690) / 90, 0, 1)[..., None]
+    far = np.clip((y0 - 40 - yy) / 120, 0, 1)[..., None]
+    img = img * (1 - near) + gaussian_filter(img, (11, 11, 0)) * near
+    img = img * (1 - 0.6 * far) + gaussian_filter(img, (2.2, 2.2, 0)) * 0.6 * far
+    out = np.clip(img, 0, 6).astype(np.float32)
+    _DB_CACHE["bg"] = (out, y0, f, HCb)
+    return _DB_CACHE["bg"]
+
+
+def driveby_frame(lt):
+    """lt：分镜内的秒数。固定机位，橙车（lt≈0.30–0.47）和红色追车（晚 0.18 秒）从左闯入、从右冲出，强烈运动模糊"""
+    bg, y0, f, HCb = _driveby_bg()
+    img = bg.copy()
+    gy = y0 + HCb * DB_KS                                                      # 车轮接地线
+    rr = np.random.default_rng(int(lt * 1000) + 5)
+    shake = 0.0
+    for dl_, col, helm in ((0.0, ORANGE, (245, 210, 55)), (DB_GAP, (215, 30, 35), (240, 240, 245))):
+        if ("car", col) not in _DB_CACHE:
+            sp2 = side_car_sprite(col, helm)
+            small = np.stack([np.asarray(Image.fromarray(sp2[..., c]).resize((sp2.shape[1] // 2, sp2.shape[0] // 2), Image.LANCZOS)) for c in range(4)], axis=2)
+            _DB_CACHE[("car", col)] = small
+        sp = _DB_CACHE[("car", col)]
+        h_, w_ = sp.shape[:2]
+        xc = -w_ / 2 + DB_V * (lt - DB_T0 - dl_)                        # lt=DB_T0 时车头刚好从左边露出
+        if xc < -w_ or xc > OW + w_:
+            continue
+        shake = max(shake, 1.0)
+        # 水平运动模糊：快门时间内的位移，多次采样平均
+        blur_px = DB_V * 0.5 / FPS
+        acc = np.zeros((h_, w_ + int(blur_px) + 4, 4), np.float32)
+        n_s = 28
+        for k_ in range(n_s):
+            off = int(round((k_ / (n_s - 1) - 0.5) * blur_px)) + int(blur_px / 2) + 2
+            acc[:, off:off + w_] += sp / n_s
+        acc = gaussian_filter(acc, (1.2, 5, 0))                              # 采样之间的缝隙抹平
+        x0_ = int(xc - w_ / 2 - blur_px / 2 - 2)
+        y0_ = int(gy - h_ + 0.1 * DB_KS)
+        # 阴影
+        sh = np.zeros((OH, OW), np.float32)
+        ya, yb = int(gy - 6), int(gy + 14)
+        xa, xb = max(0, x0_ + 40), min(OW, x0_ + acc.shape[1] - 40)
+        if xb > xa:
+            sh[ya:yb, xa:xb] = 1
+            sh = gaussian_filter(sh, 7)
+            img *= (1 - 0.7 * sh)[..., None]
+        xa_, xb_ = max(0, x0_), min(OW, x0_ + acc.shape[1])
+        ya_, yb_ = max(0, y0_), min(OH, y0_ + h_)
+        if xb_ > xa_ and yb_ > ya_:
+            c_ = acc[ya_ - y0_:yb_ - y0_, xa_ - x0_:xb_ - x0_]
+            # 灯柱方向的侧光：车身越靠上越亮
+            lit = np.linspace(1.25, 0.8, c_.shape[0])[:, None, None]
+            reg = img[ya_:yb_, xa_:xb_]
+            img[ya_:yb_, xa_:xb_] = reg * (1 - c_[..., 3:4]) + c_[..., :3] * lit
+        # 尾灯拖出的红色光带 + 地板擦出的火花（只有橙车）
+        tail_x, tail_y = xc - w_ / 2 + 0.55 * DB_KS, gy - 0.38 * DB_KS
+        trail = np.zeros((OH, OW), np.float32)
+        L_ = 260
+        xs0 = int(tail_x - L_)
+        if xs0 < OW and tail_x > 0:
+            xs = np.arange(max(0, xs0), min(OW, int(tail_x)))
+            trail[int(tail_y) - 3:int(tail_y) + 3, xs] = ((xs - xs0) / L_) ** 1.5
+            trail = gaussian_filter(trail, (2.5, 6))
+            img += trail[..., None] * np.array([2.2, 0.15, 0.1], np.float32)
+        if dl_ == 0.0:
+            ln_ = Image.new("RGB", (OW, OH), 0)
+            dr_ = ImageDraw.Draw(ln_)
+            for _ in range(46):
+                sx = tail_x + rr.uniform(-20, 30) - rr.uniform(0, 240)
+                sy = gy + rr.uniform(-14, 6)
+                dr_.line([(sx, sy), (sx - rr.uniform(30, 150), sy + rr.uniform(-8, 12))], fill=(255, int(rr.uniform(120, 210)), 70), width=2)
+            img += np.asarray(ln_).astype(np.float32) / 255 * 1.5
+    if shake:
+        img = np.roll(img, int(rr.normal(0, 4)), axis=0)
+    return img.astype(np.float32)
+
+
 def _exterior(t, pulse):
     """赛道外景：环境 + 场景物体 + 所有赛车 + 火花"""
     r = np.random.default_rng(int(t * 1000))
@@ -894,7 +1100,7 @@ def frame(t, layers, total=128.0, pulse=0.0):
     title, logo = layers
     r = np.random.default_rng(int(t * 1000))
     v = speed_at(t)
-    img = dash_frame(t) if DASH_T0 <= t < DASH_T1 else _exterior(t, pulse)
+    img = driveby_frame(t - DRIVEBY_T) if t >= DRIVEBY_T else (dash_frame(t) if DASH_T0 <= t < DASH_T1 else _exterior(t, pulse))
     if DASH_T1 <= t < DASH_T1 + 0.3:                               # 切回赛道的那一拍：白闪
         img = img + 0.6 * (1 - (t - DASH_T1) / 0.3)
     # 泛光
