@@ -1368,8 +1368,8 @@ def render_frame(i):
             base += dur
         pt = TEASER_AUDIO0 + i / FPS
     img = frame(t, LAYERS, TOTAL, float(PULSE[min(int(pt * FPS), len(PULSE) - 1)])).astype(np.float32)
-    fade_in = FPS * (0.1 if DOUYIN else 0.5)
-    fade = min(1.0, (i + 1) / fade_in, (DUR * FPS - i) / (FPS * (3.0 if DUR == TOTAL else 0.6)))
+    fade_in = FPS * (0.1 if (DOUYIN or HELMET) else 0.5)
+    fade = min(1.0, (i + 1) / fade_in, (DUR * FPS - i) / (FPS * (3.0 if DUR == TOTAL else (0.25 if HELMET else 0.6))))
     return (img * max(0.0, fade)).astype(np.uint8)
 
 
@@ -1406,6 +1406,9 @@ def main():
             print("saved race_still_%s%g.png" % (pre, t))
         return
     out = os.path.join(HERE, "redline_douyin_720.mp4" if DOUYIN else ("redline_portrait.mp4" if PORTRAIT else "redline.mp4"))
+    if HELMET:                          # 头盔视角 4 秒：场景时间从 HELMET_T0 起，不带音乐（音效另外合成再混）
+        T0, DUR = HELMET_T0, 4.0
+        out = os.path.join(HERE, "redline_helmet_720_silent.mp4")
     if TEASER:
         DUR = float(sum(d_ for _, d_ in TEASER_SEGS))
         out = os.path.join(HERE, "redline_dusk_720.mp4" if DUSK else "redline_teaser_720.mp4")
@@ -1413,10 +1416,10 @@ def main():
         k = sys.argv.index("--demo")
         T0, DUR = float(sys.argv[k + 1]), float(sys.argv[k + 2])
         out = os.path.join(HERE, "redline_demo.mp4")
-    PULSE = audio_pulse(int((TOTAL + START_OFF + 1) * FPS) + 1)
+    PULSE = np.zeros(int((TOTAL + START_OFF + 1) * FPS) + 1) if HELMET else audio_pulse(int((TOTAL + START_OFF + 1) * FPS) + 1)
     nf = int(round(DUR * FPS))
     workers = os.cpu_count() or 4
-    tag = ("dusk" if DUSK else "") + ("teaser" if TEASER else ("demo" if "--demo" in sys.argv else "full")) + ("_pd" if DOUYIN else ("_p" if PORTRAIT else ""))
+    tag = ("helmet" if HELMET else "") + ("dusk" if DUSK else "") + ("teaser" if TEASER else ("demo" if "--demo" in sys.argv else "full")) + ("_pd" if DOUYIN else ("_p" if PORTRAIT else ""))
     CH = 120
     jobs = [(k, i0, min(nf, i0 + CH), tag) for k, i0 in enumerate(range(0, nf, CH))]
     done = sum(os.path.exists(os.path.join(HERE, f".seg_{tag}_{k:03d}.mp4")) for k, *_ in jobs)
@@ -1426,6 +1429,13 @@ def main():
     lst = os.path.join(HERE, ".segs.txt")
     with open(lst, "w") as fh:
         fh.writelines(f"file '{x}'\n" for x in segs)
+    if HELMET:                          # 无声视频，音效由 helmet_sfx.py 合成后再混入
+        subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", lst, "-c:v", "copy",
+                        "-t", str(DUR), "-movflags", "+faststart", out], check=True)
+        for x in segs + [lst]:
+            os.remove(x)
+        print("saved", out)
+        return
     afade = f"afade=t=in:d=0.3,afade=t=out:st={DUR - 0.6}:d=0.6" if DUR < TOTAL else ("afade=t=in:d=0.15" if DOUYIN else "")
     if TEASER:
         afade = f"afade=t=in:d=0.03,afade=t=out:st={DUR - 0.5}:d=0.5"           # 开头那一下镲要保住
