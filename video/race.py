@@ -40,10 +40,11 @@ TEASER_SEGS_DUSK = [(108.8, 1.6),   # 1 冲向落日的逆光剪影追拍（钩�
 if DUSK:
     TEASER_SEGS = TEASER_SEGS_DUSK
 TEASER_AUDIO0 = 100.8                 # 音乐窗口起点：开头是上升音效，1.6 秒处高潮重击，14.4 秒处尾声的大镲 + 重击
+HALOCAM = "--halocam" in sys.argv         # halo 机位：镜头装在 halo 立柱顶上、朝后拍车手头盔（4 秒）
 HELMET = "--helmet" in sys.argv           # 车手头盔视角（第一人称，从面罩后面往外看）4 秒片段
 COVER = "--cover" in sys.argv            # 封面静帧：不画名次、片名、Claude 标志
 SIZE = tuple(int(v_) for v_ in sys.argv[sys.argv.index("--size") + 1].split("x")) if "--size" in sys.argv else None   # 例如 --size 1440x1080
-PORTRAIT = "--portrait" in sys.argv or DOUYIN or HELMET or bool(SIZE and SIZE[1] > SIZE[0])      # 抖音竖版：720x1280（最后用 ffmpeg 升到 1080x1920）
+PORTRAIT = "--portrait" in sys.argv or DOUYIN or HELMET or HALOCAM or bool(SIZE and SIZE[1] > SIZE[0])      # 抖音竖版：720x1280（最后用 ffmpeg 升到 1080x1920）
 OW, OH = SIZE or ((720, 1280) if PORTRAIT else (1280, 720))   # 输出分辨率
 SS = 1.0                      # 环境超采样倍数
 RW, RH = int(OW * SS), int(OH * SS)
@@ -52,9 +53,9 @@ AUDIO = os.path.join(HERE, "..", "music", "redline_douyin.mp3" if DOUYIN else "r
 LETTER = 0 if (PORTRAIT or SIZE) else 88   # 横版：2.39:1 宽银幕黑边（像素）；竖版不加
 
 # 相机 / 场景（单位：米）
-HC = 0.95 if HELMET else (2.3 if PORTRAIT else 1.75)   # 相机高度（竖版抬高，让车落到画面中下部）
-HOR = 0.42 if HELMET else (0.45 if PORTRAIT else 0.40)    # 地平线位置（画面高度比例）
-FOV = 72 if HELMET else (60 if PORTRAIT else 66)      # 水平视场
+HC = 1.08 if HALOCAM else 0.95 if HELMET else (2.3 if PORTRAIT else 1.75)   # 相机高度（竖版抬高，让车落到画面中下部）
+HOR = 0.30 if HALOCAM else 0.42 if HELMET else (0.45 if PORTRAIT else 0.40)    # 地平线位置（画面高度比例）
+FOV = 72 if (HELMET or HALOCAM) else (60 if PORTRAIT else 66)      # 水平视场
 ROAD = 7.0                    # 赛道半宽
 KERB = 1.1                    # 路肩宽
 WALL = 13.0                   # 护墙到中心距离
@@ -173,6 +174,8 @@ def sky(dx, dy, heading):
     if DUSK:                               # 黄昏：地平线橙 → 粉紫 → 深蓝紫
         top, mid, hor = np.array([0.07, 0.07, 0.19]), np.array([0.45, 0.18, 0.26]), np.array([1.0, 0.46, 0.17])
         h = np.clip(dy * 1.1, 0, 1)                                 # 晚霞的渐变拉得更高
+        if HALOCAM:                                                 # 朝后看：东方暮色，粉紫 → 深蓝，没有太阳
+            top, mid, hor = np.array([0.04, 0.05, 0.16]), np.array([0.26, 0.15, 0.30]), np.array([0.70, 0.38, 0.44])
     c = np.where(h[..., None] < 0.18, hor + (mid - hor) * (h[..., None] / 0.18),
                  mid + (top - mid) * np.clip((h[..., None] - 0.18) / 0.6, 0, 1) ** 0.7)
     c = c * (0.85 + 0.15 * np.exp(-((dx + 0.15) / 0.5) ** 2))[..., None]
@@ -183,6 +186,8 @@ def sky(dx, dy, heading):
     star = (hsh > 0.9965) & (dy > 0.06)
     if not DUSK:
         c = c + (star * ((hsh - 0.9965) / 0.0035) ** 2)[..., None] * np.array([0.8, 0.85, 1.0]) * 1.2
+    elif HALOCAM:                          # 暮色里的第一批星星
+        c = c + (star * ((hsh - 0.9965) / 0.0035) ** 2)[..., None] * np.array([0.8, 0.85, 1.0]) * 0.8
     else:                                  # 落日：固定在视野正前方偏右一点，正好落在赛道尽头
         sa = np.arctan(dx) * 180
         rs = np.hypot((sa - 8) / 180, dy - 0.05)
@@ -342,15 +347,16 @@ def env_shade(G, phase):
     return img
 
 
-def env_blur(t, n=5):
-    """运动模糊：快门时间内多次采样平均（几何只算一次）"""
+def env_blur(t, n=5, back=False):
+    """运动模糊：快门时间内多次采样平均（几何只算一次）。back=True：朝后看——路面纹理往远处退（相位取负），横向镜像"""
     v = speed_at(t)
     ph0 = phase_at(t)
     curv = curve_at(t)
-    G = env_geom(curv, ph0 * curv * 40, ucam_at(t))
+    sg = -1.0 if back else 1.0
+    G = env_geom(curv * sg, ph0 * curv * 40 * sg, ucam_at(t) * sg)
     acc = 0
     for k in np.linspace(-0.5, 0.5, n):
-        acc = acc + env_shade(G, ph0 + v * k / FPS * 0.9)
+        acc = acc + env_shade(G, sg * (ph0 + v * k / FPS * 0.9))
     img = (acc / n).reshape(RH, RW, 3)
     small = np.stack([zoom(img[..., c], 1 / SS, order=1) for c in range(3)], axis=2)
     return small[:OH, :OW]
@@ -844,7 +850,7 @@ def overlay_layers():
     lf = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 21)
     dl.text((cx + 22, cy - 13), "Claude", font=lf, fill=(235, 230, 222, 255))
     to_np = lambda im: np.asarray(im).astype(np.float32) / 255
-    if COVER or HELMET:
+    if COVER or HELMET or HALOCAM:
         return to_np(title) * 0, to_np(logo) * 0
     return to_np(title), to_np(logo)
 
@@ -853,7 +859,7 @@ POS_EVENTS = [(25.6, 5), (51.2, 4), (64.0, 3), (102.4, 2), (107.2, 1)]   # 每�
 
 
 def hud_layer(t):
-    if COVER or HELMET:
+    if COVER or HELMET or HALOCAM:
         return None
     """竖版名次显示：P6 → P1，每次超车数字弹一下并变橙；冲线后显示 WINNER"""
     pos, t_ev = 6, -99.0
@@ -880,7 +886,7 @@ def hud_layer(t):
 
 def title_alpha(t, total):
     """片头标题在起跑灯亮起前淡出；结尾冲线后出现"""
-    if TEASER or HELMET:                                           # 预告片的字幕由后期叠加（video/teaser_text.py）
+    if TEASER or HELMET or HALOCAM:                                           # 预告片的字幕由后期叠加（video/teaser_text.py）
         return 0.0
     if DOUYIN:                                                     # 视频一开始就是起跑灯：标题 0.1–4.2 秒
         tv = t - START_OFF
@@ -1248,6 +1254,143 @@ def helmet_frame(t, pulse):
     return img.astype(np.float32)
 
 
+# ------------------------------------------------------------------ halo 机位：镜头在 halo 立柱顶上，朝后拍车手头盔
+def halocam_layers():
+    """三层：车体与躯干（发动机盖、进气口、肩膀、手臂、方向盘与手套）、头盔（单独运动）、固定在车上的部分（halo 弧臂、后视镜、座舱边缘）"""
+    S = 2
+    W, H = OW * S, OH * S
+    X = lambda v_: v_ * S
+    OR, OR_D, OR_T = (236, 104, 34, 255), (150, 62, 22, 255), (255, 150, 72, 255)
+
+    def layer():
+        im_ = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        return im_, ImageDraw.Draw(im_)
+
+    # ---- 车体与躯干
+    body, d = layer()
+    d.polygon([(X(120), X(1040)), (X(190), X(640)), (X(270), X(500)), (X(450), X(500)), (X(530), X(640)), (X(600), X(1040))], fill=OR_D)        # 发动机盖
+    d.polygon([(X(270), X(500)), (X(450), X(500)), (X(530), X(640)), (X(190), X(640))], fill=(190, 80, 28, 255))                              # 盖上沿受光
+    d.rounded_rectangle([X(300), X(432), X(420), X(520)], radius=X(28), fill=(8, 8, 12, 255), outline=(96, 44, 18, 255), width=X(6))          # 进气口（朝前，镜头看得到）
+    d.polygon([(X(95), X(1080)), (X(130), X(930)), (X(215), X(868)), (X(300), X(846)), (X(420), X(846)), (X(505), X(868)), (X(590), X(930)), (X(625), X(1080))], fill=(30, 30, 38, 255))   # 肩膀与躯干
+    for sg in (-1, 1):
+        cx = 360 + sg * 1
+        d.polygon([(X(360 + sg * 60), X(846)), (X(360 + sg * 150), X(872)), (X(360 + sg * 175), X(990)), (X(360 + sg * 120), X(1000))], fill=(14, 14, 18, 255))                       # HANS 颈托的肩带
+        d.line([(X(360 + sg * 70), X(856)), (X(360 + sg * 160), X(884))], fill=(40, 90, 200, 255), width=X(4))                                                                               # 蓝色缝线
+        d.polygon([(X(360 + sg * 215), X(868)), (X(360 + sg * 255), X(930)), (X(360 + sg * 245), X(1090)), (X(360 + sg * 150), X(1112)), (X(360 + sg * 160), X(960))], fill=OR)           # 橙色袖子
+        d.line([(X(360 + sg * 215), X(872)), (X(360 + sg * 150), X(962))], fill=(255, 255, 255, 255), width=X(5))                                                                            # 袖口白线
+    # 方向盘上沿（从前面看到的是盘背）、拨片、手套
+    d.rounded_rectangle([X(250), X(1086), X(470), X(1250)], radius=X(34), fill=(22, 22, 26, 255), outline=(52, 52, 60, 255), width=X(3))
+    for sg in (-1, 1):
+        d.line([(X(360 + sg * 128), X(1100)), (X(360 + sg * 150), X(1180))], fill=(150, 152, 162, 255), width=X(7))              # 换挡拨片
+        gx, gy = 360 + sg * 162, 1118
+        d.ellipse([X(gx - 54), X(gy - 44), X(gx + 54), X(gy + 56)], fill=(36, 38, 54, 255), outline=(96, 100, 124, 255), width=X(3))
+        for k in range(3):
+            d.line([(X(gx - 40), X(gy - 14 + k * 24)), (X(gx + 40), X(gy - 10 + k * 24))], fill=(70, 74, 98, 255), width=X(3))
+        d.ellipse([X(gx - sg * 38 - 20), X(gy - 54), X(gx - sg * 38 + 20), X(gy - 6)], fill=(36, 38, 54, 255), outline=(96, 100, 124, 255), width=X(3))   # 大拇指
+    # ---- 头盔（单独一层，能转头、点头）
+    head, d = layer()
+    cx, cy = 360, 692
+    d.ellipse([X(cx - 122), X(cy - 132), X(cx + 122), X(cy + 126)], fill=(246, 208, 52, 255), outline=(92, 70, 10, 255), width=X(4))     # 头盔外壳（黄）
+    d.polygon([(X(cx - 13), X(cy - 130)), (X(cx + 13), X(cy - 130)), (X(cx + 16), X(cy - 50)), (X(cx - 16), X(cy - 50))], fill=(18, 18, 22, 255))   # 中线黑条
+    for sg in (-1, 1):
+        d.polygon([(X(cx + sg * 30), X(cy - 124)), (X(cx + sg * 118), X(cy - 40)), (X(cx + sg * 104), X(cy - 24)), (X(cx + sg * 36), X(cy - 96))], fill=OR)   # 橙色涂装
+    d.polygon([(X(cx - 100), X(cy + 56)), (X(cx + 100), X(cy + 56)), (X(cx + 84), X(cy + 116)), (X(cx - 84), X(cy + 116))], fill=(30, 30, 36, 255))          # 下巴部分
+    for k in range(5):
+        d.rectangle([X(cx - 52 + k * 22), X(cy + 74), X(cx - 42 + k * 22), X(cy + 100)], fill=(8, 8, 10, 255))                                             # 下巴通风孔
+    d.ellipse([X(cx - 112), X(cy - 56), X(cx + 112), X(cy + 54)], fill=(10, 10, 14, 255), outline=(40, 40, 46, 255), width=X(5))                          # 面罩外框
+    d.arc([X(cx - 108), X(cy - 60), X(cx + 108), X(cy + 50)], 200, 340, fill=(255, 176, 60, 255), width=X(10))                                            # 顶部遮阳条（琥珀）
+    # ---- 固定在车上的部分：halo 弧臂（离镜头很近，粗而带透视）、后视镜、座舱边缘
+    fixed, d = layer()
+    for sg in (-1, 1):
+        arm = [(X(360 + sg * 310), X(-20)), (X(360 + sg * 262), X(140)), (X(360 + sg * 222), X(360)), (X(360 + sg * 200), X(600)), (X(360 + sg * 196), X(850)), (X(360 + sg * 200), X(1000))]
+        d.line(arm, fill=(62, 64, 74, 255), width=X(30), joint="curve")
+        d.line([(x_ - sg * 5 * S, y_) for x_, y_ in arm], fill=(138, 140, 152, 255), width=X(4), joint="curve")
+        mx = 360 + sg * 300
+        d.rounded_rectangle([X(mx - 62), X(900), X(mx + 62), X(962)], radius=X(12), fill=OR_D, outline=(40, 18, 8, 255), width=X(3))                       # 后视镜
+        d.rounded_rectangle([X(mx - 50), X(908), X(mx + 50), X(954)], radius=X(8), fill=(40, 36, 52, 255))
+    d.polygon([(X(0), X(1220)), (X(180), X(1190)), (X(540), X(1190)), (X(720), X(1220)), (X(720), X(1280)), (X(0), X(1280))], fill=(14, 14, 18, 255))             # 座舱边缘（碳纤维）
+    d.line([(X(0), X(1222)), (X(180), X(1192)), (X(540), X(1192)), (X(720), X(1222))], fill=OR, width=X(4))
+    dn = lambda a_: a_.reshape(OH, S, OW, S, *a_.shape[2:]).mean(axis=(1, 3))
+    out = []
+    for im_ in (body, head, fixed):
+        a_ = np.asarray(im_).astype(np.float32) / 255
+        a_[..., :3] *= a_[..., 3:4]
+        a2 = dn(a_)
+        out.append((a2[..., :3], a2[..., 3:4]))
+    return out
+
+
+_HC = {}
+
+
+def halocam_frame(t, pulse):
+    """世界（向后看，路面往远处退）+ 车体 + 头盔（带面罩反光）+ 固定部分。头盔有呼吸、转头、点头；2.3–2.65 秒撕膜，碎片飞向镜头"""
+    from scipy.ndimage import rotate, shift as nd_shift
+    vt = t - HELMET_T0
+    rng = np.random.default_rng(int(round(vt * FPS)) + 17)
+    if "layers" not in _HC:
+        _HC["layers"] = halocam_layers()
+    (body, ba), (head, ha), (fixed, fa) = _HC["layers"]
+    world = env_blur(t, 5, back=True)
+    # 头部运动：呼吸；1.8 秒路面颠簸点头；2.65–3.5 秒向右转头去看对手，3.6 秒后回正
+    breath = 2.0 * np.sin(vt * 5.5)
+    nod = 12.0 * np.exp(-((vt - 1.88) / 0.09) ** 2)
+    yaw = 24.0 * smooth(vt, 2.65, 3.1) * (1 - smooth(vt, 3.5, 3.9))
+    roll_h = 3.0 * np.sin(vt * 2.4) + 1.5 * yaw / 24.0
+    body_dy = breath * 0.5 + nod * 0.4
+    # 头盔层：转头 = 横向平移 + 轻微横滚，围绕颈部（脖子在头盔下方 ~100 px）
+    hh = rotate(head, roll_h, axes=(1, 0), reshape=False, order=1, mode="constant", cval=0.0)
+    ha2 = rotate(ha, roll_h, axes=(1, 0), reshape=False, order=1, mode="constant", cval=0.0)
+    sh = (breath + nod, yaw * 0.9, 0)
+    hh = nd_shift(hh, sh, order=1, mode="constant")
+    ha2 = nd_shift(ha2, sh[:2] + (0,), order=1, mode="constant")
+    bb = nd_shift(body, (body_dy, 0, 0), order=1, mode="constant")
+    ba2 = nd_shift(ba, (body_dy, 0, 0), order=1, mode="constant")
+    # ---- 面罩反光（头盔里车手看到的：落日的橙色天空、地平线、路面、灯光、halo 立柱的暗影），随头转动横向移动
+    yy, xx = np.mgrid[0:OH, 0:OW].astype(np.float32)
+    cxh, cyh = 360 + sh[1], 700 + sh[0]
+    ex = ((xx - cxh) / 98.0) ** 2 + ((yy - cyh) / 40.0) ** 2
+    glass = (ex < 1).astype(np.float32)
+    v_ = np.clip((yy - (cyh - 40)) / 80.0, 0, 1)                     # 0 顶 → 1 底
+    sky_ = np.array([1.0, 0.52, 0.26], np.float32)
+    refl = (sky_ * (np.clip(1 - v_ / 0.46, 0, 1) ** 1.2)[..., None] * 0.95
+            + np.array([1.0, 0.72, 0.42], np.float32) * (np.exp(-((v_ - 0.47) / 0.025) ** 2))[..., None] * 1.6
+            + np.array([0.05, 0.04, 0.05], np.float32) * (v_ > 0.5)[..., None])
+    lamp = 0.5 + 0.5 * np.sin(2 * np.pi * 3.6 * vt)                  # 灯柱一根根掠过，反光忽明忽暗
+    refl *= (0.78 + 0.35 * lamp)
+    refl *= (1 - 0.95 * np.exp(-(((xx - cxh + 4) / 8.0) ** 2) * 1.0) * (v_ < 0.75))[..., None]   # halo 立柱的暗影
+    refl += (np.exp(-(((xx - (cxh - 42) - (yy - cyh) * 0.55) / 10.0) ** 2)) * 0.22)[..., None]   # 斜向高光
+    # ---- 撕膜：面罩上有一层发白的膜，2.3–2.65 秒从右向左撕开，边缘卷起，之后碎片飞向镜头
+    p = float(np.clip((vt - 2.3) / 0.35, 0, 1))
+    xb = cxh - 98 + 196 * (1 - p * p * (3 - 2 * p)) + 5 * np.sin(yy / 9.0)
+    milk = ((xx < xb) & (p < 1)).astype(np.float32)
+    refl = refl * (1 - 0.35 * milk[..., None]) + milk[..., None] * np.array([0.30, 0.26, 0.24], np.float32) * 0.4
+    if 0 < p < 1:
+        refl += (np.exp(-(((xx - xb - 4) / 5.0) ** 2)) * 1.1)[..., None] * np.array([0.9, 0.8, 0.7], np.float32)
+    # ---- 合成：世界 → 车体 → 头盔 → 面罩反光（只在镜片区域）→ 固定部分
+    img = world * (1 - ba2) + bb
+    img = img * (1 - ha2) + hh
+    gm = (glass * ha2[..., 0])[..., None] if False else glass[..., None]
+    img = img * (1 - gm) + refl * gm
+    img = img * (1 - fa) + fixed
+    # 前方来的落日光：人物和车是正面受光，偏暖；上亮下暗
+    warm = np.array([1.12, 0.96, 0.82], np.float32)
+    lit = np.clip(1.15 - (yy / OH) * 0.5, 0.7, 1.2)[..., None]
+    fig = np.clip(ba2 + ha2 + fa, 0, 1)
+    img = img * (1 - fig) + img * warm * lit * fig
+    # 撕下的膜碎片飞向镜头：放大、变淡、飞向左上
+    if 0.0 < vt - 2.65 < 0.3:
+        q = (vt - 2.65) / 0.3
+        sc = 1 + 3.4 * q * q
+        cxs, cys = 360 + 120 * (1 - q) - 260 * q, 700 - 360 * q
+        piece = np.exp(-((np.abs(xx - cxs) / (120 * sc)) ** 4 + (np.abs(yy - cys) / (34 * sc)) ** 4)).astype(np.float32)
+        img = img * (1 - 0.5 * (1 - q) * piece[..., None]) + 0.5 * (1 - q) * piece[..., None] * np.array([0.9, 0.82, 0.74], np.float32)
+    # 相机整体的高频振动
+    dx, dy = rng.normal(0, 1.2), rng.normal(0, 1.5)
+    img = np.roll(img, (int(dy), int(dx)), axis=(0, 1))
+    return img.astype(np.float32)
+
+
 def _exterior(t, pulse):
     """赛道外景：环境 + 场景物体 + 所有赛车 + 火花"""
     r = np.random.default_rng(int(t * 1000))
@@ -1304,7 +1447,7 @@ def frame(t, layers, total=128.0, pulse=0.0):
     title, logo = layers
     r = np.random.default_rng(int(t * 1000))
     v = speed_at(t)
-    img = helmet_frame(t, pulse) if HELMET else (driveby_frame(t - 2000.0, 1) if t >= 2000.0 else driveby_frame(t - DRIVEBY_T, 0)) if t >= DRIVEBY_T else (dash_frame(t) if DASH_T0 <= t < DASH_T1 else _exterior(t, pulse))
+    img = halocam_frame(t, pulse) if HALOCAM else helmet_frame(t, pulse) if HELMET else (driveby_frame(t - 2000.0, 1) if t >= 2000.0 else driveby_frame(t - DRIVEBY_T, 0)) if t >= DRIVEBY_T else (dash_frame(t) if DASH_T0 <= t < DASH_T1 else _exterior(t, pulse))
     if DASH_T1 <= t < DASH_T1 + 0.3:                               # 切回赛道的那一拍：白闪
         img = img + 0.6 * (1 - (t - DASH_T1) / 0.3)
     # 泛光
@@ -1372,8 +1515,8 @@ def render_frame(i):
             base += dur
         pt = TEASER_AUDIO0 + i / FPS
     img = frame(t, LAYERS, TOTAL, float(PULSE[min(int(pt * FPS), len(PULSE) - 1)])).astype(np.float32)
-    fade_in = FPS * (0.1 if (DOUYIN or HELMET) else 0.5)
-    fade = min(1.0, (i + 1) / fade_in, (DUR * FPS - i) / (FPS * (3.0 if DUR == TOTAL else (0.25 if HELMET else 0.6))))
+    fade_in = FPS * (0.1 if (DOUYIN or HELMET or HALOCAM) else 0.5)
+    fade = min(1.0, (i + 1) / fade_in, (DUR * FPS - i) / (FPS * (3.0 if DUR == TOTAL else (0.25 if (HELMET or HALOCAM) else 0.6))))
     return (img * max(0.0, fade)).astype(np.uint8)
 
 
@@ -1404,15 +1547,15 @@ def main():
     LAYERS = overlay_layers()
     if "--still" in sys.argv:
         ts = [float(x) for x in sys.argv[sys.argv.index("--still") + 1:] if not x.startswith("--")]
-        pre = "helmet_" if HELMET else ("cover%dx%d_" % (OW, OH)) if COVER else (("dusk_" if DUSK else "") + ("p" if PORTRAIT else ""))
+        pre = "halocam_" if HALOCAM else "helmet_" if HELMET else ("cover%dx%d_" % (OW, OH)) if COVER else (("dusk_" if DUSK else "") + ("p" if PORTRAIT else ""))
         for t in ts:
             Image.fromarray(frame(t, LAYERS)).save(os.path.join(HERE, "race_still_%s%g.png" % (pre, t)))
             print("saved race_still_%s%g.png" % (pre, t))
         return
     out = os.path.join(HERE, "redline_douyin_720.mp4" if DOUYIN else ("redline_portrait.mp4" if PORTRAIT else "redline.mp4"))
-    if HELMET:                          # 头盔视角 4 秒：场景时间从 HELMET_T0 起，不带音乐（音效另外合成再混）
+    if HELMET or HALOCAM:               # 头盔 / halo 机位 4 秒：场景时间从 HELMET_T0 起，不带音乐（音效另外合成再混）
         T0, DUR = HELMET_T0, 4.0
-        out = os.path.join(HERE, "redline_helmet_720_silent.mp4")
+        out = os.path.join(HERE, "redline_halocam_720_silent.mp4" if HALOCAM else "redline_helmet_720_silent.mp4")
     if TEASER:
         DUR = float(sum(d_ for _, d_ in TEASER_SEGS))
         out = os.path.join(HERE, "redline_dusk_720.mp4" if DUSK else "redline_teaser_720.mp4")
@@ -1420,10 +1563,10 @@ def main():
         k = sys.argv.index("--demo")
         T0, DUR = float(sys.argv[k + 1]), float(sys.argv[k + 2])
         out = os.path.join(HERE, "redline_demo.mp4")
-    PULSE = np.zeros(int((TOTAL + START_OFF + 1) * FPS) + 1) if HELMET else audio_pulse(int((TOTAL + START_OFF + 1) * FPS) + 1)
+    PULSE = np.zeros(int((TOTAL + START_OFF + 1) * FPS) + 1) if (HELMET or HALOCAM) else audio_pulse(int((TOTAL + START_OFF + 1) * FPS) + 1)
     nf = int(round(DUR * FPS))
     workers = os.cpu_count() or 4
-    tag = ("helmet" if HELMET else "") + ("dusk" if DUSK else "") + ("teaser" if TEASER else ("demo" if "--demo" in sys.argv else "full")) + ("_pd" if DOUYIN else ("_p" if PORTRAIT else ""))
+    tag = ("halocam" if HALOCAM else "") + ("helmet" if HELMET else "") + ("dusk" if DUSK else "") + ("teaser" if TEASER else ("demo" if "--demo" in sys.argv else "full")) + ("_pd" if DOUYIN else ("_p" if PORTRAIT else ""))
     CH = 120
     jobs = [(k, i0, min(nf, i0 + CH), tag) for k, i0 in enumerate(range(0, nf, CH))]
     done = sum(os.path.exists(os.path.join(HERE, f".seg_{tag}_{k:03d}.mp4")) for k, *_ in jobs)
@@ -1433,7 +1576,7 @@ def main():
     lst = os.path.join(HERE, ".segs.txt")
     with open(lst, "w") as fh:
         fh.writelines(f"file '{x}'\n" for x in segs)
-    if HELMET:                          # 无声视频，音效由 helmet_sfx.py 合成后再混入
+    if HELMET or HALOCAM:               # 无声视频，音效由 helmet_sfx.py 合成后再混入
         subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", lst, "-c:v", "copy",
                         "-t", str(DUR), "-movflags", "+faststart", out], check=True)
         for x in segs + [lst]:
