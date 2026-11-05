@@ -37,8 +37,9 @@ def compose(base, w, h, ty, mark_xy):
     """base: 裁好尺寸的底图；ty: 标题的垂直位置（占画面高度的比例）"""
     s = min(w, h) / 1080
     arr = np.asarray(base).astype(np.float32)
-    yy = np.linspace(0, 1, h)[:, None, None]
-    arr *= 1 - 0.78 * np.exp(-((yy - ty - 0.13 * 1080 / h) / (0.2 * 1080 / h)) ** 2)    # 标题区域压暗
+    yy = np.arange(h, dtype=np.float32)[:, None, None]
+    # 标题 + 英文名 + 副标题整块压暗（用像素而不是比例，竖屏 / 3:4 都读得清）
+    arr *= 1 - 0.86 * np.exp(-((yy - (h * ty + 200 * s)) / (240 * s)) ** 2)
     out = Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8)).convert("RGBA")
     zh = ImageFont.truetype(rv.ZH, int(190 * s))
     glow = Image.new("RGBA", (w, h), (0, 0, 0, 0))
