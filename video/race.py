@@ -1271,6 +1271,9 @@ def halocam_layers():
     d.polygon([(X(120), X(1040)), (X(190), X(640)), (X(270), X(500)), (X(450), X(500)), (X(530), X(640)), (X(600), X(1040))], fill=OR_D)        # 发动机盖
     d.polygon([(X(270), X(500)), (X(450), X(500)), (X(530), X(640)), (X(190), X(640))], fill=(190, 80, 28, 255))                              # 盖上沿受光
     d.rounded_rectangle([X(300), X(432), X(420), X(520)], radius=X(28), fill=(8, 8, 12, 255), outline=(96, 44, 18, 255), width=X(6))          # 进气口（朝前，镜头看得到）
+    for k in range(4):
+        d.line([(X(318), X(452 + k * 16)), (X(402), X(452 + k * 16))], fill=(44, 24, 14, 255), width=X(3))                                    # 进气格栅
+    d.line([(X(312), X(440)), (X(408), X(440))], fill=(255, 150, 72, 255), width=X(3))                                                   # 进气口上沿高光
     d.polygon([(X(95), X(1080)), (X(130), X(930)), (X(215), X(868)), (X(300), X(846)), (X(420), X(846)), (X(505), X(868)), (X(590), X(930)), (X(625), X(1080))], fill=(30, 30, 38, 255))   # 肩膀与躯干
     for sg in (-1, 1):
         cx = 360 + sg * 1
@@ -1287,6 +1290,7 @@ def halocam_layers():
         for k in range(3):
             d.line([(X(gx - 40), X(gy - 14 + k * 24)), (X(gx + 40), X(gy - 10 + k * 24))], fill=(70, 74, 98, 255), width=X(3))
         d.ellipse([X(gx - sg * 38 - 20), X(gy - 54), X(gx - sg * 38 + 20), X(gy - 6)], fill=(36, 38, 54, 255), outline=(96, 100, 124, 255), width=X(3))   # 大拇指
+    body = body.transform(body.size, Image.AFFINE, (1 / 0.80, 0, -360 * S / 0.80 + 360 * S, 0, 1, 0), resample=Image.BICUBIC)   # 躯干横向收窄到 80%
     # ---- 头盔（单独一层，能转头、点头）
     head, d = layer()
     cx, cy = 360, 692
@@ -1299,6 +1303,8 @@ def halocam_layers():
         d.rectangle([X(cx - 52 + k * 22), X(cy + 74), X(cx - 42 + k * 22), X(cy + 100)], fill=(8, 8, 10, 255))                                             # 下巴通风孔
     d.ellipse([X(cx - 112), X(cy - 56), X(cx + 112), X(cy + 54)], fill=(10, 10, 14, 255), outline=(40, 40, 46, 255), width=X(5))                          # 面罩外框
     d.arc([X(cx - 108), X(cy - 60), X(cx + 108), X(cy + 50)], 200, 340, fill=(255, 176, 60, 255), width=X(10))                                            # 顶部遮阳条（琥珀）
+    HK, PX, PY = 1.18, 360, 780     # 头盔放大 18%，以颈部为支点
+    head = head.transform(head.size, Image.AFFINE, (1 / HK, 0, PX * S * (1 - 1 / HK), 0, 1 / HK, PY * S * (1 - 1 / HK)), resample=Image.BICUBIC)
     # ---- 固定在车上的部分：halo 弧臂（离镜头很近，粗而带透视）、后视镜、座舱边缘
     fixed, d = layer()
     for sg in (-1, 1):
@@ -1348,10 +1354,10 @@ def halocam_frame(t, pulse):
     ba2 = nd_shift(ba, (body_dy, 0, 0), order=1, mode="constant")
     # ---- 面罩反光（头盔里车手看到的：落日的橙色天空、地平线、路面、灯光、halo 立柱的暗影），随头转动横向移动
     yy, xx = np.mgrid[0:OH, 0:OW].astype(np.float32)
-    cxh, cyh = 360 + sh[1], 700 + sh[0]
-    ex = ((xx - cxh) / 98.0) ** 2 + ((yy - cyh) / 40.0) ** 2
+    cxh, cyh = 360 + sh[1], 780 - 80 * 1.18 + sh[0]
+    ex = ((xx - cxh) / (98.0 * 1.18)) ** 2 + ((yy - cyh) / (40.0 * 1.18)) ** 2
     glass = (ex < 1).astype(np.float32)
-    v_ = np.clip((yy - (cyh - 40)) / 80.0, 0, 1)                     # 0 顶 → 1 底
+    v_ = np.clip((yy - (cyh - 47)) / 94.0, 0, 1)                     # 0 顶 → 1 底
     sky_ = np.array([1.0, 0.52, 0.26], np.float32)
     refl = (sky_ * (np.clip(1 - v_ / 0.46, 0, 1) ** 1.2)[..., None] * 0.95
             + np.array([1.0, 0.72, 0.42], np.float32) * (np.exp(-((v_ - 0.47) / 0.025) ** 2))[..., None] * 1.6
@@ -1359,10 +1365,10 @@ def halocam_frame(t, pulse):
     lamp = 0.5 + 0.5 * np.sin(2 * np.pi * 3.6 * vt)                  # 灯柱一根根掠过，反光忽明忽暗
     refl *= (0.78 + 0.35 * lamp)
     refl *= (1 - 0.95 * np.exp(-(((xx - cxh + 4) / 8.0) ** 2) * 1.0) * (v_ < 0.75))[..., None]   # halo 立柱的暗影
-    refl += (np.exp(-(((xx - (cxh - 42) - (yy - cyh) * 0.55) / 10.0) ** 2)) * 0.22)[..., None]   # 斜向高光
+    refl += (np.exp(-(((xx - (cxh - 50) - (yy - cyh) * 0.55) / 10.0) ** 2)) * 0.22)[..., None]   # 斜向高光
     # ---- 撕膜：面罩上有一层发白的膜，2.3–2.65 秒从右向左撕开，边缘卷起，之后碎片飞向镜头
     p = float(np.clip((vt - 2.3) / 0.35, 0, 1))
-    xb = cxh - 98 + 196 * (1 - p * p * (3 - 2 * p)) + 5 * np.sin(yy / 9.0)
+    xb = cxh - 116 + 232 * (1 - p * p * (3 - 2 * p)) + 5 * np.sin(yy / 9.0)
     milk = ((xx < xb) & (p < 1)).astype(np.float32)
     refl = refl * (1 - 0.35 * milk[..., None]) + milk[..., None] * np.array([0.30, 0.26, 0.24], np.float32) * 0.4
     if 0 < p < 1:
