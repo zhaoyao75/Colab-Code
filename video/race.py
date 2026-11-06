@@ -1344,31 +1344,47 @@ _HC = {}
 
 def halocam_frame(t, pulse):
     """世界（向后看，路面往远处退）+ 车体 + 头盔（带面罩反光）+ 固定部分。头盔有呼吸、转头、点头；2.3–2.65 秒撕膜，碎片飞向镜头"""
-    from scipy.ndimage import rotate, shift as nd_shift
+    from scipy.ndimage import rotate, shift as nd_shift, affine_transform
     vt = t - HELMET_T0
     rng = np.random.default_rng(int(round(vt * FPS)) + 17)
     if "layers" not in _HC:
         _HC["layers"] = halocam_layers()
     (body, ba), (head, ha), (fixed, fa) = _HC["layers"]
     world = env_blur(t, 5, back=True)
-    # 头部运动：呼吸；1.8 秒路面颠簸点头；2.65–3.5 秒向右转头去看对手，3.6 秒后回正
-    breath = 2.0 * np.sin(vt * 5.5)
-    nod = 12.0 * np.exp(-((vt - 1.88) / 0.09) ** 2)
-    yaw = 24.0 * smooth(vt, 2.65, 3.1) * (1 - smooth(vt, 3.5, 3.9))
-    roll_h = 3.0 * np.sin(vt * 2.4) + 1.5 * yaw / 24.0
-    body_dy = breath * 0.5 + nod * 0.4
-    # 头盔层：转头 = 横向平移 + 轻微横滚，围绕颈部（脖子在头盔下方 ~100 px）
-    hh = rotate(head, roll_h, axes=(1, 0), reshape=False, order=1, mode="constant", cval=0.0)
-    ha2 = rotate(ha, roll_h, axes=(1, 0), reshape=False, order=1, mode="constant", cval=0.0)
-    sh = (breath + nod, yaw * 0.9, 0)
-    hh = nd_shift(hh, sh, order=1, mode="constant")
-    ha2 = nd_shift(ha2, sh[:2] + (0,), order=1, mode="constant")
+    # 头部运动：以颈部为支点的刚体运动（旋转/收窄/平移都绕颈部），不是整幅图平移
+    # 呼吸很轻；1.88 秒颠簸 → 阻尼弹簧式点头（先被压下去、回弹、再衰减）；2.65–3.5 秒转头去看对手：先转头、后回正，缓入缓出
+    breath = 1.0 * np.sin(vt * 4.2)
+    tb = max(vt - 1.88, 0.0)
+    nod = (14.0 * np.exp(-tb / 0.16) * np.sin(2 * np.pi * tb / 0.42 + 0.0) * (vt >= 1.88)) if tb > 0 else 0.0
+    yaw_deg = 20.0 * smooth(vt, 2.65, 3.25) * (1 - smooth(vt, 3.45, 4.0))
+    yr = np.radians(yaw_deg)
+    roll_deg = 2.2 * np.sin(vt * 1.7) + 2.5 * np.sin(yr)          # 转头时头略微歪向转的方向
+    body_dy = breath * 0.5 + 0.25 * nod
+    PX, PY = 360.0, 800.0                                          # 颈部支点
+    sx, sy = float(np.cos(yr)), float(np.cos(np.radians(nod * 0.6)))
+    th = np.radians(roll_deg)
+    Rm = np.array([[np.cos(th), -np.sin(th)], [np.sin(th), np.cos(th)]])      # (x, y) 旋转
+    Sm = np.diag([sx, sy])
+    Fm = Rm @ Sm                                                   # 前向：p' = P + Fm (p - P) + T
+    T_ = np.array([110.0 * np.sin(yr), breath + 0.6 * nod])        # 转头时头盔整体向转的一侧平移；点头略下沉
+    Im = np.linalg.inv(Fm)
+    # scipy 的 affine_transform 轴序是 (y, x)
+    Iyx = np.array([[Im[1, 1], Im[1, 0]], [Im[0, 1], Im[0, 0]]])
+    pivot_yx = np.array([PY, PX]); T_yx = np.array([T_[1], T_[0]])
+    off = pivot_yx - Iyx @ (pivot_yx + T_yx)
+    hh = np.stack([affine_transform(head[..., c], Iyx, offset=off, order=1, mode="constant") for c in range(3)], axis=-1)
+    ha2 = affine_transform(ha[..., 0], Iyx, offset=off, order=1, mode="constant")[..., None]
+    sh = (0.0, 0.0, 0)
     bb = nd_shift(body, (body_dy, 0, 0), order=1, mode="constant")
     ba2 = nd_shift(ba, (body_dy, 0, 0), order=1, mode="constant")
     # ---- 面罩反光（头盔里车手看到的：落日的橙色天空、地平线、路面、灯光、halo 立柱的暗影），随头转动横向移动
     yy, xx = np.mgrid[0:OH, 0:OW].astype(np.float32)
-    cxh, cyh = 360 + sh[1], 780 - 80 * 1.18 + sh[0]
-    ex = ((xx - cxh) / (98.0 * 1.18)) ** 2 + ((yy - cyh) / (40.0 * 1.18)) ** 2
+    c0 = np.array([360.0, 780 - 80 * 1.18])
+    cpt = np.array([PX, PY]) + Fm @ (c0 - np.array([PX, PY])) + T_
+    cxh, cyh = float(cpt[0]), float(cpt[1])
+    gx_, gy_ = xx - cxh, yy - cyh
+    ux = gx_ * np.cos(th) + gy_ * np.sin(th); uy = -gx_ * np.sin(th) + gy_ * np.cos(th)
+    ex = (ux / (98.0 * 1.18 * sx)) ** 2 + (uy / (40.0 * 1.18 * sy)) ** 2
     glass = (ex < 1).astype(np.float32)
     v_ = np.clip((yy - (cyh - 47)) / 94.0, 0, 1)                     # 0 顶 → 1 底
     sky_ = np.array([1.0, 0.52, 0.26], np.float32)
